@@ -1,0 +1,14 @@
+appId: com.local-transcription.app
+productName: LocalTranscribe
+asar: true
+files:
+  - out/**/*
+  - package.json
+asarUnpack:
+  - "node_modules/onnxruntime-node/**"
+  - "node_modules/@huggingface/transformers/**"
+  - "**/*.node"
+linux:
+  target: AppImage
+directories:
+  buildResources: build

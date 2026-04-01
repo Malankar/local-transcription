@@ -1,25 +1,12 @@
+import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { AudioChunk, TranscriptSegment } from '../../shared/types'
 import type { WorkerRequest, WorkerResponse } from './workerProtocol'
 
-type PipelineChunk = {
-  timestamp?: [number | null, number | null]
-  text?: string
-}
+const MODEL_NAME = 'small.en'
 
-type PipelineResult = {
-  text?: string
-  chunks?: PipelineChunk[]
-}
-
-type HFPipeline = (
-  audio: Float32Array,
-  options: { sampling_rate: number; return_timestamps: boolean }
-) => Promise<PipelineResult>
-
-const modelId = 'Xenova/whisper-small.en'
-
-let pipe: HFPipeline | null = null
-let initializing: Promise<void> | null = null
+let initialized = false
 
 function respond(message: WorkerResponse): void {
   process.send?.(message)
@@ -34,131 +21,124 @@ function sendStatus(detail: string): void {
 }
 
 async function initialize(): Promise<void> {
-  if (pipe) {
-    return
+  if (initialized) return
+  sendStatus('Whisper (whisper.cpp) ready')
+  log('WhisperEngine initialized', { modelName: MODEL_NAME })
+  initialized = true
+}
+
+function float32ToWav(samples: Float32Array, sampleRate: number): Buffer {
+  const numSamples = samples.length
+  const dataSize = numSamples * 2 // 16-bit PCM = 2 bytes per sample
+  const buffer = Buffer.alloc(44 + dataSize)
+
+  buffer.write('RIFF', 0)
+  buffer.writeUInt32LE(36 + dataSize, 4)
+  buffer.write('WAVE', 8)
+  buffer.write('fmt ', 12)
+  buffer.writeUInt32LE(16, 16)              // PCM chunk size
+  buffer.writeUInt16LE(1, 20)               // PCM format
+  buffer.writeUInt16LE(1, 22)               // mono
+  buffer.writeUInt32LE(sampleRate, 24)
+  buffer.writeUInt32LE(sampleRate * 2, 28)  // byte rate
+  buffer.writeUInt16LE(2, 32)               // block align
+  buffer.writeUInt16LE(16, 34)              // bits per sample
+  buffer.write('data', 36)
+  buffer.writeUInt32LE(dataSize, 40)
+
+  for (let i = 0; i < numSamples; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]))
+    buffer.writeInt16LE(s < 0 ? Math.ceil(s * 32768) : Math.round(s * 32767), 44 + i * 2)
   }
 
-  if (initializing) {
-    return initializing
-  }
+  return buffer
+}
 
-  initializing = (async () => {
-    sendStatus('Loading Whisper model...')
-    log('Starting WhisperEngine initialization', { modelId })
+type WhisperJsonSegment = {
+  timestamps: { from: string; to: string }
+  offsets: { from: number; to: number }
+  text: string
+}
 
-    try {
-      const { env, pipeline } = await import('@huggingface/transformers')
-      log('transformers.js imported successfully')
-
-      env.allowLocalModels = true
-      log('Configured transformers environment', {
-        allowLocalModels: env.allowLocalModels,
-        allowRemoteModels: env.allowRemoteModels,
-        localModelPath: env.localModelPath,
-      })
-
-      pipe = (await pipeline('automatic-speech-recognition', modelId, {
-        dtype: 'q8',
-        device: 'cpu',
-      })) as unknown as HFPipeline
-
-      sendStatus('Whisper model ready')
-      log('Whisper pipeline initialized', { modelId })
-    } catch (error) {
-      log('WhisperEngine initialization failed', normalizeError(error))
-      throw error
-    }
-  })()
-
-  try {
-    await initializing
-  } finally {
-    initializing = null
-  }
+type WhisperJson = {
+  transcription?: WhisperJsonSegment[]
 }
 
 async function transcribe(chunk: AudioChunk): Promise<TranscriptSegment[]> {
-  await initialize()
+  const { nodewhisper } = await import('nodejs-whisper')
 
-  if (!pipe) {
-    throw new Error('WhisperEngine not initialized')
-  }
+  const tmpDir = tmpdir()
+  const baseName = `whisper_${Date.now()}_${process.pid}`
+  const wavPath = join(tmpDir, `${baseName}.wav`)
+  // whisper.cpp appends .json to the full input path, so output is <name>.wav.json
+  const jsonPath = join(tmpDir, `${baseName}.wav.json`)
 
-  log('Transcribing audio chunk', {
-    startMs: chunk.startMs,
-    endMs: chunk.endMs,
-    sampleCount: chunk.audio.length,
-  })
+  try {
+    writeFileSync(wavPath, float32ToWav(chunk.audio, 16_000))
 
-  const result = await pipe(chunk.audio, {
-    sampling_rate: 16_000,
-    return_timestamps: true,
-  })
-
-  const segments = result.chunks
-    ?.map((item, index) => toTranscriptSegment(item, index, chunk))
-    .filter((segment): segment is TranscriptSegment => segment !== null)
-
-  if (segments && segments.length > 0) {
-    log('Whisper returned timestamped segments', {
-      segmentCount: segments.length,
+    log('Transcribing audio chunk', {
       startMs: chunk.startMs,
       endMs: chunk.endMs,
+      sampleCount: chunk.audio.length,
     })
+
+    await nodewhisper(wavPath, {
+      modelName: MODEL_NAME,
+      removeWavFileAfterTranscription: false,
+      withCuda: false,
+      whisperOptions: {
+        outputInJson: true,
+        outputInText: false,
+        outputInSrt: false,
+        outputInCsv: false,
+      },
+    })
+
+    if (!existsSync(jsonPath)) {
+      log('Whisper produced no JSON output', { baseName })
+      return []
+    }
+
+    const whisperOutput: WhisperJson = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+    const segments = (whisperOutput.transcription ?? [])
+      .map((seg, index) => toTranscriptSegment(seg, index, chunk))
+      .filter((s): s is TranscriptSegment => s !== null)
+
+    log('Whisper returned segments', { segmentCount: segments.length })
     return segments
+  } finally {
+    for (const p of [wavPath, jsonPath]) {
+      if (existsSync(p)) {
+        try {
+          unlinkSync(p)
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+    }
   }
-
-  const text = result.text?.trim()
-  if (!text) {
-    return []
-  }
-
-  return [
-    {
-      id: `${chunk.startMs}-0`,
-      startMs: chunk.startMs,
-      endMs: chunk.endMs,
-      text,
-      timestamp: new Date().toISOString(),
-    },
-  ]
 }
 
 function toTranscriptSegment(
-  item: PipelineChunk,
+  seg: WhisperJsonSegment,
   index: number,
   chunk: AudioChunk
 ): TranscriptSegment | null {
-  const text = item.text?.trim()
-  if (!text) {
-    return null
-  }
-
-  const rawStart = item.timestamp?.[0] ?? 0
-  const rawEnd = item.timestamp?.[1] ?? (chunk.endMs - chunk.startMs) / 1_000
-  const startMs = chunk.startMs + Math.round(Math.max(0, rawStart) * 1_000)
-  const endMs = chunk.startMs + Math.round(Math.max(rawStart, rawEnd) * 1_000)
+  const text = seg.text?.trim()
+  if (!text) return null
 
   return {
     id: `${chunk.startMs}-${index}`,
-    startMs,
-    endMs,
+    startMs: chunk.startMs + seg.offsets.from,
+    endMs: chunk.startMs + seg.offsets.to,
     text,
     timestamp: new Date().toISOString(),
   }
 }
 
 function normalizeError(error: unknown): { message: string; stack?: string } {
-  if (error instanceof Error) {
-    return {
-      message: error.message,
-      stack: error.stack,
-    }
-  }
-
-  return {
-    message: String(error),
-  }
+  if (error instanceof Error) return { message: error.message, stack: error.stack }
+  return { message: typeof error === 'string' ? error : JSON.stringify(error) }
 }
 
 process.on('message', async (message: WorkerRequest) => {
@@ -176,7 +156,6 @@ process.on('message', async (message: WorkerRequest) => {
       case 'shutdown':
         respond({ type: 'ready', requestId: message.requestId })
         process.exit(0)
-        break
       default:
         throw new Error(`Unsupported worker request: ${JSON.stringify(message)}`)
     }

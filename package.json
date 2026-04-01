@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
-    "@huggingface/transformers": "3.8.1",
+    "nodejs-whisper": "^0.2.9",
     "electron": "35.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -33,7 +33,7 @@
     "onlyBuiltDependencies": [
       "electron",
       "esbuild",
-      "onnxruntime-node",
+      "nodejs-whisper",
       "protobufjs",
       "sharp"
     ]

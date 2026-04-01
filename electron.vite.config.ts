@@ -11,7 +11,7 @@ export default defineConfig({
           index: resolve(__dirname, 'src/main/index.ts'),
           'whisper-worker': resolve(__dirname, 'src/main/transcription/whisperWorker.ts'),
         },
-        external: ['@huggingface/transformers', 'onnxruntime-node'],
+        external: ['nodejs-whisper'],
         output: {
           format: 'cjs',
         },

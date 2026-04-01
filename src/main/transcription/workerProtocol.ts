@@ -4,6 +4,7 @@ export type WorkerRequest =
   | {
       type: 'initialize'
       requestId: string
+      modelName: string
     }
   | {
       type: 'transcribe'

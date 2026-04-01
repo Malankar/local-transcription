@@ -1,12 +1,13 @@
 import { app, BrowserWindow } from 'electron'
-import { join } from 'path'
+import { join } from 'node:path'
 
-import type { AppStatus, TranscriptSegment } from '../shared/types'
+import type { AppStatus, ModelDownloadProgress, TranscriptSegment } from '../shared/types'
 import { AudioCapture } from './audio/AudioCapture'
 import { SourceDiscovery } from './audio/SourceDiscovery'
 import { registerIpcHandlers } from './ipc/handlers'
 import { AppLogger } from './logging/AppLogger'
 import { ChunkQueue } from './transcription/ChunkQueue'
+import { ModelManager } from './transcription/ModelManager'
 import { WhisperEngine } from './transcription/WhisperEngine'
 
 const isDev = !app.isPackaged
@@ -25,6 +26,12 @@ const sendError = (message: string): void => {
   mainWindow?.webContents.send('capture:error', message)
   sendStatus({ stage: 'error', detail: message })
 }
+
+const modelManager = new ModelManager(app.getPath('userData'))
+
+modelManager.setProgressListener((progress: ModelDownloadProgress) => {
+  mainWindow?.webContents.send('models:downloadProgress', progress)
+})
 
 const whisperEngine = new WhisperEngine(
   (detail) => {
@@ -160,6 +167,8 @@ app.whenReady().then(() => {
     audioCapture,
     chunkQueue,
     sourceDiscovery,
+    whisperEngine,
+    modelManager,
     logger,
     getMainWindow: () => mainWindow,
     getTranscriptSegments: () => transcriptSegments,

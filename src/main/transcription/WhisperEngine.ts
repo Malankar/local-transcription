@@ -1,5 +1,5 @@
-import { fork, type ChildProcess } from 'child_process'
-import { join } from 'path'
+import { fork, type ChildProcess } from 'node:child_process'
+import { join } from 'node:path'
 
 import type { AudioChunk, TranscriptSegment } from '../../shared/types'
 import type { WorkerRequest, WorkerRequestPayload, WorkerResponse } from './workerProtocol'
@@ -8,31 +8,43 @@ export class WhisperEngine {
   private child: ChildProcess | null = null
   private initializing: Promise<void> | null = null
   private nextRequestId = 0
-  private pending = new Map<
+  private readonly pending = new Map<
     string,
     {
       resolve: (value: TranscriptSegment[] | void) => void
       reject: (error: Error) => void
     }
   >()
+  private currentModelName: string | null = null
 
   constructor(
     private readonly onStatus: (detail: string) => void,
     private readonly onLog: (message: string, context?: unknown) => void
   ) {}
 
+  setModel(modelName: string): void {
+    if (this.currentModelName === modelName) return
+    this.dispose()
+    this.currentModelName = modelName
+  }
+
   async initialize(): Promise<void> {
+    if (!this.currentModelName) {
+      throw new Error('No model configured. Select and download a model first.')
+    }
+
     if (this.child?.connected) {
       return
     }
 
-    if (this.initializing) {
+    if (this.initializing !== null) {
       return this.initializing
     }
 
+    const modelName = this.currentModelName
     this.initializing = (async () => {
       await this.ensureWorker()
-      await this.sendRequest<void>({ type: 'initialize' })
+      await this.sendRequest<void>({ type: 'initialize', modelName })
     })()
 
     try {
@@ -137,13 +149,9 @@ export class WhisperEngine {
           this.child = null
         }
 
-        this.rejectPending(
-          new Error(
-            `Whisper worker exited unexpectedly${code !== null ? ` with code ${code}` : ''}${
-              signal ? ` (${signal})` : ''
-            }`
-          )
-        )
+        const codePart = code === null ? '' : ` with code ${code}`
+        const signalPart = signal ? ` (${signal})` : ''
+        this.rejectPending(new Error(`Whisper worker exited unexpectedly${codePart}${signalPart}`))
       })
 
       child.stdout?.on('data', (chunk: Buffer) => {

@@ -48,6 +48,25 @@ export interface ExportResult {
   path?: string
 }
 
+export interface WhisperModel {
+  id: string
+  name: string
+  description: string
+  sizeMb: number
+  languages: string
+  accuracy: number  // 1–5
+  speed: number     // 1–5 (5 = fastest)
+  recommended: boolean
+  isDownloaded: boolean
+}
+
+export interface ModelDownloadProgress {
+  modelId: string
+  downloadedBytes: number
+  totalBytes: number
+  percent: number
+}
+
 export interface LocalTranscribeApi {
   getSources: () => Promise<AudioSource[]>
   startCapture: (options: CaptureStartOptions) => Promise<void>
@@ -57,4 +76,10 @@ export interface LocalTranscribeApi {
   onTranscriptSegment: (listener: (segment: TranscriptSegment) => void) => () => void
   onStatus: (listener: (status: AppStatus) => void) => () => void
   onError: (listener: (message: string) => void) => () => void
+  getModels: () => Promise<WhisperModel[]>
+  getSelectedModel: () => Promise<string | null>
+  selectModel: (modelId: string) => Promise<void>
+  downloadModel: (modelId: string) => Promise<void>
+  cancelDownload: (modelId: string) => Promise<void>
+  onModelDownloadProgress: (listener: (progress: ModelDownloadProgress) => void) => () => void
 }

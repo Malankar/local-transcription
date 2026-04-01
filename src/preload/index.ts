@@ -5,6 +5,7 @@ import type {
   CaptureStartOptions,
   ExportResult,
   LocalTranscribeApi,
+  ModelDownloadProgress,
   TranscriptSegment,
 } from '../shared/types'
 
@@ -18,6 +19,13 @@ const api: LocalTranscribeApi = {
     subscribe('transcript:segment', listener),
   onStatus: (listener: (status: AppStatus) => void) => subscribe('status', listener),
   onError: (listener: (message: string) => void) => subscribe('capture:error', listener),
+  getModels: () => ipcRenderer.invoke('models:list'),
+  getSelectedModel: () => ipcRenderer.invoke('models:getSelected'),
+  selectModel: (modelId: string) => ipcRenderer.invoke('models:select', modelId),
+  downloadModel: (modelId: string) => ipcRenderer.invoke('models:download', modelId),
+  cancelDownload: (modelId: string) => ipcRenderer.invoke('models:cancelDownload', modelId),
+  onModelDownloadProgress: (listener: (progress: ModelDownloadProgress) => void) =>
+    subscribe('models:downloadProgress', listener),
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -4,8 +4,7 @@ import { join } from 'node:path'
 import type { AudioChunk, TranscriptSegment } from '../../shared/types'
 import type { WorkerRequest, WorkerResponse } from './workerProtocol'
 
-const MODEL_NAME = 'small.en'
-
+let modelName: string | null = null
 let initialized = false
 
 function respond(message: WorkerResponse): void {
@@ -20,10 +19,11 @@ function sendStatus(detail: string): void {
   respond({ type: 'status', detail })
 }
 
-async function initialize(): Promise<void> {
+async function initialize(name: string): Promise<void> {
   if (initialized) return
+  modelName = name
   sendStatus('Whisper (whisper.cpp) ready')
-  log('WhisperEngine initialized', { modelName: MODEL_NAME })
+  log('WhisperEngine initialized', { modelName })
   initialized = true
 }
 
@@ -65,6 +65,10 @@ type WhisperJson = {
 }
 
 async function transcribe(chunk: AudioChunk): Promise<TranscriptSegment[]> {
+  if (!modelName) {
+    throw new Error('Worker not initialized with a model. Call initialize first.')
+  }
+
   const { nodewhisper } = await import('nodejs-whisper')
 
   const tmpDir = tmpdir()
@@ -83,7 +87,7 @@ async function transcribe(chunk: AudioChunk): Promise<TranscriptSegment[]> {
     })
 
     await nodewhisper(wavPath, {
-      modelName: MODEL_NAME,
+      modelName,
       removeWavFileAfterTranscription: false,
       withCuda: false,
       whisperOptions: {
@@ -145,7 +149,7 @@ process.on('message', async (message: WorkerRequest) => {
   try {
     switch (message.type) {
       case 'initialize':
-        await initialize()
+        await initialize(message.modelName)
         respond({ type: 'ready', requestId: message.requestId })
         break
       case 'transcribe': {

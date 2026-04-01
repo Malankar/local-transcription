@@ -1,5 +1,5 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { promises as fs } from 'fs'
+import { promises as fs } from 'node:fs'
 
 import type {
   AppStatus,
@@ -10,12 +10,16 @@ import type {
 import { AudioCapture } from '../audio/AudioCapture'
 import { SourceDiscovery } from '../audio/SourceDiscovery'
 import { ChunkQueue } from '../transcription/ChunkQueue'
+import { WhisperEngine } from '../transcription/WhisperEngine'
+import { ModelManager } from '../transcription/ModelManager'
 import { AppLogger } from '../logging/AppLogger'
 
 interface RegisterHandlersOptions {
   audioCapture: AudioCapture
   chunkQueue: ChunkQueue
   sourceDiscovery: SourceDiscovery
+  whisperEngine: WhisperEngine
+  modelManager: ModelManager
   logger: AppLogger
   getMainWindow: () => BrowserWindow | null
   getTranscriptSegments: () => TranscriptSegment[]
@@ -29,6 +33,8 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     audioCapture,
     chunkQueue,
     sourceDiscovery,
+    whisperEngine,
+    modelManager,
     logger,
     getMainWindow,
     getTranscriptSegments,
@@ -58,7 +64,13 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
 
   ipcMain.handle('capture:start', async (_event, captureOptions: CaptureStartOptions) => {
     try {
-      logger.info('Received capture:start request', captureOptions)
+      const selectedModel = await modelManager.getSelectedModel()
+      if (!selectedModel) {
+        throw new Error('No model selected. Download and select a Whisper model before capturing.')
+      }
+
+      logger.info('Received capture:start request', { ...captureOptions, model: selectedModel })
+      whisperEngine.setModel(selectedModel)
       resetTranscriptSegments()
       chunkQueue.clear()
       sendStatus({ stage: 'initializing-model', detail: 'Preparing transcription engine...' })
@@ -84,6 +96,35 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
 
   ipcMain.handle('export:srt', async () => {
     return exportTranscript(getMainWindow(), getTranscriptSegments(), 'srt', logger)
+  })
+
+  ipcMain.handle('models:list', () => {
+    return modelManager.getModels()
+  })
+
+  ipcMain.handle('models:getSelected', async () => {
+    return modelManager.getSelectedModel()
+  })
+
+  ipcMain.handle('models:select', async (_event, modelId: string) => {
+    await modelManager.selectModel(modelId)
+    logger.info('Model selected', { modelId })
+  })
+
+  ipcMain.handle('models:download', async (_event, modelId: string) => {
+    logger.info('Starting model download', { modelId })
+    try {
+      await modelManager.downloadModel(modelId)
+      logger.info('Model download complete', { modelId })
+    } catch (error) {
+      logger.error('Model download failed', { modelId, error: toMessage(error) })
+      throw error
+    }
+  })
+
+  ipcMain.handle('models:cancelDownload', async (_event, modelId: string) => {
+    modelManager.cancelDownload(modelId)
+    logger.info('Model download canceled', { modelId })
   })
 }
 

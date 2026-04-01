@@ -4,12 +4,18 @@ import type {
   AppStatus,
   AudioSource,
   AudioSourceMode,
+  ModelDownloadProgress,
   TranscriptSegment,
+  WhisperModel,
 } from './types'
 
 const initialStatus: AppStatus = {
   stage: 'idle',
   detail: 'Load sources to begin',
+}
+
+function stars(n: number, max = 5): string {
+  return '★'.repeat(n) + '☆'.repeat(max - n)
 }
 
 export function App() {
@@ -23,20 +29,24 @@ export function App() {
   const [isBusy, setIsBusy] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
 
-  const systemSources = useMemo(
-    () => sources.filter((source) => source.isMonitor),
-    [sources]
-  )
-  const micSources = useMemo(
-    () => sources.filter((source) => !source.isMonitor),
-    [sources]
-  )
+  // Model state
+  const [models, setModels] = useState<WhisperModel[]>([])
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<ModelDownloadProgress | null>(null)
+  const [downloadError, setDownloadError] = useState('')
+
+  const systemSources = useMemo(() => sources.filter((s) => s.isMonitor), [sources])
+  const micSources = useMemo(() => sources.filter((s) => !s.isMonitor), [sources])
+
+  const selectedModel = models.find((m) => m.id === selectedModelId) ?? null
+  const modelReady = selectedModel?.isDownloaded === true
 
   useEffect(() => {
-    const unsubscribeSegment = window.api.onTranscriptSegment((segment) => {
+    const unsubscribeSegment = globalThis.api.onTranscriptSegment((segment) => {
       setSegments((current) => [...current, segment])
     })
-    const unsubscribeStatus = window.api.onStatus((nextStatus) => {
+    const unsubscribeStatus = globalThis.api.onStatus((nextStatus) => {
       setStatus(nextStatus)
       setIsBusy(nextStatus.stage === 'discovering' || nextStatus.stage === 'initializing-model')
 
@@ -44,39 +54,86 @@ export function App() {
         setIsCapturing(true)
       }
 
-      if (nextStatus.stage === 'stopped' || nextStatus.stage === 'ready' || nextStatus.stage === 'error') {
+      if (
+        nextStatus.stage === 'stopped' ||
+        nextStatus.stage === 'ready' ||
+        nextStatus.stage === 'error'
+      ) {
         setIsCapturing(false)
       }
     })
-    const unsubscribeError = window.api.onError((message) => {
+    const unsubscribeError = globalThis.api.onError((message) => {
       setErrorMessage(message)
       setIsBusy(false)
       setIsCapturing(false)
     })
+    const unsubscribeProgress = globalThis.api.onModelDownloadProgress((progress) => {
+      setDownloadProgress(progress)
+    })
 
+    void loadModels()
     void refreshSources()
 
     return () => {
       unsubscribeSegment()
       unsubscribeStatus()
       unsubscribeError()
+      unsubscribeProgress()
     }
   }, [])
+
+  async function loadModels(): Promise<void> {
+    const list = await globalThis.api.getModels()
+    const current = await globalThis.api.getSelectedModel()
+    setModels(list)
+    setSelectedModelId(current ?? list.find((m) => m.recommended)?.id ?? list[0]?.id ?? null)
+  }
 
   async function refreshSources(): Promise<void> {
     setErrorMessage('')
     setIsBusy(true)
 
     try {
-      const discovered = await window.api.getSources()
+      const discovered = await globalThis.api.getSources()
       setSources(discovered)
-      setSystemSourceId((current) => current || discovered.find((source) => source.isMonitor)?.id || '')
-      setMicSourceId((current) => current || discovered.find((source) => !source.isMonitor)?.id || '')
+      setSystemSourceId((c) => c || discovered.find((s) => s.isMonitor)?.id || '')
+      setMicSourceId((c) => c || discovered.find((s) => !s.isMonitor)?.id || '')
     } catch (error) {
       setErrorMessage(toMessage(error))
     } finally {
       setIsBusy(false)
     }
+  }
+
+  async function handleSelectModel(modelId: string): Promise<void> {
+    setSelectedModelId(modelId)
+    await globalThis.api.selectModel(modelId)
+  }
+
+  async function handleDownload(): Promise<void> {
+    if (!selectedModelId) return
+    setDownloadError('')
+    setDownloadingId(selectedModelId)
+    setDownloadProgress(null)
+
+    try {
+      await globalThis.api.downloadModel(selectedModelId)
+      // Refresh model list to reflect new download status
+      const list = await globalThis.api.getModels()
+      setModels(list)
+    } catch (error) {
+      setDownloadError(toMessage(error))
+    } finally {
+      setDownloadingId(null)
+      setDownloadProgress(null)
+    }
+  }
+
+  async function handleCancelDownload(): Promise<void> {
+    if (!downloadingId) return
+    await globalThis.api.cancelDownload(downloadingId)
+    setDownloadingId(null)
+    setDownloadProgress(null)
   }
 
   async function startCapture(): Promise<void> {
@@ -85,11 +142,7 @@ export function App() {
     setIsBusy(true)
 
     try {
-      await window.api.startCapture({
-        mode,
-        systemSourceId,
-        micSourceId,
-      })
+      await globalThis.api.startCapture({ mode, systemSourceId, micSourceId })
     } catch (error) {
       setErrorMessage(toMessage(error))
       setIsCapturing(false)
@@ -102,7 +155,7 @@ export function App() {
     setIsBusy(true)
 
     try {
-      await window.api.stopCapture()
+      await globalThis.api.stopCapture()
     } catch (error) {
       setErrorMessage(toMessage(error))
     } finally {
@@ -112,11 +165,11 @@ export function App() {
   }
 
   async function exportTxt(): Promise<void> {
-    await runExport(() => window.api.exportTxt())
+    await runExport(() => globalThis.api.exportTxt())
   }
 
   async function exportSrt(): Promise<void> {
-    await runExport(() => window.api.exportSrt())
+    await runExport(() => globalThis.api.exportSrt())
   }
 
   async function runExport(action: () => Promise<{ canceled: boolean; path?: string }>): Promise<void> {
@@ -135,9 +188,12 @@ export function App() {
   const canStart =
     !isBusy &&
     !isCapturing &&
+    modelReady &&
     ((mode === 'system' && systemSourceId) ||
       (mode === 'mic' && micSourceId) ||
       (mode === 'mixed' && systemSourceId && micSourceId))
+
+  const isDownloading = downloadingId === selectedModelId
 
   return (
     <div style={styles.shell}>
@@ -157,10 +213,78 @@ export function App() {
 
       <div style={styles.layout}>
         <section className="panel">
-          <h2>Capture Setup</h2>
+          <h2>Model</h2>
+
+          <label className="field">
+            <span>Whisper model</span>
+            <select
+              value={selectedModelId ?? ''}
+              onChange={(e) => void handleSelectModel(e.target.value)}
+              disabled={isCapturing || downloadingId !== null}
+            >
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}{m.recommended ? ' — Recommended' : ''}{m.isDownloaded ? ' ✓' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {selectedModel && (
+            <div className="modelCard">
+              <p className="modelDesc">{selectedModel.description}</p>
+              <div className="modelMeta">
+                <span>{formatSize(selectedModel.sizeMb)}</span>
+                <span>{selectedModel.languages}</span>
+                <span title="Speed">Speed {stars(selectedModel.speed)}</span>
+                <span title="Accuracy">Accuracy {stars(selectedModel.accuracy)}</span>
+              </div>
+
+              {selectedModel.isDownloaded && (
+                <div className="modelStatus modelStatus--ready">Model ready</div>
+              )}
+              {!selectedModel.isDownloaded && isDownloading && (
+                <div>
+                  <div className="progressBar">
+                    <div
+                      className="progressFill"
+                      style={{ width: `${downloadProgress?.percent ?? 0}%` }}
+                    />
+                  </div>
+                  <div className="progressLabel">
+                    {downloadProgress
+                      ? `${downloadProgress.percent}% — ${formatSize(Math.round(downloadProgress.downloadedBytes / 1_048_576))} / ${formatSize(Math.round(downloadProgress.totalBytes / 1_048_576))}`
+                      : 'Starting download…'}
+                  </div>
+                  <button
+                    className="ghostButton"
+                    style={{ marginTop: 10 }}
+                    onClick={() => void handleCancelDownload()}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              {!selectedModel.isDownloaded && !isDownloading && (
+                <button
+                  className="primaryButton"
+                  style={{ marginTop: 10 }}
+                  onClick={() => void handleDownload()}
+                  disabled={downloadingId !== null}
+                >
+                  Download ({formatSize(selectedModel.sizeMb)})
+                </button>
+              )}
+
+              {downloadError ? <div className="errorCard" style={{ marginTop: 10 }}>{downloadError}</div> : null}
+            </div>
+          )}
+
+          <h2 style={{ marginTop: 24 }}>Capture Setup</h2>
+
           <label className="field">
             <span>Mode</span>
-            <select value={mode} onChange={(event) => setMode(event.target.value as AudioSourceMode)}>
+            <select value={mode} onChange={(e) => setMode(e.target.value as AudioSourceMode)}>
               <option value="system">System audio</option>
               <option value="mic">Microphone</option>
               <option value="mixed">Mixed system + mic</option>
@@ -171,14 +295,12 @@ export function App() {
             <span>System source</span>
             <select
               value={systemSourceId}
-              onChange={(event) => setSystemSourceId(event.target.value)}
+              onChange={(e) => setSystemSourceId(e.target.value)}
               disabled={mode === 'mic'}
             >
               <option value="">Select system source</option>
               {systemSources.map((source) => (
-                <option key={source.id} value={source.id}>
-                  {source.label}
-                </option>
+                <option key={source.id} value={source.id}>{source.label}</option>
               ))}
             </select>
           </label>
@@ -187,14 +309,12 @@ export function App() {
             <span>Mic source</span>
             <select
               value={micSourceId}
-              onChange={(event) => setMicSourceId(event.target.value)}
+              onChange={(e) => setMicSourceId(e.target.value)}
               disabled={mode === 'system'}
             >
               <option value="">Select microphone</option>
               {micSources.map((source) => (
-                <option key={source.id} value={source.id}>
-                  {source.label}
-                </option>
+                <option key={source.id} value={source.id}>{source.label}</option>
               ))}
             </select>
           </label>
@@ -207,6 +327,12 @@ export function App() {
               Stop
             </button>
           </div>
+
+          {!modelReady && !isDownloading && (
+            <div className="errorCard" style={{ marginTop: 14 }}>
+              Download a model above before starting capture.
+            </div>
+          )}
 
           <div className="statusCard">
             <p className="statusLabel">{status.stage}</p>
@@ -238,7 +364,7 @@ export function App() {
           <div className="transcriptList">
             {segments.length === 0 ? (
               <div className="emptyState">
-                Transcript output will appear here after the first 5-second chunk is processed.
+                Transcript output will appear here after the first audio chunk is processed.
               </div>
             ) : (
               segments.map((segment) => (
@@ -264,6 +390,11 @@ function formatClock(totalMs: number): string {
   const seconds = totalSeconds % 60
 
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function formatSize(mb: number): string {
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
+  return `${mb} MB`
 }
 
 function toMessage(error: unknown): string {
@@ -300,7 +431,7 @@ const styles = {
   },
   layout: {
     display: 'grid',
-    gridTemplateColumns: 'minmax(320px, 380px) minmax(0, 1fr)',
+    gridTemplateColumns: 'minmax(320px, 400px) minmax(0, 1fr)',
     gap: '24px',
   },
 } satisfies Record<string, CSSProperties>
@@ -420,6 +551,64 @@ const css = `
   .errorCard {
     background: #fee2e2;
     color: #991b1b;
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+
+  .modelCard {
+    background: #f5f5f4;
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 4px;
+  }
+
+  .modelDesc {
+    margin: 0 0 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #44403c;
+  }
+
+  .modelMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    font-size: 12px;
+    color: #78716c;
+    margin-bottom: 10px;
+  }
+
+  .modelStatus {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    display: inline-block;
+  }
+
+  .modelStatus--ready {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .progressBar {
+    height: 8px;
+    background: rgba(120, 113, 108, 0.15);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .progressFill {
+    height: 100%;
+    background: #c2410c;
+    border-radius: 999px;
+    transition: width 200ms ease;
+  }
+
+  .progressLabel {
+    font-size: 12px;
+    color: #78716c;
   }
 
   .transcriptHeader {
@@ -438,11 +627,17 @@ const css = `
   }
 
   .emptyState {
+    margin-top: 18px;
+    border-radius: 18px;
+    padding: 16px;
     background: rgba(255, 255, 255, 0.72);
     color: #57534e;
   }
 
   .segmentCard {
+    margin-top: 0;
+    border-radius: 18px;
+    padding: 16px;
     background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,248,241,0.88));
     border: 1px solid rgba(251, 146, 60, 0.18);
   }

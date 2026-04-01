@@ -7,7 +7,7 @@ import type { AudioChunk, CaptureStartOptions } from '../../shared/types'
 const SAMPLE_RATE = 16_000
 const CHANNELS = 1
 const BYTES_PER_SAMPLE = 2
-const CHUNK_DURATION_MS = 5_000
+const CHUNK_DURATION_MS = 15_000
 const CHUNK_BYTE_SIZE =
   SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (CHUNK_DURATION_MS / 1_000)
 

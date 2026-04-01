@@ -64,12 +64,21 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
 
   ipcMain.handle('capture:start', async (_event, captureOptions: CaptureStartOptions) => {
     try {
-      const selectedModel = await modelManager.getSelectedModel()
-      if (!selectedModel) {
-        throw new Error('No model selected. Download and select a Whisper model before capturing.')
+      const selectedModelId = await modelManager.getSelectedModel()
+      if (!selectedModelId) {
+        throw new Error('No model selected. Download or configure a transcription model before capturing.')
       }
 
-      logger.info('Received capture:start request', { ...captureOptions, model: selectedModel })
+      const selectedModel = modelManager.getModel(selectedModelId)
+      if (!selectedModel) {
+        throw new Error(`Selected model "${selectedModelId}" is not available.`)
+      }
+
+      logger.info('Received capture:start request', {
+        ...captureOptions,
+        modelId: selectedModel.id,
+        engine: selectedModel.engine,
+      })
       whisperEngine.setModel(selectedModel)
       resetTranscriptSegments()
       chunkQueue.clear()

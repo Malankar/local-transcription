@@ -48,7 +48,9 @@ export interface ExportResult {
   path?: string
 }
 
-export interface WhisperModel {
+export type TranscriptionEngine = 'whisper' | 'parakeet'
+
+export interface TranscriptionModel {
   id: string
   name: string
   description: string
@@ -57,8 +59,17 @@ export interface WhisperModel {
   accuracy: number  // 1–5
   speed: number     // 1–5 (5 = fastest)
   recommended: boolean
+  engine: TranscriptionEngine
+  runtime: string
+  runtimeModelName: string
+  downloadManaged: boolean
+  supportsGpuAcceleration: boolean
+  gpuAccelerationLabel?: string
+  setupHint?: string
   isDownloaded: boolean
 }
+
+export type WhisperModel = TranscriptionModel
 
 export interface ModelDownloadProgress {
   modelId: string
@@ -76,7 +87,7 @@ export interface LocalTranscribeApi {
   onTranscriptSegment: (listener: (segment: TranscriptSegment) => void) => () => void
   onStatus: (listener: (status: AppStatus) => void) => () => void
   onError: (listener: (message: string) => void) => () => void
-  getModels: () => Promise<WhisperModel[]>
+  getModels: () => Promise<TranscriptionModel[]>
   getSelectedModel: () => Promise<string | null>
   selectModel: (modelId: string) => Promise<void>
   downloadModel: (modelId: string) => Promise<void>

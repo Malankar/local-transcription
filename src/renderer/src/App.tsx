@@ -5,8 +5,8 @@ import type {
   AudioSource,
   AudioSourceMode,
   ModelDownloadProgress,
+  TranscriptionModel,
   TranscriptSegment,
-  WhisperModel,
 } from './types'
 
 const initialStatus: AppStatus = {
@@ -30,7 +30,7 @@ export function App() {
   const [isCapturing, setIsCapturing] = useState(false)
 
   // Model state
-  const [models, setModels] = useState<WhisperModel[]>([])
+  const [models, setModels] = useState<TranscriptionModel[]>([])
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<ModelDownloadProgress | null>(null)
@@ -43,10 +43,10 @@ export function App() {
   const modelReady = selectedModel?.isDownloaded === true
 
   useEffect(() => {
-    const unsubscribeSegment = globalThis.api.onTranscriptSegment((segment) => {
+    const unsubscribeSegment = window.api.onTranscriptSegment((segment) => {
       setSegments((current) => [...current, segment])
     })
-    const unsubscribeStatus = globalThis.api.onStatus((nextStatus) => {
+    const unsubscribeStatus = window.api.onStatus((nextStatus) => {
       setStatus(nextStatus)
       setIsBusy(nextStatus.stage === 'discovering' || nextStatus.stage === 'initializing-model')
 
@@ -62,12 +62,12 @@ export function App() {
         setIsCapturing(false)
       }
     })
-    const unsubscribeError = globalThis.api.onError((message) => {
+    const unsubscribeError = window.api.onError((message) => {
       setErrorMessage(message)
       setIsBusy(false)
       setIsCapturing(false)
     })
-    const unsubscribeProgress = globalThis.api.onModelDownloadProgress((progress) => {
+    const unsubscribeProgress = window.api.onModelDownloadProgress((progress) => {
       setDownloadProgress(progress)
     })
 
@@ -83,8 +83,8 @@ export function App() {
   }, [])
 
   async function loadModels(): Promise<void> {
-    const list = await globalThis.api.getModels()
-    const current = await globalThis.api.getSelectedModel()
+    const list = await window.api.getModels()
+    const current = await window.api.getSelectedModel()
     setModels(list)
     setSelectedModelId(current ?? list.find((m) => m.recommended)?.id ?? list[0]?.id ?? null)
   }
@@ -94,7 +94,7 @@ export function App() {
     setIsBusy(true)
 
     try {
-      const discovered = await globalThis.api.getSources()
+      const discovered = await window.api.getSources()
       setSources(discovered)
       setSystemSourceId((c) => c || discovered.find((s) => s.isMonitor)?.id || '')
       setMicSourceId((c) => c || discovered.find((s) => !s.isMonitor)?.id || '')
@@ -107,7 +107,7 @@ export function App() {
 
   async function handleSelectModel(modelId: string): Promise<void> {
     setSelectedModelId(modelId)
-    await globalThis.api.selectModel(modelId)
+    await window.api.selectModel(modelId)
   }
 
   async function handleDownload(): Promise<void> {
@@ -117,9 +117,9 @@ export function App() {
     setDownloadProgress(null)
 
     try {
-      await globalThis.api.downloadModel(selectedModelId)
+      await window.api.downloadModel(selectedModelId)
       // Refresh model list to reflect new download status
-      const list = await globalThis.api.getModels()
+      const list = await window.api.getModels()
       setModels(list)
     } catch (error) {
       setDownloadError(toMessage(error))
@@ -131,7 +131,7 @@ export function App() {
 
   async function handleCancelDownload(): Promise<void> {
     if (!downloadingId) return
-    await globalThis.api.cancelDownload(downloadingId)
+    await window.api.cancelDownload(downloadingId)
     setDownloadingId(null)
     setDownloadProgress(null)
   }
@@ -142,7 +142,7 @@ export function App() {
     setIsBusy(true)
 
     try {
-      await globalThis.api.startCapture({ mode, systemSourceId, micSourceId })
+      await window.api.startCapture({ mode, systemSourceId, micSourceId })
     } catch (error) {
       setErrorMessage(toMessage(error))
       setIsCapturing(false)
@@ -155,7 +155,7 @@ export function App() {
     setIsBusy(true)
 
     try {
-      await globalThis.api.stopCapture()
+      await window.api.stopCapture()
     } catch (error) {
       setErrorMessage(toMessage(error))
     } finally {
@@ -165,11 +165,11 @@ export function App() {
   }
 
   async function exportTxt(): Promise<void> {
-    await runExport(() => globalThis.api.exportTxt())
+    await runExport(() => window.api.exportTxt())
   }
 
   async function exportSrt(): Promise<void> {
-    await runExport(() => globalThis.api.exportSrt())
+    await runExport(() => window.api.exportSrt())
   }
 
   async function runExport(action: () => Promise<{ canceled: boolean; path?: string }>): Promise<void> {
@@ -203,7 +203,7 @@ export function App() {
           <p className="eyebrow">Local-first desktop transcription</p>
           <h1 style={styles.heading}>LocalTranscribe</h1>
           <p style={styles.subheading}>
-            Capture system audio or microphone input, transcribe with local Whisper inference, and export TXT or SRT.
+            Capture system audio or microphone input, transcribe locally with Whisper or NVIDIA Parakeet, and export TXT or SRT.
           </p>
         </div>
         <button className="ghostButton" onClick={() => void refreshSources()} disabled={isBusy}>
@@ -216,7 +216,7 @@ export function App() {
           <h2>Model</h2>
 
           <label className="field">
-            <span>Whisper model</span>
+            <span>Transcription model</span>
             <select
               value={selectedModelId ?? ''}
               onChange={(e) => void handleSelectModel(e.target.value)}
@@ -236,14 +236,19 @@ export function App() {
               <div className="modelMeta">
                 <span>{formatSize(selectedModel.sizeMb)}</span>
                 <span>{selectedModel.languages}</span>
+                <span>{selectedModel.runtime}</span>
                 <span title="Speed">Speed {stars(selectedModel.speed)}</span>
                 <span title="Accuracy">Accuracy {stars(selectedModel.accuracy)}</span>
+                {selectedModel.gpuAccelerationLabel ? <span>{selectedModel.gpuAccelerationLabel}</span> : null}
               </div>
 
-              {selectedModel.isDownloaded && (
+              {selectedModel.downloadManaged && selectedModel.isDownloaded && (
                 <div className="modelStatus modelStatus--ready">Model ready</div>
               )}
-              {!selectedModel.isDownloaded && isDownloading && (
+              {!selectedModel.downloadManaged && (
+                <div className="modelStatus modelStatus--runtime">Loaded on first use</div>
+              )}
+              {!selectedModel.isDownloaded && selectedModel.downloadManaged && isDownloading && (
                 <div>
                   <div className="progressBar">
                     <div
@@ -265,7 +270,7 @@ export function App() {
                   </button>
                 </div>
               )}
-              {!selectedModel.isDownloaded && !isDownloading && (
+              {!selectedModel.isDownloaded && selectedModel.downloadManaged && !isDownloading && (
                 <button
                   className="primaryButton"
                   style={{ marginTop: 10 }}
@@ -275,6 +280,10 @@ export function App() {
                   Download ({formatSize(selectedModel.sizeMb)})
                 </button>
               )}
+
+              {selectedModel.setupHint ? (
+                <p className="modelHint">{selectedModel.setupHint}</p>
+              ) : null}
 
               {downloadError ? <div className="errorCard" style={{ marginTop: 10 }}>{downloadError}</div> : null}
             </div>
@@ -328,7 +337,7 @@ export function App() {
             </button>
           </div>
 
-          {!modelReady && !isDownloading && (
+          {!modelReady && selectedModel?.downloadManaged && !isDownloading && (
             <div className="errorCard" style={{ marginTop: 14 }}>
               Download a model above before starting capture.
             </div>
@@ -589,6 +598,18 @@ const css = `
   .modelStatus--ready {
     background: #dcfce7;
     color: #166534;
+  }
+
+  .modelStatus--runtime {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
+
+  .modelHint {
+    margin: 10px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #57534e;
   }
 
   .progressBar {

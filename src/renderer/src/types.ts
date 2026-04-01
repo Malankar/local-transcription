@@ -4,6 +4,7 @@ export type {
   AudioSourceMode,
   ExportResult,
   ModelDownloadProgress,
+  TranscriptionModel,
   TranscriptSegment,
   WhisperModel,
 } from '../../shared/types'

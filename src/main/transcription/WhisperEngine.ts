@@ -1,7 +1,7 @@
 import { fork, type ChildProcess } from 'node:child_process'
 import { join } from 'node:path'
 
-import type { AudioChunk, TranscriptSegment } from '../../shared/types'
+import type { AudioChunk, TranscriptSegment, TranscriptionModel } from '../../shared/types'
 import type { WorkerRequest, WorkerRequestPayload, WorkerResponse } from './workerProtocol'
 
 export class WhisperEngine {
@@ -15,21 +15,27 @@ export class WhisperEngine {
       reject: (error: Error) => void
     }
   >()
-  private currentModelName: string | null = null
+  private currentModel: TranscriptionModel | null = null
 
   constructor(
     private readonly onStatus: (detail: string) => void,
     private readonly onLog: (message: string, context?: unknown) => void
   ) {}
 
-  setModel(modelName: string): void {
-    if (this.currentModelName === modelName) return
+  setModel(model: TranscriptionModel): void {
+    if (
+      this.currentModel?.id === model.id &&
+      this.currentModel.runtimeModelName === model.runtimeModelName
+    ) {
+      return
+    }
+
     this.dispose()
-    this.currentModelName = modelName
+    this.currentModel = model
   }
 
   async initialize(): Promise<void> {
-    if (!this.currentModelName) {
+    if (!this.currentModel) {
       throw new Error('No model configured. Select and download a model first.')
     }
 
@@ -41,10 +47,16 @@ export class WhisperEngine {
       return this.initializing
     }
 
-    const modelName = this.currentModelName
+    const model = this.currentModel
     this.initializing = (async () => {
       await this.ensureWorker()
-      await this.sendRequest<void>({ type: 'initialize', modelName })
+      await this.sendRequest<void>({
+        type: 'initialize',
+        modelId: model.id,
+        engine: model.engine,
+        runtimeModelName: model.runtimeModelName,
+        useGpuAcceleration: model.supportsGpuAcceleration,
+      })
     })()
 
     try {

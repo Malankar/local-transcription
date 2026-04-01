@@ -1,10 +1,13 @@
-import type { AudioChunk, TranscriptSegment } from '../../shared/types'
+import type { AudioChunk, TranscriptSegment, TranscriptionEngine } from '../../shared/types'
 
 export type WorkerRequest =
   | {
       type: 'initialize'
       requestId: string
-      modelName: string
+      modelId: string
+      engine: TranscriptionEngine
+      runtimeModelName: string
+      useGpuAcceleration: boolean
     }
   | {
       type: 'transcribe'

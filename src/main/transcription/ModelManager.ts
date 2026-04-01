@@ -6,7 +6,7 @@ import { URL as NodeURL } from 'node:url'
 import { join } from 'node:path'
 import type { IncomingMessage } from 'node:http'
 
-import type { WhisperModel, ModelDownloadProgress } from '../../shared/types'
+import type { TranscriptionModel, ModelDownloadProgress } from '../../shared/types'
 
 interface CatalogEntry {
   id: string
@@ -17,6 +17,13 @@ interface CatalogEntry {
   accuracy: number // 1–5
   speed: number    // 1–5 (5 = fastest)
   recommended: boolean
+  engine: 'whisper' | 'parakeet'
+  runtime: string
+  runtimeModelName: string
+  downloadManaged: boolean
+  supportsGpuAcceleration: boolean
+  gpuAccelerationLabel?: string
+  setupHint?: string
 }
 
 // IDs must match nodejs-whisper's MODELS_LIST
@@ -30,6 +37,11 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     accuracy: 2,
     speed: 5,
     recommended: false,
+    engine: 'whisper',
+    runtime: 'whisper.cpp',
+    runtimeModelName: 'tiny.en',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
   },
   {
     id: 'base.en',
@@ -40,6 +52,11 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     accuracy: 3,
     speed: 4,
     recommended: false,
+    engine: 'whisper',
+    runtime: 'whisper.cpp',
+    runtimeModelName: 'base.en',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
   },
   {
     id: 'small.en',
@@ -50,6 +67,11 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     accuracy: 4,
     speed: 3,
     recommended: true,
+    engine: 'whisper',
+    runtime: 'whisper.cpp',
+    runtimeModelName: 'small.en',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
   },
   {
     id: 'medium.en',
@@ -60,6 +82,11 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     accuracy: 5,
     speed: 2,
     recommended: false,
+    engine: 'whisper',
+    runtime: 'whisper.cpp',
+    runtimeModelName: 'medium.en',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
   },
   {
     id: 'large-v3-turbo',
@@ -70,6 +97,28 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     accuracy: 5,
     speed: 2,
     recommended: false,
+    engine: 'whisper',
+    runtime: 'whisper.cpp',
+    runtimeModelName: 'large-v3-turbo',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
+  },
+  {
+    id: 'parakeetv3',
+    name: 'Parakeet v3 · Multilingual',
+    description: 'NVIDIA Parakeet v3 via NeMo. Loads through Python, caches on first run, and prefers CUDA on NVIDIA GPUs when available.',
+    sizeMb: 2560,
+    languages: 'Multilingual',
+    accuracy: 5,
+    speed: 3,
+    recommended: false,
+    engine: 'parakeet',
+    runtime: 'Python + NVIDIA NeMo',
+    runtimeModelName: 'nvidia/parakeet-tdt-0.6b-v3',
+    downloadManaged: false,
+    supportsGpuAcceleration: true,
+    gpuAccelerationLabel: 'CUDA / NVIDIA GPU',
+    setupHint: 'Requires Python 3 plus NeMo ASR dependencies. The model is cached by the Python runtime on first use.',
   },
 ]
 
@@ -101,11 +150,21 @@ export class ModelManager {
     this.progressListener = listener
   }
 
-  getModels(): WhisperModel[] {
+  getModels(): TranscriptionModel[] {
     return MODEL_CATALOG.map((entry) => ({
       ...entry,
-      isDownloaded: this.isDownloaded(entry.id),
+      isDownloaded: entry.downloadManaged ? this.isDownloaded(entry.id) : true,
     }))
+  }
+
+  getModel(modelId: string): TranscriptionModel | null {
+    const entry = MODEL_CATALOG.find((model) => model.id === modelId)
+    if (!entry) return null
+
+    return {
+      ...entry,
+      isDownloaded: entry.downloadManaged ? this.isDownloaded(entry.id) : true,
+    }
   }
 
   isDownloaded(modelId: string): boolean {
@@ -127,11 +186,15 @@ export class ModelManager {
       // no settings file yet
     }
     // Fall back to first downloaded model in catalog order
-    const fallback = MODEL_CATALOG.find((m) => this.isDownloaded(m.id))
+    const fallback = MODEL_CATALOG.find((m) => (m.downloadManaged ? this.isDownloaded(m.id) : true))
     return fallback?.id ?? null
   }
 
   async selectModel(modelId: string): Promise<void> {
+    if (!this.getModel(modelId)) {
+      throw new Error(`Unknown model: ${modelId}`)
+    }
+
     let settings: Record<string, unknown> = {}
     try {
       const text = await readFile(this.settingsPath, 'utf-8')
@@ -149,6 +212,18 @@ export class ModelManager {
   }
 
   downloadModel(modelId: string): Promise<void> {
+    const model = this.getModel(modelId)
+    if (!model) {
+      return Promise.reject(new Error(`Unknown model: ${modelId}`))
+    }
+    if (!model.downloadManaged) {
+      return Promise.reject(
+        new Error(
+          `${model.name} is prepared by ${model.runtime} on first use and is not downloaded by the app.`
+        )
+      )
+    }
+
     if (this.isDownloaded(modelId)) return Promise.resolve()
     if (this.activeDownloads.has(modelId)) {
       return Promise.reject(new Error(`Model ${modelId} is already downloading`))

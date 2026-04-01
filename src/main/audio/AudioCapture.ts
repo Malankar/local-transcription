@@ -7,9 +7,21 @@ import type { AudioChunk, CaptureStartOptions } from '../../shared/types'
 const SAMPLE_RATE = 16_000
 const CHANNELS = 1
 const BYTES_PER_SAMPLE = 2
-const CHUNK_DURATION_MS = 15_000
-const CHUNK_BYTE_SIZE =
-  SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (CHUNK_DURATION_MS / 1_000)
+const ANALYSIS_WINDOW_MS = 100
+const MIN_CHUNK_MS = 8_000
+const TARGET_CHUNK_MS = 14_000
+const MAX_CHUNK_MS = 22_000
+const MIN_SILENCE_MS = 700
+const SILENCE_RMS_THRESHOLD = 0.015
+const ANALYSIS_WINDOW_BYTE_SIZE =
+  SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (ANALYSIS_WINDOW_MS / 1_000)
+const MIN_CHUNK_BYTE_SIZE =
+  SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (MIN_CHUNK_MS / 1_000)
+const TARGET_CHUNK_BYTE_SIZE =
+  SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (TARGET_CHUNK_MS / 1_000)
+const MAX_CHUNK_BYTE_SIZE =
+  SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (MAX_CHUNK_MS / 1_000)
+const REQUIRED_SILENCE_WINDOWS = Math.ceil(MIN_SILENCE_MS / ANALYSIS_WINDOW_MS)
 
 interface AudioCaptureEvents {
   chunk: [AudioChunk]
@@ -21,7 +33,7 @@ interface AudioCaptureEvents {
 export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
   private process: ChildProcessByStdio<null, Readable, Readable> | null = null
   private buffer = Buffer.alloc(0)
-  private emittedChunks = 0
+  private emittedDurationMs = 0
 
   start(options: CaptureStartOptions): void {
     if (this.process) {
@@ -30,7 +42,7 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
 
     const args = buildFfmpegArgs(options)
     this.buffer = Buffer.alloc(0)
-    this.emittedChunks = 0
+    this.emittedDurationMs = 0
     const process = spawn('ffmpeg', args, {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -40,7 +52,7 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
 
     process.stdout.on('data', (chunk: Buffer) => {
       this.buffer = Buffer.concat([this.buffer, chunk])
-      this.flushCompleteChunks()
+      this.flushAvailableChunks()
     })
 
     process.stderr.on('data', (chunk: Buffer) => {
@@ -66,6 +78,7 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
       return
     }
 
+    this.flushRemainingChunk()
     this.process.kill('SIGTERM')
     this.process = null
   }
@@ -74,21 +87,120 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     return this.process !== null
   }
 
-  private flushCompleteChunks(): void {
-    while (this.buffer.length >= CHUNK_BYTE_SIZE) {
-      const chunk = this.buffer.subarray(0, CHUNK_BYTE_SIZE)
-      this.buffer = this.buffer.subarray(CHUNK_BYTE_SIZE)
-      const chunkStartMs = this.emittedChunks * CHUNK_DURATION_MS
-      const chunkEndMs = chunkStartMs + CHUNK_DURATION_MS
+  private flushAvailableChunks(): void {
+    let nextChunkByteSize = this.findChunkByteSize()
 
-      this.emit('chunk', {
-        audio: pcm16ToFloat32(chunk),
-        startMs: chunkStartMs,
-        endMs: chunkEndMs,
-      })
-
-      this.emittedChunks += 1
+    while (nextChunkByteSize !== null) {
+      const chunk = this.buffer.subarray(0, nextChunkByteSize)
+      this.buffer = this.buffer.subarray(nextChunkByteSize)
+      this.emitChunk(chunk)
+      nextChunkByteSize = this.findChunkByteSize()
     }
+  }
+
+  private flushRemainingChunk(): void {
+    if (this.buffer.length < BYTES_PER_SAMPLE) {
+      this.buffer = Buffer.alloc(0)
+      return
+    }
+
+    const remainingByteLength = this.buffer.length - (this.buffer.length % BYTES_PER_SAMPLE)
+    if (remainingByteLength === 0) {
+      this.buffer = Buffer.alloc(0)
+      return
+    }
+
+    const chunk = this.buffer.subarray(0, remainingByteLength)
+    this.buffer = Buffer.alloc(0)
+    this.emitChunk(chunk)
+  }
+
+  private findChunkByteSize(): number | null {
+    const availableByteLength = this.buffer.length - (this.buffer.length % BYTES_PER_SAMPLE)
+    if (availableByteLength < MIN_CHUNK_BYTE_SIZE) {
+      return null
+    }
+
+    const silenceBoundary = this.findSilenceBoundary(availableByteLength)
+    if (silenceBoundary !== null) {
+      return silenceBoundary
+    }
+
+    if (availableByteLength < MAX_CHUNK_BYTE_SIZE) {
+      return null
+    }
+
+    const quietBoundary = this.findQuietBoundary(
+      TARGET_CHUNK_BYTE_SIZE,
+      Math.min(availableByteLength, MAX_CHUNK_BYTE_SIZE)
+    )
+
+    return quietBoundary ?? MAX_CHUNK_BYTE_SIZE
+  }
+
+  private findSilenceBoundary(availableByteLength: number): number | null {
+    let silentWindows = 0
+
+    for (
+      let windowEnd = ANALYSIS_WINDOW_BYTE_SIZE;
+      windowEnd <= availableByteLength;
+      windowEnd += ANALYSIS_WINDOW_BYTE_SIZE
+    ) {
+      const windowStart = windowEnd - ANALYSIS_WINDOW_BYTE_SIZE
+      const rms = calculateRms(this.buffer.subarray(windowStart, windowEnd))
+
+      silentWindows = rms <= SILENCE_RMS_THRESHOLD ? silentWindows + 1 : 0
+
+      const hasEnoughAudio = windowEnd >= MIN_CHUNK_BYTE_SIZE
+      if (hasEnoughAudio && silentWindows >= REQUIRED_SILENCE_WINDOWS) {
+        return windowEnd
+      }
+    }
+
+    return null
+  }
+
+  private findQuietBoundary(searchStart: number, searchEnd: number): number | null {
+    const alignedStart = Math.max(
+      ANALYSIS_WINDOW_BYTE_SIZE,
+      searchStart - (searchStart % ANALYSIS_WINDOW_BYTE_SIZE)
+    )
+    const alignedEnd = searchEnd - (searchEnd % ANALYSIS_WINDOW_BYTE_SIZE)
+
+    let quietestBoundary: number | null = null
+    let quietestRms = Number.POSITIVE_INFINITY
+
+    for (
+      let windowEnd = alignedStart;
+      windowEnd <= alignedEnd;
+      windowEnd += ANALYSIS_WINDOW_BYTE_SIZE
+    ) {
+      const windowStart = windowEnd - ANALYSIS_WINDOW_BYTE_SIZE
+      const rms = calculateRms(this.buffer.subarray(windowStart, windowEnd))
+
+      if (rms < quietestRms) {
+        quietestRms = rms
+        quietestBoundary = windowEnd
+      }
+    }
+
+    return quietestBoundary
+  }
+
+  private emitChunk(chunk: Buffer): void {
+    const durationMs = Math.round(
+      (chunk.length / (SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE)) * 1_000
+    )
+    const chunkStartMs = this.emittedDurationMs
+    const chunkEndMs = chunkStartMs + durationMs
+
+    this.emit('chunk', {
+      audio: pcm16ToFloat32(chunk),
+      startMs: chunkStartMs,
+      endMs: chunkEndMs,
+    })
+
+    this.emittedDurationMs = chunkEndMs
   }
 }
 
@@ -174,6 +286,22 @@ function pcm16ToFloat32(buffer: Buffer): Float32Array {
   }
 
   return result
+}
+
+function calculateRms(buffer: Buffer): number {
+  const sampleCount = Math.floor(buffer.length / BYTES_PER_SAMPLE)
+  if (sampleCount === 0) {
+    return 0
+  }
+
+  let sumSquares = 0
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    const sample = buffer.readInt16LE(index * BYTES_PER_SAMPLE) / 32_768
+    sumSquares += sample * sample
+  }
+
+  return Math.sqrt(sumSquares / sampleCount)
 }
 
 const pulse = 'pulse'

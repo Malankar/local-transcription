@@ -40,7 +40,7 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
     }
 
     this.processing = true
-    this.emit('status', 'Transcribing audio chunk...')
+    this.emit('status', 'Transcribing the latest natural audio window...')
 
     try {
       const segments = await this.processor(nextChunk)

@@ -84,7 +84,7 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
       chunkQueue.clear()
       sendStatus({ stage: 'initializing-model', detail: 'Preparing transcription engine...' })
       audioCapture.start(captureOptions)
-      sendStatus({ stage: 'capturing', detail: 'Listening for audio...' })
+      sendStatus({ stage: 'capturing', detail: 'Capturing audio until a natural pause is detected...' })
     } catch (error) {
       const message = toMessage(error)
       logger.error('Failed to start capture', error)

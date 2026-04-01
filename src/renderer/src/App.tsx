@@ -14,6 +14,8 @@ const initialStatus: AppStatus = {
   detail: 'Load sources to begin',
 }
 
+const TRANSCRIPT_MERGE_GAP_MS = 2_000
+
 function stars(n: number, max = 5): string {
   return '★'.repeat(n) + '☆'.repeat(max - n)
 }
@@ -38,6 +40,7 @@ export function App() {
 
   const systemSources = useMemo(() => sources.filter((s) => s.isMonitor), [sources])
   const micSources = useMemo(() => sources.filter((s) => !s.isMonitor), [sources])
+  const mergedSegments = useMemo(() => mergeTranscriptSegments(segments), [segments])
 
   const selectedModel = models.find((m) => m.id === selectedModelId) ?? null
   const modelReady = selectedModel?.isDownloaded === true
@@ -355,7 +358,9 @@ export function App() {
           <div className="transcriptHeader">
             <div>
               <h2>Live Transcript</h2>
-              <p className="muted">{segments.length} segments captured</p>
+              <p className="muted">
+                {mergedSegments.length} continuous passages from {segments.length} transcript windows
+              </p>
             </div>
             <div className="actionRow">
               <button className="ghostButton" onClick={() => setSegments([])} disabled={segments.length === 0}>
@@ -371,12 +376,12 @@ export function App() {
           </div>
 
           <div className="transcriptList">
-            {segments.length === 0 ? (
+            {mergedSegments.length === 0 ? (
               <div className="emptyState">
-                Transcript output will appear here after the first audio chunk is processed.
+                Transcript output will appear here after enough audio is captured to form a natural phrase or pause.
               </div>
             ) : (
-              segments.map((segment) => (
+              mergedSegments.map((segment) => (
                 <article key={segment.id} className="segmentCard">
                   <div className="segmentMeta">
                     <span>{formatClock(segment.startMs)} - {formatClock(segment.endMs)}</span>
@@ -408,6 +413,72 @@ function formatSize(mb: number): string {
 
 function toMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function mergeTranscriptSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
+  const merged: TranscriptSegment[] = []
+
+  for (const segment of segments) {
+    const text = segment.text.trim()
+    if (!text) continue
+
+    const previous = merged.at(-1)
+
+    if (!previous || !shouldMergeSegments(previous, segment)) {
+      merged.push({ ...segment, text })
+      continue
+    }
+
+    previous.endMs = Math.max(previous.endMs, segment.endMs)
+    previous.timestamp = segment.timestamp
+    previous.text = joinTranscriptText(previous.text, text)
+  }
+
+  return merged
+}
+
+function shouldMergeSegments(previous: TranscriptSegment, next: TranscriptSegment): boolean {
+  const gapMs = Math.max(0, next.startMs - previous.endMs)
+  if (gapMs > TRANSCRIPT_MERGE_GAP_MS) {
+    return false
+  }
+
+  if (endsWithSentenceBoundary(previous.text)) {
+    return startsLikeSentenceContinuation(next.text)
+  }
+
+  return true
+}
+
+function endsWithSentenceBoundary(text: string): boolean {
+  return /[.!?]["']?\s*$/.test(text.trim())
+}
+
+function startsLikeSentenceContinuation(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (/^[a-z]/.test(trimmed)) return true
+  if (/^(and|but|or|so|because|then|well|also|still|yet|to|of|for|with|in|on|at)\b/i.test(trimmed)) {
+    return true
+  }
+
+  return false
+}
+
+function joinTranscriptText(left: string, right: string): string {
+  const trimmedLeft = left.trimEnd()
+  const trimmedRight = right.trimStart()
+
+  if (!trimmedLeft) return trimmedRight
+  if (!trimmedRight) return trimmedLeft
+  if (/^[,.;:!?)/\]%]/.test(trimmedRight)) {
+    return `${trimmedLeft}${trimmedRight}`
+  }
+  if (/[(/$£€#-]$/.test(trimmedLeft)) {
+    return `${trimmedLeft}${trimmedRight}`
+  }
+
+  return `${trimmedLeft} ${trimmedRight}`
 }
 
 const styles = {

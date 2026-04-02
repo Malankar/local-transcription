@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 6%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 250 87% 70%;
+    --primary-foreground: 250 87% 15%;
+    --secondary: 240 5% 10%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 5% 12%;
+    --muted-foreground: 240 5% 55%;
+    --accent: 240 5% 10%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 84% 70%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 12%;
+    --input: 240 5% 12%;
+    --ring: 250 87% 70%;
+    --radius: 0.5rem;
+    --chart-1: 250 87% 70%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 10% 5%;
+    --sidebar-foreground: 240 5% 65%;
+    --sidebar-primary: 250 87% 70%;
+    --sidebar-primary-foreground: 250 87% 15%;
+    --sidebar-accent: 240 5% 10%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 5% 9%;
+    --sidebar-ring: 250 87% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    overflow: hidden;
+  }
+  button,
+  select,
+  input {
+    font-family: inherit;
+  }
+}
+
+/* Material Symbols */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Waveform animation */
+@keyframes waveBar {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+.waveBar {
+  width: 3px;
+  border-radius: 2px;
+  background: hsl(var(--muted-foreground));
+  transition: height 0.3s ease;
+}
+.waveBar--active {
+  background: hsl(var(--primary));
+  animation: waveBar 0.9s ease-in-out infinite;
+}
+
+/* Cursor blink */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: hsl(var(--primary));
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 1s ease-in-out infinite;
+}
+
+/* Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}

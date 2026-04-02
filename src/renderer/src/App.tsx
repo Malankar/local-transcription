@@ -8,6 +8,13 @@ import type {
   TranscriptionModel,
   TranscriptSegment,
 } from './types'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
 type View = 'setup' | 'recording' | 'models' | 'history'
 
@@ -120,20 +127,11 @@ const WAVE_HEIGHTS = [8, 14, 20, 12, 28, 36, 30, 44, 48, 40, 36, 46, 52, 44, 56,
 
 function WaveformBars({ active }: { active: boolean }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        height: 48,
-        gap: 2,
-        justifyContent: 'center',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="flex items-center h-12 gap-0.5 justify-center overflow-hidden">
       {WAVE_HEIGHTS.map((h, i) => (
         <div
           key={i}
-          className={active ? 'waveBar waveBar--active' : 'waveBar'}
+          className={cn('waveBar', active && 'waveBar--active')}
           style={{
             height: active ? h : Math.max(4, Math.round(h * 0.3)),
             animationDelay: active ? `${((i * 0.06) % 0.9).toFixed(2)}s` : undefined,
@@ -141,6 +139,45 @@ function WaveformBars({ active }: { active: boolean }) {
         />
       ))}
     </div>
+  )
+}
+
+// ── DeviceSelect ───────────────────────────────────────────────────────────
+
+function DeviceSelect({
+  label,
+  value,
+  onChange,
+  sources,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  sources: AudioSource[]
+  placeholder: string
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <select
+        className={cn(
+          'flex h-9 w-full rounded-md border border-input bg-card px-3 py-1',
+          'text-sm text-foreground shadow-sm transition-colors',
+          'focus:outline-none focus:ring-1 focus:ring-ring',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+        )}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">{placeholder}</option>
+        {sources.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.label}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
 
@@ -176,170 +213,181 @@ function SetupView(props: SetupViewProps) {
     onStart, onRefresh,
   } = props
 
+  const sourceModes = [
+    {
+      id: 'system' as AudioSourceMode,
+      icon: 'computer',
+      title: 'System Audio',
+      desc: 'Capture meeting audio, videos, or system sounds directly.',
+    },
+    {
+      id: 'mic' as AudioSourceMode,
+      icon: 'mic',
+      title: 'Microphone',
+      desc: 'Direct input from your default recording device.',
+    },
+    {
+      id: 'mixed' as AudioSourceMode,
+      icon: 'library_music',
+      title: 'Mixed Output',
+      desc: 'Combine mic and system audio for full context.',
+    },
+  ] as const
+
   return (
-    <div className="setupView">
-      <div className="viewHeader">
+    <div className="p-10 max-w-3xl mx-auto flex flex-col gap-9">
+      {/* Header */}
+      <div className="flex justify-between items-end gap-5 flex-wrap">
         <div>
-          <h2 className="viewTitle">Local-First Transcription</h2>
-          <p className="viewSubtitle">
+          <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground leading-tight mb-2">
+            Local-First Transcription
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed max-w-md">
             High-performance AI transcription running directly on your hardware. No data ever
             leaves your machine.
           </p>
         </div>
-        <div className="privacyBadge">
-          <Icon name="verified_user" filled size={13} />
-          <span>100% Local. No Cloud Backend.</span>
-        </div>
+        <Badge variant="outline" className="gap-1.5 text-primary border-primary/30 bg-primary/10 px-3 py-1.5 shrink-0">
+          <Icon name="verified_user" filled size={12} />
+          100% Local. No Cloud Backend.
+        </Badge>
       </div>
 
-      <section className="setupSection">
-        <div className="sectionLabel">
-          <span>01 — Source Selection</span>
-          <div className="sectionLine" />
+      {/* Source Selection */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-medium text-muted-foreground/60 uppercase tracking-widest">01 — Source</span>
+          <Separator className="flex-1" />
         </div>
-        <div className="sourceCards">
-          {(
-            [
-              {
-                id: 'system' as AudioSourceMode,
-                icon: 'computer',
-                title: 'System Audio',
-                desc: 'Capture meeting audio, videos, or system sounds directly.',
-              },
-              {
-                id: 'mic' as AudioSourceMode,
-                icon: 'mic',
-                title: 'Microphone',
-                desc: 'Direct input from your default recording device.',
-              },
-              {
-                id: 'mixed' as AudioSourceMode,
-                icon: 'library_music',
-                title: 'Mixed Output',
-                desc: 'Combine mic and system audio for full context.',
-              },
-            ] as const
-          ).map(({ id, icon, title, desc }) => {
+        <div className="grid grid-cols-3 gap-2.5">
+          {sourceModes.map(({ id, icon, title, desc }) => {
             const active = mode === id
             return (
               <button
                 key={id}
-                className={`sourceCard${active ? ' sourceCard--active' : ''}`}
                 onClick={() => setMode(id)}
+                className={cn(
+                  'flex flex-col gap-3 p-4 rounded-xl border text-left transition-all duration-150',
+                  active
+                    ? 'border-primary/40 bg-primary/10 shadow-sm shadow-primary/10'
+                    : 'border-border bg-card hover:border-border/80 hover:bg-card/80',
+                )}
               >
-                <div className="sourceCardTop">
-                  <div className={`sourceCardIcon${active ? ' sourceCardIcon--active' : ''}`}>
-                    <Icon name={icon} size={26} filled={active} />
+                <div className="flex items-center justify-between">
+                  <div className={cn(
+                    'w-9 h-9 rounded-lg flex items-center justify-center',
+                    active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  )}>
+                    <Icon name={icon} size={18} filled={active} />
                   </div>
                   {active ? (
-                    <div className="sourceBadgeSelected">
-                      <span className="sourceBadgeDot" />
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/15 border border-primary/25 rounded-full px-2 py-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                       Selected
-                    </div>
+                    </span>
                   ) : (
-                    <span className="sourceBadge">Available</span>
+                    <span className="text-[10px] text-muted-foreground/50 border border-border rounded-full px-2 py-0.5">
+                      Available
+                    </span>
                   )}
                 </div>
-                <h3 className={`sourceCardTitle${active ? ' sourceCardTitle--active' : ''}`}>
-                  {title}
-                </h3>
-                <p className="sourceCardDesc">{desc}</p>
+                <div>
+                  <h3 className={cn('text-sm font-semibold mb-1', active ? 'text-foreground' : 'text-foreground/80')}>
+                    {title}
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+                </div>
               </button>
             )
           })}
         </div>
       </section>
 
-      <section className="setupSection">
-        <div className="sectionLabel">
-          <span>02 — Device Selection</span>
-          <div className="sectionLine" />
-          <button className="refreshBtn" onClick={onRefresh} disabled={isBusy}>
-            <Icon name="refresh" size={13} />
+      {/* Device Selection */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-medium text-muted-foreground/60 uppercase tracking-widest">02 — Device</span>
+          <Separator className="flex-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 px-2 text-[11px] gap-1"
+            onClick={onRefresh}
+            disabled={isBusy}
+          >
+            <Icon name="refresh" size={11} />
             Refresh
-          </button>
+          </Button>
         </div>
-        <div className="deviceFields">
+        <div className="flex flex-col gap-3">
           {(mode === 'system' || mode === 'mixed') && (
-            <label className="deviceField">
-              <span className="deviceFieldLabel">System Source</span>
-              <select
-                className="deviceSelect"
-                value={systemSourceId}
-                onChange={(e) => setSystemSourceId(e.target.value)}
-              >
-                <option value="">Select system source</option>
-                {systemSources.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <DeviceSelect
+              label="System Source"
+              value={systemSourceId}
+              onChange={setSystemSourceId}
+              sources={systemSources}
+              placeholder="Select system source"
+            />
           )}
           {(mode === 'mic' || mode === 'mixed') && (
-            <label className="deviceField">
-              <span className="deviceFieldLabel">Microphone</span>
-              <select
-                className="deviceSelect"
-                value={micSourceId}
-                onChange={(e) => setMicSourceId(e.target.value)}
-              >
-                <option value="">Select microphone</option>
-                {micSources.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <DeviceSelect
+              label="Microphone"
+              value={micSourceId}
+              onChange={setMicSourceId}
+              sources={micSources}
+              placeholder="Select microphone"
+            />
           )}
         </div>
       </section>
 
-      <section className="startSection">
-        <div className="startLeft">
-          <button className="modelInfoBtn" onClick={onNavigateToModels}>
-            <div className="modelInfoIcon">
-              <Icon name="memory" filled size={17} />
+      {/* Model + Start */}
+      <section className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex flex-col gap-2">
+          <button
+            className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors text-left"
+            onClick={onNavigateToModels}
+          >
+            <div className="w-8 h-8 rounded-md bg-primary/15 flex items-center justify-center text-primary shrink-0">
+              <Icon name="memory" filled size={16} />
             </div>
             <div>
-              <p className="modelInfoName">{selectedModel?.name ?? 'No model selected'}</p>
-              <p className="modelInfoSub">
-                {selectedModel?.isDownloaded ? (
-                  <span style={{ color: 'var(--success)' }}>Ready</span>
-                ) : selectedModel?.downloadManaged ? (
-                  <span style={{ color: 'var(--error)' }}>Download required</span>
-                ) : (
-                  <span style={{ color: 'var(--text-2)' }}>Auto-managed</span>
-                )}
-                <span style={{ color: 'var(--text-3)', margin: '0 4px' }}>·</span>
-                <span style={{ color: 'var(--accent)' }}>
-                  Change model →
-                </span>
+              <p className="text-sm font-medium text-foreground leading-none mb-1">
+                {selectedModel?.name ?? 'No model selected'}
+              </p>
+              <p className="text-xs flex items-center gap-1">
+                {selectedModel?.isDownloaded && <span className="text-emerald-400">Ready</span>}
+                {!selectedModel?.isDownloaded && selectedModel?.downloadManaged && <span className="text-destructive">Download required</span>}
+                {!selectedModel?.isDownloaded && !selectedModel?.downloadManaged && <span className="text-muted-foreground">Auto-managed</span>}
+                <span className="text-muted-foreground/30">·</span>
+                <span className="text-primary/80">Change model →</span>
               </p>
             </div>
           </button>
-
           {status.stage !== 'idle' && (
-            <div className="statusRow">
-              <span className="statusStage">{status.stage}</span>
-              <span className="statusDetail">{status.detail}</span>
+            <div className="flex items-center gap-2 px-1">
+              <Badge variant="secondary" className="text-[11px] font-mono">{status.stage}</Badge>
+              <span className="text-xs text-muted-foreground">{status.detail}</span>
             </div>
           )}
         </div>
 
-        <button className="startBtn" onClick={onStart} disabled={!canStart}>
-          <Icon name="play_arrow" filled size={22} />
+        <Button
+          size="lg"
+          className="gap-2 px-8"
+          onClick={onStart}
+          disabled={!canStart}
+        >
+          <Icon name="play_arrow" filled size={18} />
           Start Transcription
-        </button>
+        </Button>
       </section>
 
       {errorMessage && (
-        <div className="errorBanner">
+        <Alert variant="destructive">
           <Icon name="error" filled size={15} />
-          {errorMessage}
-        </div>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
       )}
     </div>
   )
@@ -391,41 +439,47 @@ function RecordingView({
   const sessionName = `Session_${new Date().toISOString().slice(0, 10).replace(/-/g, '_')}`
 
   return (
-    <div className="recordingView">
-      <div className="sessionHeader">
+    <div className="flex flex-col h-full">
+      {/* Session Header */}
+      <div className="px-8 py-5 border-b border-border flex items-start justify-between shrink-0">
         <div>
-          <h2 className="sessionTitle">{sessionName}</h2>
-          <div className="sessionMeta">
-            <span className="sessionMetaItem">
-              <Icon name="memory" size={14} />
+          <h2 className="text-base font-semibold text-foreground tracking-tight">{sessionName}</h2>
+          <div className="flex items-center gap-3 mt-1.5">
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Icon name="memory" size={13} />
               {selectedModel?.name ?? 'Whisper'}
             </span>
-            <span className="sessionMetaItem">
-              <Icon name="schedule" size={14} />
+            <span className="w-1 h-1 rounded-full bg-border" />
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+              <Icon name="schedule" size={13} />
               {formatElapsed(elapsed)}
             </span>
           </div>
         </div>
-        <div className="sessionLoad">
-          <span className="sessionLoadLabel">Status</span>
-          <span className="sessionLoadValue">{status.stage}</span>
-        </div>
+        <Badge variant={isCapturing ? 'default' : 'secondary'} className="gap-1.5 mt-0.5">
+          {isCapturing && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+          {status.stage}
+        </Badge>
       </div>
 
-      <div className="liveTranscript" ref={transcriptRef}>
+      {/* Transcript Area */}
+      <ScrollArea className="flex-1 px-8 py-6" ref={transcriptRef}>
         {segments.length === 0 ? (
-          <div className="transcriptEmpty">
+          <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground/40">
             <Icon name="graphic_eq" filled size={44} />
-            <p>Listening… transcript will appear here shortly</p>
+            <p className="text-sm">Listening… transcript will appear here shortly</p>
           </div>
         ) : (
-          <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 28 }}>
+          <div className="max-w-2xl mx-auto flex flex-col gap-7">
             {segments.map((seg, i) => {
               const isLive = i === segments.length - 1
               return (
                 <p
                   key={seg.id}
-                  className={`transcriptParagraph${isLive ? ' transcriptParagraph--live' : ''}`}
+                  className={cn(
+                    'text-base leading-relaxed font-sans transition-opacity duration-300',
+                    isLive ? 'text-foreground' : 'text-foreground/75',
+                  )}
                 >
                   {seg.text}
                   {isLive && isCapturing && <span className="cursor" />}
@@ -434,44 +488,47 @@ function RecordingView({
             })}
           </div>
         )}
-      </div>
+      </ScrollArea>
 
-      <div className="controlDock">
-        <WaveformBars active={isCapturing} />
-        <div className="dockControls">
-          <div className="dockLeft">
-            <button className="dockBtnSecondary" disabled>
-              <Icon name="pause" size={17} />
+      {/* Control Dock */}
+      <div className="shrink-0 border-t border-border bg-card/50 px-8 py-4">
+        <div className="flex items-center justify-between gap-4">
+          <WaveformBars active={isCapturing} />
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" disabled className="gap-1.5">
+              <Icon name="pause" size={15} />
               Pause
-            </button>
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="gap-1.5"
+              onClick={onStop}
+              disabled={!isCapturing || isBusy}
+            >
+              <Icon name="stop_circle" filled size={15} />
+              Stop &amp; Process
+            </Button>
           </div>
-          <button
-            className="dockBtnPrimary"
-            onClick={onStop}
-            disabled={!isCapturing || isBusy}
-          >
-            <Icon name="stop_circle" filled size={17} />
-            Stop &amp; Process
-          </button>
         </div>
       </div>
 
-      <footer className="recordingFooter">
-        <div className="footerItem">
-          <Icon name="verified_user" filled size={12} />
-          Private &amp; Offline
-        </div>
-        <div className="footerDot" />
-        <div className="footerItem">
-          <Icon name="cloud_off" size={12} />
-          Zero Data Egress
-        </div>
-        <div className="footerDot" />
-        <div className="footerItem">
-          <Icon name="memory" size={12} />
-          Neural Engine Active
-        </div>
-      </footer>
+      {/* Footer */}
+      <div className="shrink-0 border-t border-border/50 px-8 py-2.5 flex items-center gap-3">
+        {[
+          { icon: 'verified_user', label: 'Private & Offline' },
+          { icon: 'cloud_off', label: 'Zero Data Egress' },
+          { icon: 'memory', label: 'Neural Engine Active' },
+        ].map(({ icon, label }, i) => (
+          <>
+            {i > 0 && <span key={`sep-${i}`} className="w-1 h-1 rounded-full bg-border" />}
+            <span key={label} className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
+              <Icon name={icon} size={11} />
+              {label}
+            </span>
+          </>
+        ))}
+      </div>
     </div>
   )
 }
@@ -502,15 +559,15 @@ function ModelsView({
   onCancelDownload,
 }: ModelsViewProps) {
   return (
-    <div className="modelsView">
-      <div className="viewHeader">
-        <div>
-          <h2 className="viewTitle">Model Library</h2>
-          <p className="viewSubtitle">Select and manage local transcription engines.</p>
-        </div>
+    <div className="p-10 max-w-3xl mx-auto flex flex-col gap-8">
+      <div>
+        <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground mb-2">
+          Model Library
+        </h2>
+        <p className="text-sm text-muted-foreground">Select and manage local transcription engines.</p>
       </div>
 
-      <div className="modelGrid">
+      <div className="grid grid-cols-2 gap-3">
         {models.map((model) => {
           const isSelected = model.id === selectedModelId
           const isDownloading = model.id === downloadingId
@@ -518,80 +575,86 @@ function ModelsView({
           return (
             <div
               key={model.id}
-              className={`modelCard2${isSelected ? ' modelCard2--selected' : ''}`}
               onClick={() => !isCapturing && !downloadingId && onSelectModel(model.id)}
               role="button"
-              style={{ cursor: isCapturing || !!downloadingId ? 'default' : 'pointer' }}
+              className={cn(
+                'relative rounded-xl border p-5 flex flex-col gap-3 transition-all duration-150',
+                isSelected
+                  ? 'border-primary/40 bg-primary/10 shadow-sm shadow-primary/5'
+                  : 'border-border bg-card hover:border-border/80',
+                (isCapturing || !!downloadingId) ? 'cursor-default' : 'cursor-pointer',
+              )}
             >
-              {model.recommended && <div className="modelRecommended">Recommended</div>}
-              <div className="modelCardHeader">
-                <span className="modelIdLabel">{model.id}</span>
-                <span className="modelSize">{formatSize(model.sizeMb)}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-mono text-muted-foreground/60">{model.id}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {model.recommended && (
+                    <span className="text-[10px] font-semibold text-primary bg-primary/15 border border-primary/25 rounded-full px-2 py-0.5">
+                      Recommended
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">{formatSize(model.sizeMb)}</span>
+                </div>
               </div>
-              <h4 className="modelName">{model.name}</h4>
-              <p className="modelDesc2">{model.description}</p>
-              <div className="modelAccuracyRow">
-                <span>Accuracy</span>
-                <span className={isSelected ? 'modelAccValue--active' : ''}>
-                  {'★'.repeat(model.accuracy)}
-                  {'☆'.repeat(5 - model.accuracy)}
-                </span>
+
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-1">{model.name}</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">{model.description}</p>
               </div>
-              <div className="modelAccBar">
-                <div
-                  className="modelAccFill"
-                  style={{
-                    width: `${(model.accuracy / 5) * 100}%`,
-                    background: isSelected ? 'var(--accent)' : 'rgba(255,255,255,0.1)',
-                  }}
-                />
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground/60">Accuracy</span>
+                  <span className={isSelected ? 'text-primary' : 'text-muted-foreground'}>
+                    {'★'.repeat(model.accuracy)}{'☆'.repeat(5 - model.accuracy)}
+                  </span>
+                </div>
+                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={cn('h-full rounded-full transition-all', isSelected ? 'bg-primary' : 'bg-muted-foreground/20')}
+                    style={{ width: `${(model.accuracy / 5) * 100}%` }}
+                  />
+                </div>
               </div>
-              <div className="modelCardFooter">
-                <span className="modelSpeed">
-                  Speed {'★'.repeat(model.speed)}
-                  {'☆'.repeat(5 - model.speed)}
+
+              <div className="flex items-center justify-between mt-auto pt-2 border-t border-border/50">
+                <span className="text-[11px] text-muted-foreground/60">
+                  Speed {'★'.repeat(model.speed)}{'☆'.repeat(5 - model.speed)}
                 </span>
                 {model.isDownloaded ? (
-                  <span className="modelStatusReady">
+                  <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400">
                     <Icon name="check_circle" filled size={11} />
                     Ready
                   </span>
                 ) : isDownloading ? (
-                  <button
-                    className="modelBtnCancel"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onCancelDownload()
-                    }}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={(e) => { e.stopPropagation(); onCancelDownload() }}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 ) : model.downloadManaged ? (
-                  <button
-                    className="modelBtnDownload"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDownload(model.id)
-                    }}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-[11px] gap-1"
+                    onClick={(e) => { e.stopPropagation(); onDownload(model.id) }}
                     disabled={!!downloadingId || isCapturing}
                   >
                     <Icon name="download" size={11} />
                     Download
-                  </button>
+                  </Button>
                 ) : (
-                  <span className="modelStatusRuntime">Auto</span>
+                  <span className="text-[11px] text-muted-foreground/50">Auto</span>
                 )}
               </div>
 
               {isDownloading && (
-                <div className="modelDownloadProgress">
-                  <div className="dlBar">
-                    <div
-                      className="dlFill"
-                      style={{ width: `${downloadProgress?.percent ?? 0}%` }}
-                    />
-                  </div>
-                  <span className="dlLabel">
+                <div className="flex flex-col gap-1.5 pt-2 border-t border-border/50">
+                  <Progress value={downloadProgress?.percent ?? 0} className="h-1" />
+                  <span className="text-[11px] text-muted-foreground font-mono">
                     {downloadProgress
                       ? `${downloadProgress.percent}% — ${formatSize(Math.round(downloadProgress.downloadedBytes / 1_048_576))} / ${formatSize(Math.round(downloadProgress.totalBytes / 1_048_576))}`
                       : 'Starting download…'}
@@ -599,17 +662,21 @@ function ModelsView({
                 </div>
               )}
 
-              {model.setupHint && <p className="modelHintText">{model.setupHint}</p>}
+              {model.setupHint && (
+                <p className="text-[11px] text-muted-foreground/60 italic border-t border-border/50 pt-2">
+                  {model.setupHint}
+                </p>
+              )}
             </div>
           )
         })}
       </div>
 
       {downloadError && (
-        <div className="errorBanner" style={{ marginTop: 16 }}>
+        <Alert variant="destructive">
           <Icon name="error" filled size={15} />
-          {downloadError}
-        </div>
+          <AlertDescription>{downloadError}</AlertDescription>
+        </Alert>
       )}
     </div>
   )
@@ -637,119 +704,137 @@ function HistoryView({
   onExportSrt,
 }: HistoryViewProps) {
   return (
-    <div className="historyView">
-      <div className="transcriptWell">
-        <div className="metaBar">
-          <div className="metaItems">
-            <div className="metaItem">
-              <span className="metaItemLabel">Session</span>
-              <span className="metaItemValue">{new Date().toLocaleDateString()}</span>
-            </div>
-            <div className="metaDivider" />
-            <div className="metaItem">
-              <span className="metaItemLabel">Segments</span>
-              <span className="metaItemValue">{rawSegmentCount}</span>
-            </div>
-            <div className="metaDivider" />
-            <div className="metaItem">
-              <span className="metaItemLabel">Model</span>
-              <span className="metaItemValue" style={{ color: 'var(--accent-light)' }}>
-                {selectedModel?.name ?? '—'}
-              </span>
-            </div>
+    <div className="flex h-full">
+      {/* Transcript Well */}
+      <div className="flex-1 flex flex-col min-w-0 border-r border-border">
+        {/* Meta Bar */}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0 bg-card/30">
+          <div className="flex items-center gap-4">
+            {[
+              { label: 'Session', value: new Date().toLocaleDateString() },
+              { label: 'Segments', value: String(rawSegmentCount) },
+              { label: 'Model', value: selectedModel?.name ?? '—', highlight: true },
+            ].map(({ label, value, highlight }, i) => (
+              <>
+                {i > 0 && <Separator key={`sep-${i}`} orientation="vertical" className="h-4" />}
+                <div key={label} className="flex flex-col gap-0.5">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">{label}</span>
+                  <span className={cn('text-xs font-medium', highlight ? 'text-primary/80' : 'text-foreground/80')}>
+                    {value}
+                  </span>
+                </div>
+              </>
+            ))}
             {status.stage === 'exported' && (
               <>
-                <div className="metaDivider" />
-                <div className="metaItem">
-                  <span className="metaItemLabel" style={{ color: 'var(--success)' }}>Exported</span>
-                  <span className="metaItemValue" style={{ fontSize: 11, color: 'var(--text-2)' }}>
-                    {status.detail}
-                  </span>
+                <Separator orientation="vertical" className="h-4" />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[10px] uppercase tracking-wider text-emerald-400">Exported</span>
+                  <span className="text-[11px] text-muted-foreground truncate max-w-48">{status.detail}</span>
                 </div>
               </>
             )}
           </div>
-          <button className="clearBtn" onClick={onClear} disabled={segments.length === 0}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground h-7 px-2 text-xs"
+            onClick={onClear}
+            disabled={segments.length === 0}
+          >
             <Icon name="delete_sweep" size={13} />
             Clear
-          </button>
+          </Button>
         </div>
 
-        <div className="transcriptWellContent">
+        {/* Content */}
+        <ScrollArea className="flex-1 px-8 py-6">
           {segments.length === 0 ? (
-            <div className="wellEmpty">
-              <Icon name="edit_off" size={48} />
-              <h3>No Transcript</h3>
-              <p>Start a recording session to generate a transcript.</p>
+            <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground/30">
+              <Icon name="edit_off" size={44} />
+              <h3 className="text-base font-medium text-muted-foreground/40">No Transcript</h3>
+              <p className="text-sm">Start a recording session to generate a transcript.</p>
             </div>
           ) : (
-            <article className="transcriptArticle">
+            <article className="max-w-2xl mx-auto flex flex-col gap-5">
               {segments.map((seg) => (
-                <div key={seg.id} className="transcriptBlock">
-                  <span className="transcriptTimestamp">{formatClock(seg.startMs)}</span>
-                  <p className="transcriptText">{seg.text}</p>
+                <div key={seg.id} className="flex gap-4 group">
+                  <span className="text-[11px] font-mono text-muted-foreground/50 pt-0.5 shrink-0 w-10">
+                    {formatClock(seg.startMs)}
+                  </span>
+                  <p className="text-sm text-foreground/85 leading-relaxed">{seg.text}</p>
                 </div>
               ))}
             </article>
           )}
-        </div>
+        </ScrollArea>
       </div>
 
-      <aside className="exportSidebar">
+      {/* Export Sidebar */}
+      <aside className="w-64 shrink-0 flex flex-col gap-6 p-6 bg-card/20">
         <div>
-          <h2 className="exportTitle">Export Options</h2>
-          <p className="exportSubtitle">Finalize your transcript for external use.</p>
+          <h2 className="text-base font-semibold text-foreground mb-1">Export Options</h2>
+          <p className="text-xs text-muted-foreground">Finalize your transcript for external use.</p>
         </div>
 
-        <div className="exportFormats">
-          <span className="exportLabel">Format Selection</span>
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Format</span>
           <button
-            className="exportFormatBtn exportFormatBtn--active"
+            className={cn(
+              'flex items-center justify-between p-3 rounded-lg border transition-all',
+              'border-primary/30 bg-primary/10 hover:bg-primary/15',
+              segments.length === 0 && 'opacity-40 cursor-not-allowed',
+            )}
             onClick={onExportTxt}
             disabled={segments.length === 0}
           >
-            <div className="exportFormatLeft">
-              <Icon name="description" size={20} />
-              <div>
-                <p className="exportFormatName">Plain Text (.txt)</p>
-                <p className="exportFormatDesc">Continuous text, no timing.</p>
+            <div className="flex items-center gap-2.5">
+              <Icon name="description" size={18} />
+              <div className="text-left">
+                <p className="text-xs font-medium text-foreground">Plain Text (.txt)</p>
+                <p className="text-[10px] text-muted-foreground">Continuous text, no timing.</p>
               </div>
             </div>
-            <Icon name="download" size={16} />
+            <Icon name="download" size={14} />
           </button>
           <button
-            className="exportFormatBtn"
+            className={cn(
+              'flex items-center justify-between p-3 rounded-lg border border-border transition-all hover:bg-muted/50',
+              segments.length === 0 && 'opacity-40 cursor-not-allowed',
+            )}
             onClick={onExportSrt}
             disabled={segments.length === 0}
           >
-            <div className="exportFormatLeft">
-              <Icon name="subtitles" size={20} />
-              <div>
-                <p className="exportFormatName">SubRip (.srt)</p>
-                <p className="exportFormatDesc">Includes precise timestamps.</p>
+            <div className="flex items-center gap-2.5">
+              <Icon name="subtitles" size={18} />
+              <div className="text-left">
+                <p className="text-xs font-medium text-foreground">SubRip (.srt)</p>
+                <p className="text-[10px] text-muted-foreground">Includes precise timestamps.</p>
               </div>
             </div>
-            <Icon name="download" size={16} />
+            <Icon name="download" size={14} />
           </button>
         </div>
 
-        <div className="exportActions">
-          <span className="exportLabel">Quick Actions</span>
-          <button
-            className="exportActionBtn"
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Quick Actions</span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 justify-start"
             disabled={segments.length === 0}
             onClick={() => {
               const text = segments.map((s) => s.text).join('\n\n')
               void navigator.clipboard.writeText(text)
             }}
           >
-            <Icon name="content_copy" size={16} />
+            <Icon name="content_copy" size={14} />
             Copy to Clipboard
-          </button>
+          </Button>
         </div>
 
-        <div style={{ marginTop: 'auto', paddingTop: 24, borderTop: '1px solid var(--border)' }}>
-          <p className="exportFooterNote">Processed locally. Zero data egress.</p>
+        <div className="mt-auto pt-4 border-t border-border/50">
+          <p className="text-[11px] text-muted-foreground/40">Processed locally. Zero data egress.</p>
         </div>
       </aside>
     </div>
@@ -963,84 +1048,107 @@ export function App() {
   }
 
   return (
-    <div className="shell">
-      <style>{css}</style>
-
-      <aside className="sidebar">
-        <div className="sidebarContent">
-          <div className="logo">
-            <div className="logoIcon">
-              <Icon name="graphic_eq" filled size={17} />
+    <div className="flex h-screen overflow-hidden bg-background text-foreground font-sans">
+      {/* Sidebar */}
+      <aside className="w-[220px] min-w-[220px] bg-sidebar border-r border-sidebar-border flex flex-col justify-between h-screen z-40">
+        <div className="flex flex-col gap-5 p-4 pt-5">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-primary-foreground shrink-0 shadow-lg shadow-primary/30">
+              <Icon name="graphic_eq" filled size={15} />
             </div>
             <div>
-              <h1 className="logoTitle">LocalTranscribe</h1>
-              <p className="logoSub">V0.1 Alpha</p>
+              <h1 className="text-[13px] font-semibold tracking-tight leading-none text-foreground">
+                LocalTranscribe
+              </h1>
+              <p className="text-[9px] uppercase tracking-widest text-muted-foreground/40 mt-0.5">
+                V0.1 Alpha
+              </p>
             </div>
           </div>
 
-          <button className="newBtn" onClick={handleNewTranscription}>
-            <Icon name="add" size={14} />
+          {/* New Transcription */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-1.5 justify-center text-xs"
+            onClick={handleNewTranscription}
+          >
+            <Icon name="add" size={13} />
             New Transcription
-          </button>
+          </Button>
 
-          <nav className="nav">
+          {/* Nav */}
+          <nav className="flex flex-col gap-0.5">
             {navItems.map(({ id, label, icon }) => (
               <button
                 key={id}
-                className={`navItem${activeView === id ? ' navItem--active' : ''}`}
                 onClick={() => setActiveView(id)}
+                className={cn(
+                  'flex items-center gap-2 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all text-left relative',
+                  activeView === id
+                    ? 'bg-sidebar-accent text-foreground'
+                    : 'text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/50',
+                )}
               >
-                <Icon name={icon} filled={activeView === id} size={17} />
+                <span className={cn(activeView === id && 'text-primary')}>
+                  <Icon name={icon} filled={activeView === id} size={16} />
+                </span>
                 {label}
-                {id === 'recording' && isCapturing && <span className="navDot" />}
+                {id === 'recording' && isCapturing && (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                )}
               </button>
             ))}
           </nav>
         </div>
 
-        <div className="sidebarFooter">
-          <div className="privacyRow">
+        <div className="p-4 border-t border-sidebar-border">
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/40">
             <Icon name="verified_user" filled size={11} />
             <span>Local Only</span>
-            <span className="dot" />
+            <span className="w-1 h-1 rounded-full bg-muted-foreground/20" />
             <Icon name="cloud_off" size={11} />
             <span>No Cloud</span>
           </div>
         </div>
       </aside>
 
-      <div className="mainArea">
-        <header className="topBar">
-          <div className="topBarLeft">
-            <span className="topBarTitle">LocalTranscribe</span>
-            <div className="topBarDivider" />
-            <span className="topBarSection">{topBarSectionLabel[activeView]}</span>
+      {/* Main */}
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        {/* Top Bar */}
+        <header className="h-11 bg-background border-b border-border flex items-center justify-between px-5 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <span className="text-[13px] font-semibold tracking-tight">LocalTranscribe</span>
+            <div className="w-px h-3.5 bg-border/80" />
+            <span className="text-xs text-muted-foreground">{topBarSectionLabel[activeView]}</span>
             {isCapturing && (
-              <div className="recordingBadge">
-                <span className="recordingDot" />
-                <span>Recording</span>
+              <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 rounded-full px-2.5 py-1 text-[11px] font-medium text-red-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                Recording
               </div>
             )}
           </div>
-          <div className="topBarRight">
+          <div className="flex items-center gap-1">
             <button
-              className="topBarBtn"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
               title="Model settings"
               onClick={() => setActiveView('models')}
             >
-              <Icon name="settings" size={17} />
+              <Icon name="settings" size={16} />
             </button>
             <button
-              className="topBarBtn topBarBtn--danger"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-red-500/10 hover:text-destructive transition-colors"
               title="Close"
               onClick={() => window.close()}
             >
-              <Icon name="close" size={17} />
+              <Icon name="close" size={16} />
             </button>
           </div>
         </header>
 
-        <div className="contentArea">
+        {/* Content */}
+        <div className="flex-1 overflow-auto scrollbar-thin">
           {activeView === 'setup' && (
             <SetupView
               mode={mode}
@@ -1101,564 +1209,3 @@ export function App() {
     </div>
   )
 }
-
-// ── CSS ────────────────────────────────────────────────────────────────────
-
-const css = `
-  :root {
-    color-scheme: dark;
-    --bg: #09090b;
-    --surface: #111114;
-    --surface-2: #16161a;
-    --border: rgba(255,255,255,0.06);
-    --border-2: rgba(255,255,255,0.11);
-    --text: #f0f0f4;
-    --text-2: #8a8a96;
-    --text-3: #48484f;
-    --accent: #7c6cf8;
-    --accent-dim: rgba(124,108,248,0.10);
-    --accent-border: rgba(124,108,248,0.28);
-    --accent-light: #b3adf8;
-    --success: #34d399;
-    --error: #f87171;
-    --recording: #ef4444;
-  }
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { margin: 0; overflow: hidden; background: var(--bg); }
-  button, select, input { font-family: inherit; }
-
-  .material-symbols-outlined {
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  }
-
-  /* ── Shell ─────────────────────── */
-  .shell {
-    display: flex;
-    height: 100vh;
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', system-ui, sans-serif;
-    overflow: hidden;
-  }
-
-  /* ── Sidebar ───────────────────── */
-  .sidebar {
-    width: 232px;
-    min-width: 232px;
-    background: var(--surface-2);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100vh;
-    z-index: 40;
-  }
-  .sidebarContent { padding: 22px 14px 16px; }
-
-  .logo { display: flex; align-items: center; gap: 9px; margin-bottom: 24px; }
-  .logoIcon {
-    width: 28px; height: 28px;
-    background: var(--accent);
-    border-radius: 7px;
-    display: flex; align-items: center; justify-content: center;
-    color: #fff; flex-shrink: 0;
-    box-shadow: 0 0 14px rgba(124,108,248,0.35);
-  }
-  .logoTitle {
-    font-size: 14px; font-weight: 600; color: var(--text);
-    letter-spacing: -0.02em; line-height: 1;
-  }
-  .logoSub {
-    font-size: 9px; letter-spacing: 0.08em;
-    color: var(--text-3); font-weight: 400; margin-top: 3px;
-    text-transform: uppercase;
-  }
-
-  .newBtn {
-    width: 100%; background: rgba(255,255,255,0.07); color: var(--text);
-    border: 1px solid var(--border-2); border-radius: 8px; padding: 8px 12px;
-    font-size: 12px; font-weight: 500;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    margin-bottom: 16px; transition: all 150ms;
-  }
-  .newBtn:hover { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.16); }
-
-  .nav { display: flex; flex-direction: column; gap: 1px; }
-  .navItem {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 10px; border-radius: 7px;
-    border: none;
-    background: transparent; color: var(--text-2);
-    font-size: 13px; font-weight: 500;
-    cursor: pointer;
-    transition: all 140ms; position: relative; text-align: left;
-  }
-  .navItem:hover { color: var(--text); background: rgba(255,255,255,0.04); }
-  .navItem--active { color: var(--text); background: rgba(255,255,255,0.07); }
-  .navItem--active .material-symbols-outlined { color: var(--accent); }
-  .navDot {
-    width: 5px; height: 5px; background: var(--recording);
-    border-radius: 50%; animation: pulse 1.4s ease-in-out infinite;
-    margin-left: auto;
-  }
-
-  .sidebarFooter {
-    padding: 12px 14px 16px;
-    border-top: 1px solid var(--border);
-  }
-  .privacyRow {
-    display: flex; align-items: center; gap: 5px;
-    color: var(--text-3); font-size: 11px; font-weight: 400;
-  }
-  .dot { width: 2px; height: 2px; background: var(--text-3); border-radius: 50%; }
-
-  /* ── Main area ─────────────────── */
-  .mainArea { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-
-  /* ── Top bar ───────────────────── */
-  .topBar {
-    height: 44px; background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center;
-    justify-content: space-between; padding: 0 20px; flex-shrink: 0;
-  }
-  .topBarLeft { display: flex; align-items: center; gap: 10px; }
-  .topBarTitle { font-size: 13px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); }
-  .topBarDivider { width: 1px; height: 13px; background: var(--border-2); }
-  .topBarSection { font-size: 12px; color: var(--text-2); font-weight: 400; }
-  .recordingBadge {
-    display: flex; align-items: center; gap: 5px;
-    background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.20);
-    border-radius: 999px; padding: 3px 9px;
-    font-size: 11px; font-weight: 500; color: #fca5a5;
-  }
-  .recordingDot {
-    width: 5px; height: 5px; background: var(--recording);
-    border-radius: 50%; animation: pulse 1.4s ease-in-out infinite;
-  }
-  .topBarRight { display: flex; align-items: center; gap: 2px; }
-  .topBarBtn {
-    width: 30px; height: 30px; border: none; background: transparent;
-    color: var(--text-2); border-radius: 6px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; transition: all 120ms;
-  }
-  .topBarBtn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
-  .topBarBtn--danger:hover { background: rgba(239,68,68,0.10); color: var(--error); }
-
-  /* ── Content area ──────────────── */
-  .contentArea {
-    flex: 1; overflow: auto;
-    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;
-  }
-
-  /* ── Setup View ────────────────── */
-  .setupView {
-    padding: 40px 48px; max-width: 860px; margin: 0 auto;
-    display: flex; flex-direction: column; gap: 36px;
-  }
-  .viewHeader {
-    display: flex; justify-content: space-between;
-    align-items: flex-end; gap: 20px; flex-wrap: wrap;
-  }
-  .viewTitle {
-    font-family: 'DM Serif Display', Georgia, serif;
-    font-size: 32px; font-weight: 400; letter-spacing: -0.02em;
-    color: var(--text); line-height: 1.1; margin-bottom: 8px;
-  }
-  .viewSubtitle { font-size: 13px; color: var(--text-2); line-height: 1.65; max-width: 440px; font-weight: 400; }
-  .privacyBadge {
-    display: flex; align-items: center; gap: 5px;
-    padding: 5px 11px; background: var(--accent-dim);
-    border: 1px solid var(--accent-border); border-radius: 999px;
-    font-size: 11px; font-weight: 500; color: var(--accent-light);
-    white-space: nowrap; flex-shrink: 0;
-  }
-
-  .setupSection { display: flex; flex-direction: column; gap: 12px; }
-  .sectionLabel {
-    display: flex; align-items: center; gap: 10px;
-    font-size: 11px; font-weight: 500; color: var(--text-3);
-  }
-  .sectionLine { flex: 1; height: 1px; background: var(--border); }
-  .refreshBtn {
-    display: flex; align-items: center; gap: 4px;
-    background: transparent; border: 1px solid var(--border-2);
-    color: var(--text-2); font-size: 11px; font-weight: 500;
-    padding: 3px 8px; border-radius: 5px; cursor: pointer; transition: all 120ms;
-  }
-  .refreshBtn:hover { color: var(--text); border-color: rgba(255,255,255,0.18); }
-  .refreshBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .sourceCards { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
-  .sourceCard {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 18px; text-align: left; cursor: pointer;
-    transition: all 150ms;
-  }
-  .sourceCard:hover { border-color: var(--border-2); background: var(--surface-2); }
-  .sourceCard--active {
-    background: var(--surface-2); border-color: var(--accent-border);
-    box-shadow: 0 0 0 1px rgba(124,108,248,0.08) inset;
-  }
-
-  .sourceCardTop {
-    display: flex; justify-content: space-between;
-    align-items: flex-start; margin-bottom: 14px;
-  }
-  .sourceCardIcon {
-    width: 38px; height: 38px; background: rgba(255,255,255,0.05);
-    border-radius: 8px; display: flex; align-items: center;
-    justify-content: center; color: var(--text-2); transition: all 150ms;
-  }
-  .sourceCardIcon--active { background: var(--accent); color: #fff; }
-
-  .sourceBadge {
-    font-size: 10px; font-weight: 500; padding: 3px 8px;
-    background: rgba(255,255,255,0.04); color: var(--text-3);
-    border-radius: 999px; border: 1px solid var(--border);
-  }
-  .sourceBadgeSelected {
-    display: flex; align-items: center; gap: 5px;
-    font-size: 10px; font-weight: 500; color: var(--accent-light);
-  }
-  .sourceBadgeDot {
-    width: 5px; height: 5px; background: var(--accent);
-    border-radius: 50%; animation: pulse 1.4s ease-in-out infinite;
-  }
-  .sourceCardTitle { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; letter-spacing: -0.01em; }
-  .sourceCardTitle--active { color: var(--accent-light); }
-  .sourceCardDesc { font-size: 12px; color: var(--text-2); line-height: 1.55; }
-
-  .deviceFields { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 10px; }
-  .deviceField { display: flex; flex-direction: column; gap: 6px; }
-  .deviceFieldLabel { font-size: 11px; font-weight: 500; color: var(--text-2); }
-  .deviceSelect {
-    background: var(--surface); border: 1px solid var(--border);
-    color: var(--text); border-radius: 7px; padding: 9px 11px;
-    font-size: 13px; cursor: pointer; transition: border-color 120ms; outline: none;
-  }
-  .deviceSelect:focus { border-color: var(--accent-border); }
-  .deviceSelect option { background: var(--surface-2); }
-
-  .startSection {
-    display: flex; align-items: center; justify-content: space-between;
-    padding-top: 24px; border-top: 1px solid var(--border);
-    gap: 20px; flex-wrap: wrap;
-  }
-  .startLeft { display: flex; flex-direction: column; gap: 10px; }
-  .modelInfoBtn {
-    display: flex; align-items: center; gap: 11px;
-    padding: 10px 13px; background: var(--surface); border-radius: 9px;
-    border: 1px solid var(--border); cursor: pointer;
-    transition: border-color 120ms; text-align: left; color: inherit;
-  }
-  .modelInfoBtn:hover { border-color: var(--border-2); }
-  .modelInfoIcon {
-    width: 32px; height: 32px; background: var(--accent-dim);
-    border-radius: 7px; display: flex; align-items: center;
-    justify-content: center; color: var(--accent); flex-shrink: 0;
-  }
-  .modelInfoName { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 3px; letter-spacing: -0.01em; }
-  .modelInfoSub { font-size: 11px; color: var(--text-2); }
-
-  .statusRow { display: flex; align-items: center; gap: 8px; font-size: 11px; }
-  .statusStage {
-    background: var(--surface); padding: 3px 8px; border-radius: 5px;
-    font-size: 10px; font-weight: 500; color: var(--text-2);
-    border: 1px solid var(--border);
-  }
-  .statusDetail { color: var(--text-2); }
-
-  .startBtn {
-    display: flex; align-items: center; gap: 9px;
-    padding: 12px 24px; background: var(--text); color: var(--bg);
-    border: none; border-radius: 9px; font-size: 13px; font-weight: 600;
-    letter-spacing: -0.01em; cursor: pointer;
-    transition: all 150ms;
-    white-space: nowrap;
-  }
-  .startBtn:hover:not(:disabled) { background: #e0e0e6; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
-  .startBtn:disabled { opacity: 0.28; cursor: not-allowed; transform: none; }
-
-  .errorBanner {
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 13px; background: rgba(248,113,113,0.08);
-    border: 1px solid rgba(248,113,113,0.18); border-radius: 8px;
-    font-size: 13px; color: var(--error);
-  }
-
-  /* ── Recording View ─────────────── */
-  .recordingView {
-    display: flex; flex-direction: column;
-    height: calc(100vh - 44px); position: relative; overflow: hidden;
-  }
-  .sessionHeader {
-    padding: 20px 32px; border-bottom: 1px solid var(--border);
-    display: flex; justify-content: space-between;
-    align-items: flex-end; flex-shrink: 0;
-  }
-  .sessionTitle {
-    font-family: 'DM Serif Display', Georgia, serif;
-    font-size: 22px; font-weight: 400; letter-spacing: -0.02em;
-    color: var(--text); margin-bottom: 7px;
-  }
-  .sessionMeta { display: flex; align-items: center; gap: 16px; }
-  .sessionMetaItem {
-    display: flex; align-items: center; gap: 5px;
-    font-size: 12px; font-weight: 400; color: var(--text-2);
-  }
-  .sessionMetaItem .material-symbols-outlined { color: var(--accent); font-size: 14px !important; }
-  .sessionLoad { text-align: right; }
-  .sessionLoadLabel {
-    display: block; font-size: 10px; font-weight: 500;
-    color: var(--text-3); margin-bottom: 3px;
-  }
-  .sessionLoadValue { font-size: 12px; font-weight: 500; color: var(--text-2); }
-
-  .liveTranscript {
-    flex: 1; overflow-y: auto; padding: 40px 48px;
-    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.07) transparent;
-    padding-bottom: 160px;
-  }
-  .transcriptEmpty {
-    display: flex; flex-direction: column; align-items: center;
-    justify-content: center; height: 100%; gap: 12px;
-    color: var(--text-3); text-align: center;
-  }
-  .transcriptEmpty .material-symbols-outlined { font-size: 40px; color: var(--text-3); }
-  .transcriptEmpty p { font-size: 13px; color: var(--text-3); margin-top: 4px; }
-
-  .transcriptParagraph {
-    font-family: 'DM Serif Display', Georgia, serif;
-    font-size: 20px; line-height: 1.9;
-    color: rgba(240,240,244,0.45); font-weight: 400;
-  }
-  .transcriptParagraph--live { color: var(--text); }
-  .cursor {
-    display: inline-block; width: 2px; height: 21px;
-    background: var(--accent); margin-left: 2px;
-    animation: blink 1s step-end infinite; vertical-align: middle;
-  }
-
-  .controlDock {
-    position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-    width: calc(100% - 64px); max-width: 540px;
-    background: rgba(22,22,26,0.94); backdrop-filter: blur(20px);
-    border: 1px solid var(--border-2); border-radius: 14px;
-    padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.02);
-  }
-  .dockControls { display: flex; align-items: center; justify-content: space-between; }
-  .dockLeft { display: flex; align-items: center; gap: 8px; }
-  .dockBtnSecondary {
-    display: flex; align-items: center; gap: 6px;
-    padding: 0 14px; height: 38px;
-    background: rgba(255,255,255,0.06); border: 1px solid var(--border);
-    color: var(--text-2); border-radius: 8px; font-size: 12px; font-weight: 500;
-    cursor: pointer; transition: all 120ms;
-  }
-  .dockBtnSecondary:hover:not(:disabled) { background: rgba(255,255,255,0.09); color: var(--text); }
-  .dockBtnSecondary:disabled { opacity: 0.35; cursor: not-allowed; }
-  .dockBtnSecondary .material-symbols-outlined { color: var(--text-2); }
-  .dockBtnPrimary {
-    display: flex; align-items: center; gap: 8px;
-    padding: 0 20px; height: 38px; background: var(--text); border: none;
-    color: var(--bg); border-radius: 8px; font-size: 12px; font-weight: 600;
-    cursor: pointer; transition: all 120ms; letter-spacing: -0.01em;
-  }
-  .dockBtnPrimary:hover:not(:disabled) { background: #e0e0e6; transform: translateY(-1px); }
-  .dockBtnPrimary:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
-
-  .recordingFooter {
-    height: 32px; background: var(--bg);
-    border-top: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: center;
-    gap: 16px; flex-shrink: 0;
-  }
-  .footerItem {
-    display: flex; align-items: center; gap: 5px;
-    font-size: 10px; font-weight: 400; color: var(--text-3);
-  }
-  .footerItem .material-symbols-outlined { color: var(--text-3); font-size: 12px !important; }
-  .footerDot { width: 2px; height: 2px; background: var(--text-3); border-radius: 50%; }
-
-  /* ── Waveform ───────────────────── */
-  .waveBar {
-    width: 2px; background: var(--accent); border-radius: 2px;
-    transition: height 200ms ease; transform-origin: center; flex-shrink: 0;
-    opacity: 0.5;
-  }
-  .waveBar--active { animation: wave 0.9s ease-in-out infinite; opacity: 1; }
-  @keyframes wave {
-    0%, 100% { transform: scaleY(0.3); }
-    50% { transform: scaleY(1); }
-  }
-
-  /* ── Models View ────────────────── */
-  .modelsView { padding: 40px 48px; max-width: 960px; margin: 0 auto; }
-  .modelGrid {
-    display: grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr));
-    gap: 10px; margin-top: 20px;
-  }
-  .modelCard2 {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 16px; transition: all 150ms; position: relative;
-  }
-  .modelCard2:hover { border-color: var(--border-2); background: var(--surface-2); }
-  .modelCard2--selected { background: var(--surface-2); border-color: var(--accent-border); }
-
-  .modelRecommended {
-    position: absolute; top: -9px; left: 13px;
-    background: var(--accent); color: #fff;
-    font-size: 9px; font-weight: 600;
-    letter-spacing: 0.03em; padding: 2px 9px; border-radius: 999px;
-  }
-  .modelCardHeader {
-    display: flex; justify-content: space-between;
-    align-items: center; margin-bottom: 5px;
-  }
-  .modelIdLabel { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent); font-weight: 500; }
-  .modelSize {
-    font-size: 10px; font-weight: 500; padding: 2px 7px;
-    border-radius: 999px; background: rgba(255,255,255,0.05); color: var(--text-2);
-    border: 1px solid var(--border);
-  }
-  .modelName { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; letter-spacing: -0.01em; }
-  .modelDesc2 { font-size: 12px; color: var(--text-2); line-height: 1.55; margin-bottom: 13px; }
-
-  .modelAccuracyRow {
-    display: flex; justify-content: space-between;
-    font-size: 10px; font-weight: 500; color: var(--text-3); margin-bottom: 5px;
-  }
-  .modelAccValue--active { color: var(--accent-light); }
-  .modelAccBar { height: 2px; background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden; margin-bottom: 13px; }
-  .modelAccFill { height: 100%; border-radius: 999px; transition: width 280ms ease; }
-
-  .modelCardFooter {
-    display: flex; justify-content: space-between; align-items: center;
-    padding-top: 10px; border-top: 1px solid var(--border);
-  }
-  .modelSpeed { font-size: 10px; font-weight: 500; color: var(--text-3); }
-  .modelStatusReady { display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; color: var(--success); }
-  .modelStatusRuntime { font-size: 10px; font-weight: 500; color: var(--text-3); }
-  .modelBtnDownload {
-    display: flex; align-items: center; gap: 4px;
-    font-size: 10px; font-weight: 500; color: var(--accent);
-    background: transparent; border: none; cursor: pointer; transition: opacity 120ms;
-  }
-  .modelBtnDownload:hover:not(:disabled) { opacity: 0.7; }
-  .modelBtnDownload:disabled { opacity: 0.35; cursor: not-allowed; }
-  .modelBtnCancel { font-size: 10px; font-weight: 500; color: var(--text-2); background: transparent; border: none; cursor: pointer; transition: color 120ms; }
-  .modelBtnCancel:hover { color: var(--error); }
-
-  .modelDownloadProgress { margin-top: 10px; }
-  .dlBar { height: 2px; background: rgba(255,255,255,0.06); border-radius: 999px; overflow: hidden; margin-bottom: 5px; }
-  .dlFill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 180ms; }
-  .dlLabel { font-size: 10px; color: var(--text-3); font-weight: 500; }
-  .modelHintText { margin-top: 8px; font-size: 11px; color: var(--text-2); line-height: 1.55; }
-
-  /* ── History View ────────────────── */
-  .historyView { display: flex; height: calc(100vh - 44px); overflow: hidden; }
-  .transcriptWell { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-
-  .metaBar {
-    padding: 11px 20px; background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    display: flex; justify-content: space-between;
-    align-items: center; flex-shrink: 0;
-  }
-  .metaItems { display: flex; align-items: center; gap: 18px; }
-  .metaItem { display: flex; flex-direction: column; gap: 2px; }
-  .metaItemLabel { font-size: 10px; font-weight: 500; color: var(--text-3); }
-  .metaItemValue { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
-  .metaDivider { width: 1px; height: 22px; background: var(--border); }
-
-  .clearBtn {
-    display: flex; align-items: center; gap: 5px;
-    background: transparent; border: 1px solid var(--border);
-    color: var(--text-2); font-size: 11px; font-weight: 500;
-    padding: 5px 10px; border-radius: 6px; cursor: pointer; transition: all 120ms;
-  }
-  .clearBtn:hover:not(:disabled) { border-color: rgba(248,113,113,0.3); color: var(--error); }
-  .clearBtn:disabled { opacity: 0.35; cursor: not-allowed; }
-
-  .transcriptWellContent {
-    flex: 1; overflow-y: auto; background: var(--bg); padding: 40px 48px;
-    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.07) transparent;
-  }
-  .wellEmpty {
-    display: flex; flex-direction: column; align-items: center;
-    justify-content: center; height: 100%; gap: 12px; text-align: center;
-  }
-  .wellEmpty .material-symbols-outlined { font-size: 44px; color: var(--text-3); }
-  .wellEmpty h3 {
-    font-family: 'DM Serif Display', Georgia, serif;
-    font-size: 24px; font-weight: 400; letter-spacing: -0.02em; color: var(--text);
-  }
-  .wellEmpty p { font-size: 13px; color: var(--text-2); max-width: 280px; line-height: 1.65; }
-
-  .transcriptArticle { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
-  .transcriptBlock { position: relative; }
-  .transcriptTimestamp {
-    font-size: 10px; font-family: 'JetBrains Mono', monospace;
-    color: var(--text-3); font-weight: 500; display: block; margin-bottom: 6px;
-  }
-  .transcriptText {
-    font-family: 'DM Serif Display', Georgia, serif;
-    font-size: 17px; line-height: 1.95; color: var(--text); font-weight: 400;
-  }
-
-  .exportSidebar {
-    width: 252px; min-width: 252px; background: var(--surface-2);
-    border-left: 1px solid var(--border);
-    padding: 24px 20px; display: flex; flex-direction: column; gap: 22px;
-    overflow-y: auto;
-  }
-  .exportTitle {
-    font-family: 'DM Serif Display', Georgia, serif;
-    font-size: 18px; font-weight: 400; letter-spacing: -0.02em;
-    color: var(--text); margin-bottom: 4px;
-  }
-  .exportSubtitle { font-size: 12px; color: var(--text-2); font-weight: 400; }
-  .exportLabel { display: block; font-size: 10px; font-weight: 500; color: var(--text-3); margin-bottom: 8px; }
-
-  .exportFormats { display: flex; flex-direction: column; gap: 6px; }
-  .exportFormatBtn {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 11px 12px; border-radius: 8px;
-    background: transparent; border: 1px solid var(--border);
-    color: var(--text); cursor: pointer; transition: all 120ms; text-align: left;
-  }
-  .exportFormatBtn:hover:not(:disabled) { background: rgba(255,255,255,0.03); border-color: var(--border-2); }
-  .exportFormatBtn--active { background: var(--accent-dim); border-color: var(--accent-border); }
-  .exportFormatBtn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .exportFormatBtn .material-symbols-outlined { color: var(--accent); }
-  .exportFormatLeft { display: flex; align-items: center; gap: 10px; }
-  .exportFormatName { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 2px; letter-spacing: -0.01em; }
-  .exportFormatDesc { font-size: 10px; color: var(--text-2); font-weight: 400; }
-
-  .exportActions { display: flex; flex-direction: column; gap: 6px; }
-  .exportActionBtn {
-    display: flex; align-items: center; gap: 9px;
-    padding: 10px 12px; border-radius: 8px;
-    background: transparent; border: 1px solid var(--border);
-    color: var(--text-2); font-size: 12px; font-weight: 500;
-    cursor: pointer; transition: all 120ms;
-  }
-  .exportActionBtn:hover:not(:disabled) { background: rgba(255,255,255,0.03); color: var(--text); border-color: var(--border-2); }
-  .exportActionBtn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .exportActionBtn .material-symbols-outlined { color: var(--accent); }
-
-  .exportFooterNote { font-size: 10px; color: var(--text-3); text-align: center; }
-
-  /* ── Animations ─────────────────── */
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
-  }
-`

@@ -235,7 +235,7 @@ function SetupView(props: SetupViewProps) {
   ] as const
 
   return (
-    <div className="p-10 max-w-3xl mx-auto flex flex-col gap-9">
+    <div className="px-8 py-6 max-w-5xl w-full mx-auto flex flex-col gap-6">
       {/* Header */}
       <div className="flex justify-between items-end gap-5 flex-wrap">
         <div>
@@ -559,9 +559,9 @@ function ModelsView({
   onCancelDownload,
 }: ModelsViewProps) {
   return (
-    <div className="p-10 max-w-3xl mx-auto flex flex-col gap-8">
+    <div className="px-8 py-6 max-w-5xl w-full mx-auto flex flex-col gap-4">
       <div>
-        <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground mb-2">
+        <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground mb-1.5">
           Model Library
         </h2>
         <p className="text-sm text-muted-foreground">Select and manage local transcription engines.</p>
@@ -578,7 +578,7 @@ function ModelsView({
               onClick={() => !isCapturing && !downloadingId && onSelectModel(model.id)}
               role="button"
               className={cn(
-                'relative rounded-xl border p-5 flex flex-col gap-3 transition-all duration-150',
+                'relative rounded-xl border p-4 flex flex-col gap-2.5 transition-all duration-150',
                 isSelected
                   ? 'border-primary/40 bg-primary/10 shadow-sm shadow-primary/5'
                   : 'border-border bg-card hover:border-border/80',

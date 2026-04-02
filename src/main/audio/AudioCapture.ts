@@ -8,20 +8,31 @@ const SAMPLE_RATE = 16_000
 const CHANNELS = 1
 const BYTES_PER_SAMPLE = 2
 const ANALYSIS_WINDOW_MS = 100
-const MIN_CHUNK_MS = 8_000
-const TARGET_CHUNK_MS = 14_000
-const MAX_CHUNK_MS = 22_000
-const MIN_SILENCE_MS = 700
 const SILENCE_RMS_THRESHOLD = 0.015
 const ANALYSIS_WINDOW_BYTE_SIZE =
   SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (ANALYSIS_WINDOW_MS / 1_000)
-const MIN_CHUNK_BYTE_SIZE =
-  SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (MIN_CHUNK_MS / 1_000)
-const TARGET_CHUNK_BYTE_SIZE =
-  SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (TARGET_CHUNK_MS / 1_000)
-const MAX_CHUNK_BYTE_SIZE =
-  SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (MAX_CHUNK_MS / 1_000)
-const REQUIRED_SILENCE_WINDOWS = Math.ceil(MIN_SILENCE_MS / ANALYSIS_WINDOW_MS)
+
+interface ChunkingProfile {
+  minChunkMs: number
+  targetChunkMs: number
+  maxChunkMs: number
+  minSilenceMs: number
+}
+
+const CHUNKING_PROFILES: Record<'meeting' | 'live', ChunkingProfile> = {
+  meeting: {
+    minChunkMs: 2_500,
+    targetChunkMs: 4_000,
+    maxChunkMs: 6_000,
+    minSilenceMs: 400,
+  },
+  live: {
+    minChunkMs: 700,
+    targetChunkMs: 1_200,
+    maxChunkMs: 1_800,
+    minSilenceMs: 200,
+  },
+}
 
 interface AudioCaptureEvents {
   chunk: [AudioChunk]
@@ -34,12 +45,14 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
   private process: ChildProcessByStdio<null, Readable, Readable> | null = null
   private buffer = Buffer.alloc(0)
   private emittedDurationMs = 0
+  private chunkingProfile: ChunkingProfile = CHUNKING_PROFILES.meeting
 
   start(options: CaptureStartOptions): void {
     if (this.process) {
       throw new Error('Capture is already running')
     }
 
+    this.chunkingProfile = CHUNKING_PROFILES[options.profile ?? 'meeting']
     const args = buildFfmpegArgs(options)
     this.buffer = Buffer.alloc(0)
     this.emittedDurationMs = 0
@@ -116,29 +129,33 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
   }
 
   private findChunkByteSize(): number | null {
+    const minChunkByteSize = toByteSize(this.chunkingProfile.minChunkMs)
+    const targetChunkByteSize = toByteSize(this.chunkingProfile.targetChunkMs)
+    const maxChunkByteSize = toByteSize(this.chunkingProfile.maxChunkMs)
     const availableByteLength = this.buffer.length - (this.buffer.length % BYTES_PER_SAMPLE)
-    if (availableByteLength < MIN_CHUNK_BYTE_SIZE) {
+    if (availableByteLength < minChunkByteSize) {
       return null
     }
 
-    const silenceBoundary = this.findSilenceBoundary(availableByteLength)
+    const silenceBoundary = this.findSilenceBoundary(availableByteLength, minChunkByteSize)
     if (silenceBoundary !== null) {
       return silenceBoundary
     }
 
-    if (availableByteLength < MAX_CHUNK_BYTE_SIZE) {
+    if (availableByteLength < maxChunkByteSize) {
       return null
     }
 
     const quietBoundary = this.findQuietBoundary(
-      TARGET_CHUNK_BYTE_SIZE,
-      Math.min(availableByteLength, MAX_CHUNK_BYTE_SIZE)
+      targetChunkByteSize,
+      Math.min(availableByteLength, maxChunkByteSize)
     )
 
-    return quietBoundary ?? MAX_CHUNK_BYTE_SIZE
+    return quietBoundary ?? maxChunkByteSize
   }
 
-  private findSilenceBoundary(availableByteLength: number): number | null {
+  private findSilenceBoundary(availableByteLength: number, minChunkByteSize: number): number | null {
+    const requiredSilenceWindows = Math.ceil(this.chunkingProfile.minSilenceMs / ANALYSIS_WINDOW_MS)
     let silentWindows = 0
 
     for (
@@ -151,8 +168,8 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
 
       silentWindows = rms <= SILENCE_RMS_THRESHOLD ? silentWindows + 1 : 0
 
-      const hasEnoughAudio = windowEnd >= MIN_CHUNK_BYTE_SIZE
-      if (hasEnoughAudio && silentWindows >= REQUIRED_SILENCE_WINDOWS) {
+      const hasEnoughAudio = windowEnd >= minChunkByteSize
+      if (hasEnoughAudio && silentWindows >= requiredSilenceWindows) {
         return windowEnd
       }
     }
@@ -202,6 +219,10 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
 
     this.emittedDurationMs = chunkEndMs
   }
+}
+
+function toByteSize(durationMs: number): number {
+  return SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (durationMs / 1_000)
 }
 
 function buildFfmpegArgs(options: CaptureStartOptions): string[] {

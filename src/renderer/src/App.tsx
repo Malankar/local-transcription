@@ -17,6 +17,8 @@ import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
 type View = 'setup' | 'recording' | 'models' | 'history'
+type RecordingSubView = 'meetings' | 'live'
+type CaptureProfile = 'meeting' | 'live'
 
 const initialStatus: AppStatus = { stage: 'idle', detail: 'Load sources to begin' }
 const TRANSCRIPT_MERGE_GAP_MS = 2_000
@@ -47,6 +49,13 @@ function formatElapsed(ms: number): string {
   if (h > 0)
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
   return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
+function getLiveCaptionHint(model: TranscriptionModel | null): string {
+  if (!model) return 'Live captions typically appear every 3-6 seconds.'
+  if (model.speed >= 4) return 'Live captions typically appear every 2-4 seconds.'
+  if (model.speed === 3) return 'Live captions typically appear every 3-5 seconds.'
+  return 'Live captions typically appear every 4-7 seconds.'
 }
 
 function getSetupSourceStatus(status: AppStatus, sourceCount: number): AppStatus {
@@ -450,6 +459,7 @@ function RecordingView({
   }, [segments, transcriptRef])
 
   const sessionName = `Session_${new Date().toISOString().slice(0, 10).replace(/-/g, '_')}`
+  const liveCaptionHint = getLiveCaptionHint(selectedModel)
 
   return (
     <div className="flex flex-col h-full">
@@ -467,6 +477,11 @@ function RecordingView({
               <Icon name="schedule" size={13} />
               {formatElapsed(elapsed)}
             </span>
+            <span className="w-1 h-1 rounded-full bg-border" />
+            <span className="flex items-center gap-1.5 text-xs text-primary/80">
+              <Icon name="subtitles" size={13} />
+              {liveCaptionHint}
+            </span>
           </div>
         </div>
         <Badge variant={isCapturing ? 'default' : 'secondary'} className="gap-1.5 mt-0.5">
@@ -480,7 +495,7 @@ function RecordingView({
         {segments.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground/40">
             <Icon name="graphic_eq" filled size={44} />
-            <p className="text-sm">Listening… transcript will appear here shortly</p>
+            <p className="text-sm">Listening... live transcript will appear here in a few seconds</p>
           </div>
         ) : (
           <div className="max-w-2xl mx-auto flex flex-col gap-7">
@@ -506,7 +521,14 @@ function RecordingView({
       {/* Control Dock */}
       <div className="shrink-0 border-t border-border bg-card/50 px-8 py-4">
         <div className="flex items-center justify-between gap-4">
-          <WaveformBars active={isCapturing} />
+          <div className="flex flex-col gap-1.5">
+            <WaveformBars active={isCapturing} />
+            <p className="text-[11px] text-muted-foreground">
+              {isCapturing
+                ? 'Short audio windows are being transcribed continuously for faster live text.'
+                : 'Capture stopped. Final queued windows will finish processing below.'}
+            </p>
+          </div>
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" disabled className="gap-1.5">
               <Icon name="pause" size={15} />
@@ -541,6 +563,198 @@ function RecordingView({
             </span>
           </>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Live Transcription View ────────────────────────────────────────────────
+
+interface LiveTranscriptionViewProps {
+  text: string
+  isCapturing: boolean
+  isBusy: boolean
+  status: AppStatus
+  selectedModel: TranscriptionModel | null
+  canStart: boolean
+  onStart: () => void
+  onStop: () => void
+}
+
+function LiveTranscriptionView({
+  text,
+  isCapturing,
+  isBusy,
+  status,
+  selectedModel,
+  canStart,
+  onStart,
+  onStop,
+}: LiveTranscriptionViewProps) {
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) return undefined
+    const timeout = window.setTimeout(() => setCopied(false), 1500)
+    return () => window.clearTimeout(timeout)
+  }, [copied])
+
+  async function handleCopy(): Promise<void> {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+  }
+
+  return (
+    <div className="min-h-full bg-background">
+      <div className="max-w-3xl mx-auto px-6 py-8 min-h-full flex flex-col">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Advanced (alpha)</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Fast voice-to-text with a compact live transcript box.
+            </p>
+          </div>
+          <Badge variant="outline" className="gap-1.5">
+            <Icon name="memory" size={12} />
+            {selectedModel?.name ?? 'No model selected'}
+          </Badge>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center gap-10 py-10">
+          <div className="text-center">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">
+              {isCapturing ? 'Listening now' : 'Ready'}
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {isCapturing
+                ? 'Speech is transcribed with the low-latency live profile.'
+                : 'Tap the mic to start instant live transcription.'}
+            </p>
+          </div>
+
+          <div className="flex items-end justify-center gap-2 min-h-24">
+            {[0, 1, 2, 3].map((index) => (
+              <div
+                key={index}
+                className={cn('rounded-full bg-foreground transition-all duration-200', isCapturing && 'animate-pulse')}
+                style={{
+                  width: index === 1 || index === 2 ? 28 : 22,
+                  height: isCapturing ? [34, 46, 46, 34][index] : [34, 42, 42, 34][index],
+                  animationDelay: `${index * 0.08}s`,
+                }}
+              />
+            ))}
+          </div>
+
+          <div className="w-full max-w-md">
+            <div className="relative rounded-3xl border border-border bg-card shadow-sm">
+              <textarea
+                value={text}
+                readOnly
+                placeholder="Your words will appear here..."
+                className={cn(
+                  'min-h-[132px] w-full resize-none rounded-3xl bg-transparent px-5 py-4 pr-14',
+                  'text-sm leading-6 text-foreground focus:outline-none',
+                  'placeholder:text-muted-foreground/50',
+                )}
+              />
+              <button
+                className={cn(
+                  'absolute right-3 top-3 h-9 w-9 rounded-full border border-border bg-background/90',
+                  'flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground',
+                  !text.trim() && 'opacity-40 cursor-not-allowed',
+                )}
+                onClick={() => void handleCopy()}
+                disabled={!text.trim()}
+                title={copied ? 'Copied' : 'Copy text'}
+              >
+                <Icon name={copied ? 'check' : 'content_copy'} size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 pt-4">
+          <button
+            className={cn(
+              'h-14 w-14 rounded-full border flex items-center justify-center transition-colors',
+              isCapturing
+                ? 'border-border bg-card text-foreground'
+                : 'border-border bg-card/70 text-foreground hover:bg-card',
+            )}
+            onClick={isCapturing ? onStop : onStart}
+            disabled={isCapturing ? isBusy : !canStart}
+            title={isCapturing ? 'Stop live transcription' : 'Start live transcription'}
+          >
+            <Icon name="mic" filled size={20} />
+          </button>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant={isCapturing ? 'default' : 'secondary'} className="gap-1.5">
+              {isCapturing && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+              {status.stage}
+            </Badge>
+            <span>{isCapturing ? 'Low delay mode' : 'Tap mic to begin'}</span>
+          </div>
+
+          <button
+            className={cn(
+              'h-14 w-14 rounded-full flex items-center justify-center transition-colors',
+              isCapturing
+                ? 'bg-[#ff6b61] text-white hover:bg-[#f85c51]'
+                : 'bg-muted text-muted-foreground',
+            )}
+            onClick={onStop}
+            disabled={!isCapturing || isBusy}
+            title="Stop"
+          >
+            <Icon name="close" size={22} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface RecordingHubViewProps {
+  subView: RecordingSubView
+  onChangeSubView: (view: RecordingSubView) => void
+  meetingProps: RecordingViewProps
+  liveProps: LiveTranscriptionViewProps
+}
+
+function RecordingHubView({
+  subView,
+  onChangeSubView,
+  meetingProps,
+  liveProps,
+}: RecordingHubViewProps) {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="px-8 py-4 border-b border-border bg-background/90 shrink-0">
+        <div className="inline-flex rounded-xl border border-border bg-card p-1">
+          {[
+            { id: 'meetings' as RecordingSubView, label: 'Meetings' },
+            { id: 'live' as RecordingSubView, label: 'Live Transcription' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              className={cn(
+                'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                subView === item.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+              onClick={() => onChangeSubView(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0">
+        {subView === 'meetings' ? <RecordingView {...meetingProps} /> : <LiveTranscriptionView {...liveProps} />}
       </div>
     </div>
   )
@@ -861,7 +1075,8 @@ export function App() {
   const [mode, setMode] = useState<AudioSourceMode>('system')
   const [systemSourceId, setSystemSourceId] = useState('')
   const [micSourceId, setMicSourceId] = useState('')
-  const [segments, setSegments] = useState<TranscriptSegment[]>([])
+  const [meetingSegments, setMeetingSegments] = useState<TranscriptSegment[]>([])
+  const [liveSegments, setLiveSegments] = useState<TranscriptSegment[]>([])
   const [status, setStatus] = useState<AppStatus>(initialStatus)
   const [errorMessage, setErrorMessage] = useState('')
   const [isBusy, setIsBusy] = useState(false)
@@ -874,11 +1089,19 @@ export function App() {
   const [downloadError, setDownloadError] = useState('')
 
   const [activeView, setActiveView] = useState<View>('setup')
+  const [recordingSubView, setRecordingSubView] = useState<RecordingSubView>('meetings')
+  const [captureProfile, setCaptureProfile] = useState<CaptureProfile>('meeting')
   const transcriptRef = useRef<HTMLDivElement>(null)
+  const captureProfileRef = useRef<CaptureProfile>('meeting')
 
   const systemSources = useMemo(() => sources.filter((s) => s.isMonitor), [sources])
   const micSources = useMemo(() => sources.filter((s) => !s.isMonitor), [sources])
-  const mergedSegments = useMemo(() => mergeTranscriptSegments(segments), [segments])
+  const mergedMeetingSegments = useMemo(() => mergeTranscriptSegments(meetingSegments), [meetingSegments])
+  const mergedLiveSegments = useMemo(() => mergeTranscriptSegments(liveSegments), [liveSegments])
+  const liveTranscriptText = useMemo(
+    () => mergedLiveSegments.map((segment) => segment.text).join(' ').trim(),
+    [mergedLiveSegments],
+  )
 
   const selectedModel = models.find((m) => m.id === selectedModelId) ?? null
   const modelReady = selectedModel?.isDownloaded === true
@@ -888,8 +1111,16 @@ export function App() {
   )
 
   useEffect(() => {
+    captureProfileRef.current = captureProfile
+  }, [captureProfile])
+
+  useEffect(() => {
     const unsubscribeSegment = window.api.onTranscriptSegment((segment) => {
-      setSegments((current) => [...current, segment])
+      if (captureProfileRef.current === 'live') {
+        setLiveSegments((current) => [...current, segment])
+        return
+      }
+      setMeetingSegments((current) => [...current, segment])
     })
     const unsubscribeStatus = window.api.onStatus((nextStatus) => {
       setStatus(nextStatus)
@@ -929,11 +1160,12 @@ export function App() {
     } else if (
       !isCapturing &&
       (status.stage === 'stopped' || status.stage === 'error') &&
-      segments.length > 0
+      meetingSegments.length > 0 &&
+      captureProfile === 'meeting'
     ) {
       setActiveView('history')
     }
-  }, [isCapturing, status.stage])
+  }, [captureProfile, isCapturing, meetingSegments.length, status.stage])
 
   async function loadModels(): Promise<void> {
     const list = await window.api.getModels()
@@ -987,12 +1219,19 @@ export function App() {
     setDownloadProgress(null)
   }
 
-  async function startCapture(): Promise<void> {
+  async function startCapture(profile: CaptureProfile = 'meeting'): Promise<void> {
     setErrorMessage('')
-    setSegments([])
+    setCaptureProfile(profile)
+    setRecordingSubView(profile === 'live' ? 'live' : 'meetings')
+    setActiveView('recording')
+    if (profile === 'live') {
+      setLiveSegments([])
+    } else {
+      setMeetingSegments([])
+    }
     setIsBusy(true)
     try {
-      await window.api.startCapture({ mode, systemSourceId, micSourceId })
+      await window.api.startCapture({ mode, systemSourceId, micSourceId, profile })
     } catch (error) {
       setErrorMessage(toMessage(error))
       setIsCapturing(false)
@@ -1036,7 +1275,8 @@ export function App() {
   }
 
   function handleNewTranscription() {
-    setSegments([])
+    setMeetingSegments([])
+    setLiveSegments([])
     setErrorMessage('')
     setStatus(initialStatus)
     setActiveView('setup')
@@ -1059,7 +1299,7 @@ export function App() {
 
   const topBarSectionLabel: Record<View, string> = {
     setup: 'Configure',
-    recording: 'Live View',
+    recording: recordingSubView === 'live' ? 'Recording / Live Transcription' : 'Recording / Meetings',
     models: 'Model Library',
     history: 'Transcript',
   }
@@ -1182,19 +1422,33 @@ export function App() {
               isBusy={isBusy}
               status={setupSourceStatus}
               errorMessage={errorMessage}
-              onStart={() => void startCapture()}
+              onStart={() => void startCapture('meeting')}
               onRefresh={() => void refreshSources()}
             />
           )}
           {activeView === 'recording' && (
-            <RecordingView
-              segments={mergedSegments}
-              isCapturing={isCapturing}
-              isBusy={isBusy}
-              status={status}
-              transcriptRef={transcriptRef}
-              onStop={() => void stopCapture()}
-              selectedModel={selectedModel}
+            <RecordingHubView
+              subView={recordingSubView}
+              onChangeSubView={setRecordingSubView}
+              meetingProps={{
+                segments: mergedMeetingSegments,
+                isCapturing: isCapturing && captureProfile === 'meeting',
+                isBusy,
+                status,
+                transcriptRef,
+                onStop: () => void stopCapture(),
+                selectedModel,
+              }}
+              liveProps={{
+                text: liveTranscriptText,
+                isCapturing: isCapturing && captureProfile === 'live',
+                isBusy,
+                status,
+                selectedModel,
+                canStart,
+                onStart: () => void startCapture('live'),
+                onStop: () => void stopCapture(),
+              }}
             />
           )}
           {activeView === 'models' && (
@@ -1212,8 +1466,8 @@ export function App() {
           )}
           {activeView === 'history' && (
             <HistoryView
-              segments={mergedSegments}
-              rawSegmentCount={segments.length}
+              segments={mergedMeetingSegments}
+              rawSegmentCount={meetingSegments.length}
               selectedModel={selectedModel}
               status={status}
               onClear={handleNewTranscription}

@@ -24,6 +24,7 @@ export interface CaptureStartOptions {
   mode: AudioSourceMode
   systemSourceId?: string
   micSourceId?: string
+  profile?: 'meeting' | 'live'
 }
 
 export type AppStatusStage =

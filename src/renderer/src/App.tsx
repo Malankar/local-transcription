@@ -338,6 +338,12 @@ function SetupView(props: SetupViewProps) {
               placeholder="Select microphone"
             />
           )}
+          {status.stage !== 'idle' && (
+            <div className="flex items-center gap-2 px-1">
+              <Badge variant="secondary" className="text-[11px] font-mono">{status.stage}</Badge>
+              <span className="text-xs text-muted-foreground">{status.detail}</span>
+            </div>
+          )}
         </div>
       </section>
 
@@ -364,12 +370,6 @@ function SetupView(props: SetupViewProps) {
               </p>
             </div>
           </button>
-          {status.stage !== 'idle' && (
-            <div className="flex items-center gap-2 px-1">
-              <Badge variant="secondary" className="text-[11px] font-mono">{status.stage}</Badge>
-              <span className="text-xs text-muted-foreground">{status.detail}</span>
-            </div>
-          )}
         </div>
 
         <Button

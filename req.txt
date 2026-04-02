@@ -1,0 +1,16 @@
+add live transcription on that behaves like voice to text using ai like chatgpt or claude code - get the details from web what is right way to implment this
+add detail history to store transcript and show them also label them using ai - be careful of the ui for this determine which would be best 
+add setting tab that addes 
+    general - 
+        start hidden toggle, 
+        launch on startup toggle, 
+        show tray icon icon, 
+        unload model default 5 min, 
+        voice to text short cut - configure by default meta+v for linux and windows, mac cmd + ctrl + v 
+        mute while recording toggle
+    history - 
+        history limit 5 by default, 
+        auto delete recording having options never, keep latest 5, some more that seems proper, keep star recordings till i delete toggle   
+have the model selection some where more accessible then going to model and selecting it, model view be showing downloaded models and showing downloadble models user select from here as well but it should in more accessible place as well
+in setup tab under device add default for device which are default by options
+

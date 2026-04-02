@@ -49,6 +49,19 @@ function formatElapsed(ms: number): string {
   return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
 }
 
+function getSetupSourceStatus(status: AppStatus, sourceCount: number): AppStatus {
+  if (status.stage === 'discovering') {
+    return status
+  }
+  if (sourceCount > 0) {
+    return { stage: 'ready', detail: `Found ${sourceCount} audio sources` }
+  }
+  if (status.stage === 'error') {
+    return status
+  }
+  return initialStatus
+}
+
 // ── Transcript merging ─────────────────────────────────────────────────────
 
 function mergeTranscriptSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
@@ -869,6 +882,10 @@ export function App() {
 
   const selectedModel = models.find((m) => m.id === selectedModelId) ?? null
   const modelReady = selectedModel?.isDownloaded === true
+  const setupSourceStatus = useMemo(
+    () => getSetupSourceStatus(status, sources.length),
+    [sources.length, status],
+  )
 
   useEffect(() => {
     const unsubscribeSegment = window.api.onTranscriptSegment((segment) => {
@@ -1163,7 +1180,7 @@ export function App() {
               onNavigateToModels={() => setActiveView('models')}
               canStart={canStart}
               isBusy={isBusy}
-              status={status}
+              status={setupSourceStatus}
               errorMessage={errorMessage}
               onStart={() => void startCapture()}
               onRefresh={() => void refreshSources()}

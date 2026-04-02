@@ -112,12 +112,15 @@ function createWindow(): void {
     minWidth: 980,
     minHeight: 720,
     backgroundColor: '#f4f1e8',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   })
+
+  mainWindow.setMenuBarVisibility(false)
 
   if (isDev && process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)

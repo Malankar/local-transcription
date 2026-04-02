@@ -237,20 +237,20 @@ function SetupView(props: SetupViewProps) {
   return (
     <div className="px-8 py-6 max-w-5xl w-full mx-auto flex flex-col gap-6">
       {/* Header */}
-      <div className="flex justify-between items-end gap-5 flex-wrap">
-        <div>
-          <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground leading-tight mb-2">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground leading-tight">
             Local-First Transcription
           </h2>
-          <p className="text-sm text-muted-foreground leading-relaxed max-w-md">
-            High-performance AI transcription running directly on your hardware. No data ever
-            leaves your machine.
-          </p>
+          <Badge variant="outline" className="gap-1.5 text-primary border-primary/30 bg-primary/10 px-3 py-1.5 shrink-0">
+            <Icon name="verified_user" filled size={12} />
+            100% Local. No Cloud Backend.
+          </Badge>
         </div>
-        <Badge variant="outline" className="gap-1.5 text-primary border-primary/30 bg-primary/10 px-3 py-1.5 shrink-0">
-          <Icon name="verified_user" filled size={12} />
-          100% Local. No Cloud Backend.
-        </Badge>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          High-performance AI transcription running directly on your hardware. No data ever
+          leaves your machine.
+        </p>
       </div>
 
       {/* Source Selection */}

@@ -10,16 +10,30 @@ interface ChunkQueueEvents {
 }
 
 type Processor = (chunk: AudioChunk) => Promise<TranscriptSegment[]>
+type QueueMode = 'default' | 'realtime'
 
 export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
   private queue: AudioChunk[] = []
   private processing = false
+  private mode: QueueMode = 'default'
 
   constructor(private readonly processor: Processor) {
     super()
   }
 
+  setMode(mode: QueueMode): void {
+    this.mode = mode
+    if (mode === 'realtime' && this.queue.length > 1) {
+      this.queue = [this.queue[this.queue.length - 1]]
+    }
+  }
+
   enqueue(chunk: AudioChunk): void {
+    if (this.mode === 'realtime' && this.processing) {
+      // Keep only the newest pending audio in live mode so captions do not lag behind.
+      this.queue = [chunk]
+      return
+    }
     this.queue.push(chunk)
     void this.processNext()
   }

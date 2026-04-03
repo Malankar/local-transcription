@@ -81,6 +81,7 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
       })
       whisperEngine.setModel(selectedModel)
       resetTranscriptSegments()
+      chunkQueue.setMode(captureOptions.profile === 'live' ? 'realtime' : 'default')
       chunkQueue.clear()
       sendStatus({ stage: 'initializing-model', detail: 'Preparing transcription engine...' })
       audioCapture.start(captureOptions)

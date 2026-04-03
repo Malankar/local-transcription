@@ -89,8 +89,9 @@ chunkQueue.on('segment', (segment) => {
 })
 
 chunkQueue.on('error', (error) => {
+  // Individual chunk transcription failures are non-fatal — the queue resumes automatically.
+  // Don't call sendError here as that would send stage:'error' and stop the capture UI.
   logger.error('Chunk queue emitted error', error)
-  sendError(error.message)
 })
 
 chunkQueue.on('status', (detail) => {

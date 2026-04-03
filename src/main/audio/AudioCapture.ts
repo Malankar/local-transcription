@@ -27,10 +27,10 @@ const CHUNKING_PROFILES: Record<'meeting' | 'live', ChunkingProfile> = {
     minSilenceMs: 400,
   },
   live: {
-    minChunkMs: 700,
-    targetChunkMs: 1_200,
-    maxChunkMs: 1_800,
-    minSilenceMs: 200,
+    minChunkMs: 1_200,
+    targetChunkMs: 2_000,
+    maxChunkMs: 3_500,
+    minSilenceMs: 250,
   },
 }
 
@@ -210,14 +210,19 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     )
     const chunkStartMs = this.emittedDurationMs
     const chunkEndMs = chunkStartMs + durationMs
+    this.emittedDurationMs = chunkEndMs
+
+    // Skip chunks that are entirely silent to avoid sending blank audio to the
+    // transcription engine, which causes [BLANK_AUDIO] spam and needless failures.
+    if (calculateRms(chunk) <= SILENCE_RMS_THRESHOLD) {
+      return
+    }
 
     this.emit('chunk', {
       audio: pcm16ToFloat32(chunk),
       startMs: chunkStartMs,
       endMs: chunkEndMs,
     })
-
-    this.emittedDurationMs = chunkEndMs
   }
 }
 

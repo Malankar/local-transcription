@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
-type View = 'setup' | 'recording' | 'models' | 'history'
+type View = 'recording' | 'models' | 'history'
 type RecordingSubView = 'meetings' | 'live'
 type CaptureProfile = 'meeting' | 'live'
 
@@ -56,19 +56,6 @@ function getLiveCaptionHint(model: TranscriptionModel | null): string {
   if (model.speed >= 4) return 'Live captions typically appear every 2-4 seconds.'
   if (model.speed === 3) return 'Live captions typically appear every 3-5 seconds.'
   return 'Live captions typically appear every 4-7 seconds.'
-}
-
-function getSetupSourceStatus(status: AppStatus, sourceCount: number): AppStatus {
-  if (status.stage === 'discovering') {
-    return status
-  }
-  if (sourceCount > 0) {
-    return { stage: 'ready', detail: `Found ${sourceCount} audio sources` }
-  }
-  if (status.stage === 'error') {
-    return status
-  }
-  return initialStatus
 }
 
 // ── Transcript merging ─────────────────────────────────────────────────────
@@ -203,9 +190,9 @@ function DeviceSelect({
   )
 }
 
-// ── Setup View ─────────────────────────────────────────────────────────────
+// ── Source Controls (inline, compact) ─────────────────────────────────────
 
-interface SetupViewProps {
+interface SourceControlsProps {
   mode: AudioSourceMode
   setMode: (m: AudioSourceMode) => void
   systemSources: AudioSource[]
@@ -216,133 +203,53 @@ interface SetupViewProps {
   setMicSourceId: (id: string) => void
   selectedModel: TranscriptionModel | null
   onNavigateToModels: () => void
-  canStart: boolean
-  isBusy: boolean
-  status: AppStatus
-  errorMessage: string
-  onStart: () => void
   onRefresh: () => void
+  isBusy: boolean
+  errorMessage: string
 }
 
-function SetupView(props: SetupViewProps) {
-  const {
-    mode, setMode,
-    systemSources, micSources,
-    systemSourceId, setSystemSourceId,
-    micSourceId, setMicSourceId,
-    selectedModel, onNavigateToModels,
-    canStart, isBusy, status, errorMessage,
-    onStart, onRefresh,
-  } = props
-
-  const sourceModes = [
-    {
-      id: 'system' as AudioSourceMode,
-      icon: 'computer',
-      title: 'System Audio',
-      desc: 'Capture meeting audio, videos, or system sounds directly.',
-    },
-    {
-      id: 'mic' as AudioSourceMode,
-      icon: 'mic',
-      title: 'Microphone',
-      desc: 'Direct input from your default recording device.',
-    },
-    {
-      id: 'mixed' as AudioSourceMode,
-      icon: 'library_music',
-      title: 'Mixed Output',
-      desc: 'Combine mic and system audio for full context.',
-    },
-  ] as const
+function SourceControls({
+  mode, setMode,
+  systemSources, micSources,
+  systemSourceId, setSystemSourceId,
+  micSourceId, setMicSourceId,
+  selectedModel, onNavigateToModels,
+  onRefresh, isBusy, errorMessage,
+}: SourceControlsProps) {
+  const sourceModes: { id: AudioSourceMode; icon: string; label: string }[] = [
+    { id: 'system', icon: 'computer', label: 'System' },
+    { id: 'mic', icon: 'mic', label: 'Mic' },
+    { id: 'mixed', icon: 'library_music', label: 'Mixed' },
+  ]
 
   return (
-    <div className="px-8 py-6 max-w-5xl w-full mx-auto flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground leading-tight">
-            Local-First Transcription
-          </h2>
-          <Badge variant="outline" className="gap-1.5 text-primary border-primary/30 bg-primary/10 px-3 py-1.5 shrink-0">
-            <Icon name="verified_user" filled size={12} />
-            100% Local. No Cloud Backend.
-          </Badge>
-        </div>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          High-performance AI transcription running directly on your hardware. No data ever
-          leaves your machine.
-        </p>
-      </div>
-
-      {/* Source Selection */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-muted-foreground/60 uppercase tracking-widest">01 — Source</span>
-          <Separator className="flex-1" />
-        </div>
-        <div className="grid grid-cols-3 gap-2.5">
-          {sourceModes.map(({ id, icon, title, desc }) => {
-            const active = mode === id
-            return (
+    <div className="px-6 py-4 border-b border-border bg-card/20 flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-4">
+        {/* Mode selector */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Audio Input</span>
+          <div className="inline-flex rounded-lg border border-border bg-background p-0.5 gap-0.5">
+            {sourceModes.map(({ id, icon, label }) => (
               <button
                 key={id}
                 onClick={() => setMode(id)}
                 className={cn(
-                  'flex flex-col gap-3 p-4 rounded-xl border text-left transition-all duration-150',
-                  active
-                    ? 'border-primary/40 bg-primary/10 shadow-sm shadow-primary/10'
-                    : 'border-border bg-card hover:border-border/80 hover:bg-card/80',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+                  mode === id
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <div className={cn(
-                    'w-9 h-9 rounded-lg flex items-center justify-center',
-                    active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                  )}>
-                    <Icon name={icon} size={18} filled={active} />
-                  </div>
-                  {active ? (
-                    <span className="flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/15 border border-primary/25 rounded-full px-2 py-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      Selected
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground/50 border border-border rounded-full px-2 py-0.5">
-                      Available
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <h3 className={cn('text-sm font-semibold mb-1', active ? 'text-foreground' : 'text-foreground/80')}>
-                    {title}
-                  </h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
-                </div>
+                <Icon name={icon} size={13} filled={mode === id} />
+                {label}
               </button>
-            )
-          })}
+            ))}
+          </div>
         </div>
-      </section>
 
-      {/* Device Selection */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-muted-foreground/60 uppercase tracking-widest">02 — Device</span>
-          <Separator className="flex-1" />
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-6 px-2 text-[11px] gap-1"
-            onClick={onRefresh}
-            disabled={isBusy}
-          >
-            <Icon name="refresh" size={11} />
-            Refresh
-          </Button>
-        </div>
-        <div className="flex flex-col gap-3">
-          {(mode === 'system' || mode === 'mixed') && (
+        {/* Device dropdowns */}
+        {(mode === 'system' || mode === 'mixed') && (
+          <div className="flex-1 min-w-40">
             <DeviceSelect
               label="System Source"
               value={systemSourceId}
@@ -350,8 +257,10 @@ function SetupView(props: SetupViewProps) {
               sources={systemSources}
               placeholder="Select system source"
             />
-          )}
-          {(mode === 'mic' || mode === 'mixed') && (
+          </div>
+        )}
+        {(mode === 'mic' || mode === 'mixed') && (
+          <div className="flex-1 min-w-40">
             <DeviceSelect
               label="Microphone"
               value={micSourceId}
@@ -359,56 +268,44 @@ function SetupView(props: SetupViewProps) {
               sources={micSources}
               placeholder="Select microphone"
             />
-          )}
-          {status.stage !== 'idle' && (
-            <div className="flex items-center gap-2 px-1">
-              <Badge variant="secondary" className="text-[11px] font-mono">{status.stage}</Badge>
-              <span className="text-xs text-muted-foreground">{status.detail}</span>
-            </div>
-          )}
-        </div>
-      </section>
+          </div>
+        )}
 
-      {/* Model + Start */}
-      <section className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex flex-col gap-2">
-          <button
-            className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors text-left"
-            onClick={onNavigateToModels}
+        {/* Model + Refresh */}
+        <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Model</span>
+            <button
+              className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-card hover:bg-muted/50 transition-colors text-sm"
+              onClick={onNavigateToModels}
+            >
+              <Icon name="memory" filled size={14} />
+              <span className="text-foreground">{selectedModel?.name ?? 'No model'}</span>
+              {selectedModel?.isDownloaded && (
+                <span className="text-[10px] text-emerald-400 font-medium">Ready</span>
+              )}
+              {selectedModel && !selectedModel.isDownloaded && (
+                <span className="text-[10px] text-destructive font-medium">Download needed</span>
+              )}
+            </button>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-9 p-0 text-muted-foreground"
+            onClick={onRefresh}
+            disabled={isBusy}
+            title="Refresh audio sources"
           >
-            <div className="w-8 h-8 rounded-md bg-primary/15 flex items-center justify-center text-primary shrink-0">
-              <Icon name="memory" filled size={16} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground leading-none mb-1">
-                {selectedModel?.name ?? 'No model selected'}
-              </p>
-              <p className="text-xs flex items-center gap-1">
-                {selectedModel?.isDownloaded && <span className="text-emerald-400">Ready</span>}
-                {!selectedModel?.isDownloaded && selectedModel?.downloadManaged && <span className="text-destructive">Download required</span>}
-                {!selectedModel?.isDownloaded && !selectedModel?.downloadManaged && <span className="text-muted-foreground">Auto-managed</span>}
-                <span className="text-muted-foreground/30">·</span>
-                <span className="text-primary/80">Change model →</span>
-              </p>
-            </div>
-          </button>
+            <Icon name="refresh" size={15} />
+          </Button>
         </div>
-
-        <Button
-          size="lg"
-          className="gap-2 px-8"
-          onClick={onStart}
-          disabled={!canStart}
-        >
-          <Icon name="play_arrow" filled size={18} />
-          Start Transcription
-        </Button>
-      </section>
+      </div>
 
       {errorMessage && (
-        <Alert variant="destructive">
-          <Icon name="error" filled size={15} />
-          <AlertDescription>{errorMessage}</AlertDescription>
+        <Alert variant="destructive" className="py-2">
+          <Icon name="error" filled size={13} />
+          <AlertDescription className="text-xs">{errorMessage}</AlertDescription>
         </Alert>
       )}
     </div>
@@ -424,6 +321,8 @@ interface RecordingViewProps {
   status: AppStatus
   transcriptRef: RefObject<HTMLDivElement>
   onStop: () => void
+  onStart: () => void
+  canStart: boolean
   selectedModel: TranscriptionModel | null
 }
 
@@ -434,6 +333,8 @@ function RecordingView({
   status,
   transcriptRef,
   onStop,
+  onStart,
+  canStart,
   selectedModel,
 }: RecordingViewProps) {
   const [elapsed, setElapsed] = useState(0)
@@ -460,6 +361,27 @@ function RecordingView({
 
   const sessionName = `Session_${new Date().toISOString().slice(0, 10).replace(/-/g, '_')}`
   const liveCaptionHint = getLiveCaptionHint(selectedModel)
+
+  if (!isCapturing && segments.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-6 text-muted-foreground/50 px-8">
+        <Icon name="graphic_eq" filled size={48} />
+        <div className="text-center flex flex-col gap-2">
+          <p className="text-base font-medium text-foreground/70">Ready to record a meeting</p>
+          <p className="text-sm">{liveCaptionHint}</p>
+        </div>
+        <Button size="lg" className="gap-2 px-10" onClick={onStart} disabled={!canStart}>
+          <Icon name="play_arrow" filled size={18} />
+          Start Recording
+        </Button>
+        {!canStart && (
+          <p className="text-xs text-muted-foreground/50">
+            {selectedModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
+          </p>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -607,19 +529,6 @@ function LiveTranscriptionView({
   return (
     <div className="min-h-full bg-background">
       <div className="max-w-3xl mx-auto px-6 py-8 min-h-full flex flex-col">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-foreground">Advanced (alpha)</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Fast voice-to-text with a compact live transcript box.
-            </p>
-          </div>
-          <Badge variant="outline" className="gap-1.5">
-            <Icon name="memory" size={12} />
-            {selectedModel?.name ?? 'No model selected'}
-          </Badge>
-        </div>
-
         <div className="flex-1 flex flex-col items-center justify-center gap-10 py-10">
           <div className="text-center">
             <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">
@@ -630,6 +539,11 @@ function LiveTranscriptionView({
                 ? 'Speech is transcribed with the low-latency live profile.'
                 : 'Tap the mic to start instant live transcription.'}
             </p>
+            {!isCapturing && !canStart && (
+              <p className="text-xs text-destructive/70 mt-1">
+                {selectedModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
+              </p>
+            )}
           </div>
 
           <div className="flex items-end justify-center gap-2 min-h-24">
@@ -721,6 +635,8 @@ interface RecordingHubViewProps {
   onChangeSubView: (view: RecordingSubView) => void
   meetingProps: RecordingViewProps
   liveProps: LiveTranscriptionViewProps
+  sourceControlProps: SourceControlsProps
+  isCapturing: boolean
 }
 
 function RecordingHubView({
@@ -728,13 +644,19 @@ function RecordingHubView({
   onChangeSubView,
   meetingProps,
   liveProps,
+  sourceControlProps,
+  isCapturing,
 }: RecordingHubViewProps) {
   return (
     <div className="flex h-full flex-col">
-      <div className="px-8 py-4 border-b border-border bg-background/90 shrink-0">
+      {/* Inline source controls — hidden while capturing */}
+      {!isCapturing && <SourceControls {...sourceControlProps} />}
+
+      {/* Tab bar */}
+      <div className="px-8 py-3 border-b border-border bg-background/90 shrink-0">
         <div className="inline-flex rounded-xl border border-border bg-card p-1">
           {[
-            { id: 'meetings' as RecordingSubView, label: 'Meetings' },
+            { id: 'meetings' as RecordingSubView, label: 'Meeting Recording' },
             { id: 'live' as RecordingSubView, label: 'Live Transcription' },
           ].map((item) => (
             <button
@@ -1072,7 +994,7 @@ function HistoryView({
 
 export function App() {
   const [sources, setSources] = useState<AudioSource[]>([])
-  const [mode, setMode] = useState<AudioSourceMode>('system')
+  const [mode, setMode] = useState<AudioSourceMode>('mixed')
   const [systemSourceId, setSystemSourceId] = useState('')
   const [micSourceId, setMicSourceId] = useState('')
   const [meetingSegments, setMeetingSegments] = useState<TranscriptSegment[]>([])
@@ -1088,7 +1010,7 @@ export function App() {
   const [downloadProgress, setDownloadProgress] = useState<ModelDownloadProgress | null>(null)
   const [downloadError, setDownloadError] = useState('')
 
-  const [activeView, setActiveView] = useState<View>('setup')
+  const [activeView, setActiveView] = useState<View>('recording')
   const [recordingSubView, setRecordingSubView] = useState<RecordingSubView>('meetings')
   const [captureProfile, setCaptureProfile] = useState<CaptureProfile>('meeting')
   const transcriptRef = useRef<HTMLDivElement>(null)
@@ -1105,10 +1027,6 @@ export function App() {
 
   const selectedModel = models.find((m) => m.id === selectedModelId) ?? null
   const modelReady = selectedModel?.isDownloaded === true
-  const setupSourceStatus = useMemo(
-    () => getSetupSourceStatus(status, sources.length),
-    [sources.length, status],
-  )
 
   useEffect(() => {
     captureProfileRef.current = captureProfile
@@ -1279,7 +1197,7 @@ export function App() {
     setLiveSegments([])
     setErrorMessage('')
     setStatus(initialStatus)
-    setActiveView('setup')
+    setActiveView('recording')
   }
 
   const canStart =
@@ -1291,17 +1209,27 @@ export function App() {
       (mode === 'mixed' && !!systemSourceId && !!micSourceId))
 
   const navItems = [
-    { id: 'setup' as View, label: 'Setup', icon: 'settings_input_component' },
-    { id: 'recording' as View, label: 'Recording', icon: 'mic' },
+    { id: 'recording' as View, label: 'Transcribe', icon: 'mic' },
     { id: 'models' as View, label: 'Models', icon: 'memory' },
     { id: 'history' as View, label: 'History', icon: 'history' },
   ]
 
   const topBarSectionLabel: Record<View, string> = {
-    setup: 'Configure',
-    recording: recordingSubView === 'live' ? 'Recording / Live Transcription' : 'Recording / Meetings',
+    recording: recordingSubView === 'live' ? 'Live Transcription' : 'Meeting Recording',
     models: 'Model Library',
     history: 'Transcript',
+  }
+
+  const sourceControlProps: SourceControlsProps = {
+    mode, setMode,
+    systemSources, micSources,
+    systemSourceId, setSystemSourceId,
+    micSourceId, setMicSourceId,
+    selectedModel,
+    onNavigateToModels: () => setActiveView('models'),
+    onRefresh: () => void refreshSources(),
+    isBusy,
+    errorMessage,
   }
 
   return (
@@ -1406,30 +1334,12 @@ export function App() {
 
         {/* Content */}
         <div className="flex-1 overflow-auto scrollbar-thin">
-          {activeView === 'setup' && (
-            <SetupView
-              mode={mode}
-              setMode={setMode}
-              systemSources={systemSources}
-              micSources={micSources}
-              systemSourceId={systemSourceId}
-              setSystemSourceId={setSystemSourceId}
-              micSourceId={micSourceId}
-              setMicSourceId={setMicSourceId}
-              selectedModel={selectedModel}
-              onNavigateToModels={() => setActiveView('models')}
-              canStart={canStart}
-              isBusy={isBusy}
-              status={setupSourceStatus}
-              errorMessage={errorMessage}
-              onStart={() => void startCapture('meeting')}
-              onRefresh={() => void refreshSources()}
-            />
-          )}
           {activeView === 'recording' && (
             <RecordingHubView
               subView={recordingSubView}
               onChangeSubView={setRecordingSubView}
+              isCapturing={isCapturing}
+              sourceControlProps={sourceControlProps}
               meetingProps={{
                 segments: mergedMeetingSegments,
                 isCapturing: isCapturing && captureProfile === 'meeting',
@@ -1437,6 +1347,8 @@ export function App() {
                 status,
                 transcriptRef,
                 onStop: () => void stopCapture(),
+                onStart: () => void startCapture('meeting'),
+                canStart,
                 selectedModel,
               }}
               liveProps={{

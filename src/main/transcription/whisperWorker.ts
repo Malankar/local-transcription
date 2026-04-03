@@ -512,12 +512,19 @@ function cleanupFiles(...paths: string[]): void {
   }
 }
 
+// Whisper.cpp emits special bracket tokens for silence/noise — strip them before storing.
+const WHISPER_TOKEN_PATTERN = /\[[A-Z_]+\]/g
+
+function stripWhisperTokens(raw: string): string {
+  return raw.replaceAll(WHISPER_TOKEN_PATTERN, '').replaceAll(/\s{2,}/g, ' ').trim()
+}
+
 function toWhisperTranscriptSegment(
   segment: WhisperJsonSegment,
   index: number,
   chunk: AudioChunk
 ): TranscriptSegment | null {
-  const text = segment.text?.trim()
+  const text = stripWhisperTokens(segment.text?.trim() ?? '')
   if (!text) return null
 
   return {

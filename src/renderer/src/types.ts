@@ -3,6 +3,8 @@ export type {
   AudioSource,
   AudioSourceMode,
   ExportResult,
+  HistorySession,
+  HistorySessionMeta,
   ModelDownloadProgress,
   TranscriptionModel,
   TranscriptSegment,

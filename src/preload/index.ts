@@ -4,6 +4,7 @@ import type {
   AppStatus,
   CaptureStartOptions,
   ExportResult,
+  HistorySessionMeta,
   LocalTranscribeApi,
   ModelDownloadProgress,
   TranscriptSegment,
@@ -26,6 +27,13 @@ const api: LocalTranscribeApi = {
   cancelDownload: (modelId: string) => ipcRenderer.invoke('models:cancelDownload', modelId),
   onModelDownloadProgress: (listener: (progress: ModelDownloadProgress) => void) =>
     subscribe('models:downloadProgress', listener),
+  listHistory: () => ipcRenderer.invoke('history:list'),
+  getHistorySession: (id: string) => ipcRenderer.invoke('history:get', id),
+  deleteHistorySession: (id: string) => ipcRenderer.invoke('history:delete', id),
+  exportHistoryTxt: (id: string) => ipcRenderer.invoke('history:export:txt', id),
+  exportHistorySrt: (id: string) => ipcRenderer.invoke('history:export:srt', id),
+  onHistorySaved: (listener: (meta: HistorySessionMeta) => void) =>
+    subscribe('history:saved', listener),
 }
 
 contextBridge.exposeInMainWorld('api', api)

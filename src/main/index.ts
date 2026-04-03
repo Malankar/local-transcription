@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { AppStatus, ModelDownloadProgress, TranscriptSegment } from '../shared/types'
 import { AudioCapture } from './audio/AudioCapture'
 import { SourceDiscovery } from './audio/SourceDiscovery'
+import { HistoryManager } from './history/HistoryManager'
 import { registerIpcHandlers } from './ipc/handlers'
 import { AppLogger } from './logging/AppLogger'
 import { ChunkQueue } from './transcription/ChunkQueue'
@@ -15,6 +16,9 @@ const isDev = !app.isPackaged
 let mainWindow: BrowserWindow | null = null
 const transcriptSegments: TranscriptSegment[] = []
 const logger = new AppLogger()
+
+let captureStartTime: string | null = null
+let currentCaptureProfile: 'meeting' | 'live' = 'meeting'
 
 const sendStatus = (status: AppStatus): void => {
   logger.info('Status update', status)
@@ -28,6 +32,7 @@ const sendError = (message: string): void => {
 }
 
 const modelManager = new ModelManager(app.getPath('userData'))
+const historyManager = new HistoryManager(app.getPath('userData'))
 
 modelManager.setProgressListener((progress: ModelDownloadProgress) => {
   mainWindow?.webContents.send('models:downloadProgress', progress)
@@ -103,6 +108,22 @@ chunkQueue.on('drained', () => {
   logger.info('Chunk queue drained', { isCapturing: audioCapture.isRunning() })
   if (!audioCapture.isRunning()) {
     sendStatus({ stage: 'ready', detail: 'Waiting for the next capture' })
+
+    if (transcriptSegments.length > 0 && captureStartTime !== null) {
+      const segmentsToSave = [...transcriptSegments]
+      const profile = currentCaptureProfile
+      const startTime = captureStartTime
+      captureStartTime = null
+      void historyManager
+        .saveSession(segmentsToSave, profile, startTime)
+        .then((meta) => {
+          logger.info('Session saved to history', { id: meta.id, label: meta.label })
+          mainWindow?.webContents.send('history:saved', meta)
+        })
+        .catch((error) => {
+          logger.error('Failed to save session to history', error)
+        })
+    }
   }
 })
 
@@ -173,11 +194,16 @@ app.whenReady().then(() => {
     sourceDiscovery,
     whisperEngine,
     modelManager,
+    historyManager,
     logger,
     getMainWindow: () => mainWindow,
     getTranscriptSegments: () => transcriptSegments,
     resetTranscriptSegments: () => {
       transcriptSegments.length = 0
+    },
+    onCaptureStarted: (profile, startTime) => {
+      currentCaptureProfile = profile
+      captureStartTime = startTime
     },
     sendStatus,
     sendError,

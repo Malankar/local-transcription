@@ -12,6 +12,7 @@ import { SourceDiscovery } from '../audio/SourceDiscovery'
 import { ChunkQueue } from '../transcription/ChunkQueue'
 import { WhisperEngine } from '../transcription/WhisperEngine'
 import { ModelManager } from '../transcription/ModelManager'
+import { HistoryManager } from '../history/HistoryManager'
 import { AppLogger } from '../logging/AppLogger'
 
 interface RegisterHandlersOptions {
@@ -20,10 +21,12 @@ interface RegisterHandlersOptions {
   sourceDiscovery: SourceDiscovery
   whisperEngine: WhisperEngine
   modelManager: ModelManager
+  historyManager: HistoryManager
   logger: AppLogger
   getMainWindow: () => BrowserWindow | null
   getTranscriptSegments: () => TranscriptSegment[]
   resetTranscriptSegments: () => void
+  onCaptureStarted: (profile: 'meeting' | 'live', startTime: string) => void
   sendStatus: (status: AppStatus) => void
   sendError: (message: string) => void
 }
@@ -35,10 +38,12 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     sourceDiscovery,
     whisperEngine,
     modelManager,
+    historyManager,
     logger,
     getMainWindow,
     getTranscriptSegments,
     resetTranscriptSegments,
+    onCaptureStarted,
     sendStatus,
     sendError,
   } = options
@@ -83,6 +88,7 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
       resetTranscriptSegments()
       chunkQueue.setMode(captureOptions.profile === 'live' ? 'realtime' : 'default')
       chunkQueue.clear()
+      onCaptureStarted(captureOptions.profile ?? 'meeting', new Date().toISOString())
       sendStatus({ stage: 'initializing-model', detail: 'Preparing transcription engine...' })
       audioCapture.start(captureOptions)
       sendStatus({ stage: 'capturing', detail: 'Capturing audio until a natural pause is detected...' })
@@ -135,6 +141,31 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   ipcMain.handle('models:cancelDownload', async (_event, modelId: string) => {
     modelManager.cancelDownload(modelId)
     logger.info('Model download canceled', { modelId })
+  })
+
+  ipcMain.handle('history:list', async () => {
+    return historyManager.listSessions()
+  })
+
+  ipcMain.handle('history:get', async (_event, id: string) => {
+    return historyManager.getSession(id)
+  })
+
+  ipcMain.handle('history:delete', async (_event, id: string) => {
+    await historyManager.deleteSession(id)
+    logger.info('History session deleted', { id })
+  })
+
+  ipcMain.handle('history:export:txt', async (_event, id: string) => {
+    const session = await historyManager.getSession(id)
+    if (!session) return { canceled: true }
+    return exportTranscript(getMainWindow(), session.segments, 'txt', logger)
+  })
+
+  ipcMain.handle('history:export:srt', async (_event, id: string) => {
+    const session = await historyManager.getSession(id)
+    if (!session) return { canceled: true }
+    return exportTranscript(getMainWindow(), session.segments, 'srt', logger)
   })
 }
 

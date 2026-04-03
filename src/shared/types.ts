@@ -79,6 +79,22 @@ export interface ModelDownloadProgress {
   percent: number
 }
 
+export interface HistorySessionMeta {
+  id: string
+  label: string
+  startTime: string   // ISO timestamp
+  endTime: string     // ISO timestamp
+  durationMs: number
+  wordCount: number
+  segmentCount: number
+  preview: string     // first ~160 chars of transcript
+  profile: 'meeting' | 'live'
+}
+
+export interface HistorySession extends HistorySessionMeta {
+  segments: TranscriptSegment[]
+}
+
 export interface LocalTranscribeApi {
   getSources: () => Promise<AudioSource[]>
   startCapture: (options: CaptureStartOptions) => Promise<void>
@@ -94,4 +110,10 @@ export interface LocalTranscribeApi {
   downloadModel: (modelId: string) => Promise<void>
   cancelDownload: (modelId: string) => Promise<void>
   onModelDownloadProgress: (listener: (progress: ModelDownloadProgress) => void) => () => void
+  listHistory: () => Promise<HistorySessionMeta[]>
+  getHistorySession: (id: string) => Promise<HistorySession | null>
+  deleteHistorySession: (id: string) => Promise<void>
+  exportHistoryTxt: (id: string) => Promise<ExportResult>
+  exportHistorySrt: (id: string) => Promise<ExportResult>
+  onHistorySaved: (listener: (meta: HistorySessionMeta) => void) => () => void
 }

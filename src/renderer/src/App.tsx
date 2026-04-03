@@ -201,7 +201,9 @@ interface SourceControlsProps {
   setSystemSourceId: (id: string) => void
   micSourceId: string
   setMicSourceId: (id: string) => void
-  selectedModel: TranscriptionModel | null
+  downloadedModels: TranscriptionModel[]
+  selectedModelId: string | null
+  onSelectModel: (id: string) => void
   onNavigateToModels: () => void
   onRefresh: () => void
   isBusy: boolean
@@ -213,7 +215,8 @@ function SourceControls({
   systemSources, micSources,
   systemSourceId, setSystemSourceId,
   micSourceId, setMicSourceId,
-  selectedModel, onNavigateToModels,
+  downloadedModels, selectedModelId, onSelectModel,
+  onNavigateToModels,
   onRefresh, isBusy, errorMessage,
 }: SourceControlsProps) {
   const sourceModes: { id: AudioSourceMode; icon: string; label: string }[] = [
@@ -273,22 +276,34 @@ function SourceControls({
 
         {/* Model + Refresh */}
         <div className="flex items-end gap-2">
-          <div className="flex flex-col gap-1.5">
+          <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">Model</span>
-            <button
-              className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-card hover:bg-muted/50 transition-colors text-sm"
-              onClick={onNavigateToModels}
-            >
-              <Icon name="memory" filled size={14} />
-              <span className="text-foreground">{selectedModel?.name ?? 'No model'}</span>
-              {selectedModel?.isDownloaded && (
-                <span className="text-[10px] text-emerald-400 font-medium">Ready</span>
-              )}
-              {selectedModel && !selectedModel.isDownloaded && (
-                <span className="text-[10px] text-destructive font-medium">Download needed</span>
-              )}
-            </button>
-          </div>
+            {downloadedModels.length > 0 ? (
+              <select
+                className={cn(
+                  'flex h-9 rounded-md border border-input bg-card px-3 py-1',
+                  'text-sm text-foreground shadow-sm transition-colors',
+                  'focus:outline-none focus:ring-1 focus:ring-ring',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                )}
+                value={selectedModelId ?? ''}
+                onChange={(e) => onSelectModel(e.target.value)}
+                disabled={isBusy}
+              >
+                {downloadedModels.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            ) : (
+              <button
+                className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-card hover:bg-muted/50 transition-colors text-sm text-destructive/80"
+                onClick={onNavigateToModels}
+              >
+                <Icon name="memory" filled size={14} />
+                No models downloaded
+              </button>
+            )}
+          </label>
           <Button
             variant="ghost"
             size="sm"
@@ -1018,6 +1033,7 @@ export function App() {
 
   const systemSources = useMemo(() => sources.filter((s) => s.isMonitor), [sources])
   const micSources = useMemo(() => sources.filter((s) => !s.isMonitor), [sources])
+  const downloadedModels = useMemo(() => models.filter((m) => m.isDownloaded), [models])
   const mergedMeetingSegments = useMemo(() => mergeTranscriptSegments(meetingSegments), [meetingSegments])
   const mergedLiveSegments = useMemo(() => mergeTranscriptSegments(liveSegments), [liveSegments])
   const liveTranscriptText = useMemo(
@@ -1225,7 +1241,9 @@ export function App() {
     systemSources, micSources,
     systemSourceId, setSystemSourceId,
     micSourceId, setMicSourceId,
-    selectedModel,
+    downloadedModels,
+    selectedModelId,
+    onSelectModel: (id) => void handleSelectModel(id),
     onNavigateToModels: () => setActiveView('models'),
     onRefresh: () => void refreshSources(),
     isBusy,

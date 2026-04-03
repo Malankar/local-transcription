@@ -14,6 +14,13 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 type View = 'recording' | 'models' | 'history'
@@ -167,26 +174,21 @@ function DeviceSelect({
   placeholder: string
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <select
-        className={cn(
-          'flex h-9 w-full rounded-md border border-input bg-card px-3 py-1',
-          'text-sm text-foreground shadow-sm transition-colors',
-          'focus:outline-none focus:ring-1 focus:ring-ring',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-        )}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="">{placeholder}</option>
-        {sources.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.label}
-          </option>
-        ))}
-      </select>
-    </label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-9 bg-card border-input text-sm gap-2">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {sources.map((s) => (
+            <SelectItem key={s.id} value={s.id}>
+              {s.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
 
@@ -276,24 +278,19 @@ function SourceControls({
 
         {/* Model + Refresh */}
         <div className="flex items-end gap-2">
-          <label className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">Model</span>
             {downloadedModels.length > 0 ? (
-              <select
-                className={cn(
-                  'flex h-9 rounded-md border border-input bg-card px-3 py-1',
-                  'text-sm text-foreground shadow-sm transition-colors',
-                  'focus:outline-none focus:ring-1 focus:ring-ring',
-                  'disabled:cursor-not-allowed disabled:opacity-50',
-                )}
-                value={selectedModelId ?? ''}
-                onChange={(e) => onSelectModel(e.target.value)}
-                disabled={isBusy}
-              >
-                {downloadedModels.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
+              <Select value={selectedModelId ?? ''} onValueChange={onSelectModel} disabled={isBusy}>
+                <SelectTrigger className="h-9 bg-card border-input text-sm gap-2">
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {downloadedModels.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : (
               <button
                 className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-card hover:bg-muted/50 transition-colors text-sm text-destructive/80"
@@ -303,7 +300,7 @@ function SourceControls({
                 No models downloaded
               </button>
             )}
-          </label>
+          </div>
           <Button
             variant="ghost"
             size="sm"

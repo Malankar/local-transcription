@@ -27,12 +27,20 @@ export function getLinuxSources(): AudioSource[] {
 }
 
 function formatLinuxLabel(sourceName: string, isMonitor: boolean): string {
-  const cleaned = sourceName
+  let cleaned = sourceName
     .replace(/\.monitor$/u, '')
     .replace(/^alsa_output\./u, '')
     .replace(/^alsa_input\./u, '')
+    // Strip PCI hardware address: pci-0000_00_1f.3.
+    .replace(/^pci-[\da-f_]+\.\d+\./iu, '')
+    // Strip USB prefix and serial: usb-Manufacturer_Model_Serial-XX.
+    .replace(/^usb-/iu, '')
+    .replace(/-[\da-f]{2}\.(?=\S)/iu, ' ')
     .replace(/[._-]+/gu, ' ')
     .trim()
 
-  return isMonitor ? `${cleaned} (system output)` : `${cleaned} (microphone)`
+  // Title-case each word
+  cleaned = cleaned.replaceAll(/\b\w/gu, (c) => c.toUpperCase())
+
+  return cleaned
 }

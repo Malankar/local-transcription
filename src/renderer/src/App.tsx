@@ -1180,6 +1180,9 @@ export function App() {
     const unsubscribeHistorySaved = window.api.onHistorySaved((meta) => {
       setHistorySessions((prev) => [meta, ...prev.filter((s) => s.id !== meta.id)])
       setSelectedHistoryId(meta.id)
+      if (meta.profile === 'meeting') {
+        setMeetingSegments([])
+      }
     })
 
     void loadModels()

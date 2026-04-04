@@ -214,15 +214,89 @@ interface SourceControlsProps {
   errorMessage: string
 }
 
+function ModelAndRefresh({
+  downloadedModels, selectedModelId, onSelectModel, onNavigateToModels, onRefresh, isBusy,
+}: Pick<SourceControlsProps, 'downloadedModels' | 'selectedModelId' | 'onSelectModel' | 'onNavigateToModels' | 'onRefresh' | 'isBusy'>) {
+  return (
+    <div className="flex items-end gap-2">
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-muted-foreground">Model</span>
+        {downloadedModels.length > 0 ? (
+          <Select value={selectedModelId ?? ''} onValueChange={onSelectModel} disabled={isBusy}>
+            <SelectTrigger className="h-9 bg-card border-input text-sm gap-2">
+              <SelectValue placeholder="Select model" />
+            </SelectTrigger>
+            <SelectContent>
+              {downloadedModels.map((m) => (
+                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <button
+            className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-card hover:bg-muted/50 transition-colors text-sm text-destructive/80"
+            onClick={onNavigateToModels}
+          >
+            <Icon name="memory" filled size={14} />
+            No models downloaded
+          </button>
+        )}
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-9 w-9 p-0 text-muted-foreground"
+        onClick={onRefresh}
+        disabled={isBusy}
+        title="Refresh audio sources"
+      >
+        <Icon name="refresh" size={15} />
+      </Button>
+    </div>
+  )
+}
+
 function SourceControls({
-  mode, setMode,
+  subView, mode, setMode,
   systemSources, micSources,
   systemSourceId, setSystemSourceId,
   micSourceId, setMicSourceId,
   downloadedModels, selectedModelId, onSelectModel,
   onNavigateToModels,
   onRefresh, isBusy, errorMessage,
-}: SourceControlsProps) {
+}: SourceControlsProps & { subView: RecordingSubView }) {
+  if (subView === 'live') {
+    return (
+      <div className="px-6 py-4 border-b border-border bg-card/20 flex flex-col gap-3">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-40">
+            <DeviceSelect
+              label="Microphone"
+              value={micSourceId}
+              onChange={setMicSourceId}
+              sources={micSources}
+              placeholder="Select microphone"
+            />
+          </div>
+          <ModelAndRefresh
+            downloadedModels={downloadedModels}
+            selectedModelId={selectedModelId}
+            onSelectModel={onSelectModel}
+            onNavigateToModels={onNavigateToModels}
+            onRefresh={onRefresh}
+            isBusy={isBusy}
+          />
+        </div>
+        {errorMessage && (
+          <Alert variant="destructive" className="py-2">
+            <Icon name="error" filled size={13} />
+            <AlertDescription className="text-xs">{errorMessage}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+    )
+  }
+
   const sourceModes: { id: AudioSourceMode; icon: string; label: string }[] = [
     { id: 'system', icon: 'computer', label: 'System' },
     { id: 'mic', icon: 'mic', label: 'Mic' },
@@ -278,42 +352,14 @@ function SourceControls({
           </div>
         )}
 
-        {/* Model + Refresh */}
-        <div className="flex items-end gap-2">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Model</span>
-            {downloadedModels.length > 0 ? (
-              <Select value={selectedModelId ?? ''} onValueChange={onSelectModel} disabled={isBusy}>
-                <SelectTrigger className="h-9 bg-card border-input text-sm gap-2">
-                  <SelectValue placeholder="Select model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {downloadedModels.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <button
-                className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-card hover:bg-muted/50 transition-colors text-sm text-destructive/80"
-                onClick={onNavigateToModels}
-              >
-                <Icon name="memory" filled size={14} />
-                No models downloaded
-              </button>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 w-9 p-0 text-muted-foreground"
-            onClick={onRefresh}
-            disabled={isBusy}
-            title="Refresh audio sources"
-          >
-            <Icon name="refresh" size={15} />
-          </Button>
-        </div>
+        <ModelAndRefresh
+          downloadedModels={downloadedModels}
+          selectedModelId={selectedModelId}
+          onSelectModel={onSelectModel}
+          onNavigateToModels={onNavigateToModels}
+          onRefresh={onRefresh}
+          isBusy={isBusy}
+        />
       </div>
 
       {errorMessage && (
@@ -663,9 +709,6 @@ function RecordingHubView({
 }: RecordingHubViewProps) {
   return (
     <div className="flex h-full flex-col">
-      {/* Inline source controls — hidden while capturing */}
-      {!isCapturing && <SourceControls {...sourceControlProps} />}
-
       {/* Tab bar */}
       <div className="px-8 py-3 border-b border-border bg-background/90 shrink-0">
         <div className="inline-flex rounded-xl border border-border bg-card p-1">
@@ -688,6 +731,9 @@ function RecordingHubView({
           ))}
         </div>
       </div>
+
+      {/* Inline source controls — hidden while capturing */}
+      {!isCapturing && <SourceControls {...sourceControlProps} subView={subView} />}
 
       <div className="flex-1 min-h-0">
         {subView === 'meetings' ? <RecordingView {...meetingProps} /> : <LiveTranscriptionView {...liveProps} />}
@@ -1283,7 +1329,8 @@ export function App() {
     }
     setIsBusy(true)
     try {
-      await window.api.startCapture({ mode, systemSourceId, micSourceId, profile })
+      const effectiveMode = profile === 'live' ? 'mic' : mode
+      await window.api.startCapture({ mode: effectiveMode, systemSourceId, micSourceId, profile })
     } catch (error) {
       setErrorMessage(toMessage(error))
       setIsCapturing(false)
@@ -1356,6 +1403,8 @@ export function App() {
     ((mode === 'system' && !!systemSourceId) ||
       (mode === 'mic' && !!micSourceId) ||
       (mode === 'mixed' && !!systemSourceId && !!micSourceId))
+
+  const canStartLive = !isBusy && !isCapturing && modelReady && !!micSourceId
 
   const navItems = [
     { id: 'recording' as View, label: 'Transcribe', icon: 'mic' },
@@ -1508,7 +1557,7 @@ export function App() {
                 isBusy,
                 status,
                 selectedModel,
-                canStart,
+                canStart: canStartLive,
                 onStart: () => void startCapture('live'),
                 onStop: () => void stopCapture(),
               }}

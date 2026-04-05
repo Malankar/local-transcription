@@ -741,8 +741,25 @@ function RecordingHubView({
   sourceControlProps,
   isCapturing,
 }: RecordingHubViewProps) {
+  const pageTitle = subView === 'meetings' ? 'Meeting Recording' : 'Live Transcription'
+  const pageEyebrow = subView === 'meetings' ? 'Transcription Workspace' : 'Low-Latency Capture'
+  const pageDescription =
+    subView === 'meetings'
+      ? 'Capture longer sessions locally with saved transcripts, exports, and post-processing.'
+      : 'Convert speech into live local text with the fastest response profile.'
+
   return (
     <div className="flex h-full flex-col">
+      <div className="border-b border-border/70 bg-background px-8 py-6 shrink-0">
+        <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
+          {pageEyebrow}
+        </p>
+        <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground">
+          {pageTitle}
+        </h2>
+        <p className="mt-1.5 text-sm text-muted-foreground">{pageDescription}</p>
+      </div>
+
       {/* Tab bar */}
       <div className="px-8 py-3 border-b border-border bg-background/90 shrink-0">
         <div className="inline-flex rounded-xl border border-border bg-card p-1">
@@ -976,18 +993,20 @@ function HistoryView({
     <div className="flex h-full bg-background">
       <aside className="w-[360px] shrink-0 border-r border-border/70 bg-muted/20">
         <div className="flex h-full flex-col">
-          <div className="border-b border-border/70 px-5 py-5">
-            <div className="flex items-start justify-between gap-3">
+          <div className="border-b border-border/70 px-5 py-6">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
+                <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
                   Session Archive
                 </p>
-                <h2 className="font-serif mt-2 text-lg font-semibold tracking-tight">Recent transcripts</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground">
+                  Recent transcripts
+                </h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">
                   {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'} saved locally
                 </p>
               </div>
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+              <div className="mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
                 <Icon name="history" filled size={18} />
               </div>
             </div>

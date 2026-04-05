@@ -106,13 +106,34 @@ export function SettingsView() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
-      <div>
-        <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground mb-1.5">
-          Settings
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Configure application behaviour and history management.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
+            Preferences
+          </p>
+          <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground">
+            Settings
+          </h2>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Configure application behaviour and history management.
+          </p>
+        </div>
+        <div className="mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+          <span
+            className="material-symbols-outlined"
+            style={{
+              fontSize: 18,
+              fontVariationSettings: `'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
+              userSelect: 'none',
+              lineHeight: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            settings
+          </span>
+        </div>
       </div>
 
       {/* ── General ── */}

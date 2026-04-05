@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 
 import type {
-  AppSettings,
   AppStatus,
   AudioSource,
   AudioSourceMode,
@@ -1252,9 +1251,6 @@ export function App() {
   const [selectedSession, setSelectedSession] = useState<HistorySession | null>(null)
   const [historyExportStatus, setHistoryExportStatus] = useState<AppStatus | null>(null)
 
-  const [settings, setSettings] = useState<AppSettings | null>(null)
-  const [settingsSaving, setSettingsSaving] = useState(false)
-
   const systemSources = useMemo(() => sources.filter((s) => s.isMonitor), [sources])
   const micSources = useMemo(() => sources.filter((s) => !s.isMonitor), [sources])
   const downloadedModels = useMemo(() => models.filter((m) => m.isDownloaded), [models])
@@ -1312,7 +1308,6 @@ export function App() {
     void loadModels()
     void refreshSources()
     void window.api.listHistory().then(setHistorySessions)
-    void window.api.getSettings().then(setSettings)
 
     return () => {
       unsubscribeSegment()
@@ -1473,16 +1468,6 @@ export function App() {
     setErrorMessage('')
     setStatus(initialStatus)
     setActiveView('recording')
-  }
-
-  async function handleUpdateSettings(partial: Partial<AppSettings>): Promise<void> {
-    setSettingsSaving(true)
-    try {
-      const updated = await window.api.setSettings(partial)
-      setSettings(updated)
-    } finally {
-      setSettingsSaving(false)
-    }
   }
 
   const canStart =
@@ -1679,12 +1664,8 @@ export function App() {
               onExportSrt={() => void exportHistorySrt()}
             />
           )}
-          {activeView === 'settings' && settings && (
-            <SettingsView
-              settings={settings}
-              onUpdate={(partial) => void handleUpdateSettings(partial)}
-              isSaving={settingsSaving}
-            />
+          {activeView === 'settings' && (
+            <SettingsView />
           )}
         </div>
       </div>

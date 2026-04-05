@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { AppSettings, HistoryAutoDelete } from '../types'
+import type { HistoryAutoDelete } from '../types'
+import { useSettingsContext } from '../contexts/SettingsContext'
 import { Switch } from './ui/switch'
 import {
   Select,
@@ -75,13 +76,9 @@ const HISTORY_LIMIT_OPTIONS = [
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export interface SettingsViewProps {
-  settings: AppSettings
-  onUpdate: (partial: Partial<AppSettings>) => void
-  isSaving: boolean
-}
-
-export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps) {
+export function SettingsView() {
+  const { settings, updateSettings, settingsSaving } = useSettingsContext()
+  if (!settings) return null
   const [shortcutInput, setShortcutInput] = useState(settings.voiceToTextShortcut)
   const [shortcutEditing, setShortcutEditing] = useState(false)
   const [trayRestartNeeded, setTrayRestartNeeded] = useState(false)
@@ -102,7 +99,7 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
       parts.push(key.length === 1 ? key.toUpperCase() : key)
       const accelerator = parts.join('+')
       setShortcutInput(accelerator)
-      onUpdate({ voiceToTextShortcut: accelerator })
+      updateSettings({ voiceToTextShortcut: accelerator })
       setShortcutEditing(false)
     }
   }
@@ -131,8 +128,8 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
           >
             <Switch
               checked={settings.startHidden}
-              onCheckedChange={(v) => onUpdate({ startHidden: v })}
-              disabled={isSaving}
+              onCheckedChange={(v) => updateSettings({ startHidden: v })}
+              disabled={settingsSaving}
             />
           </SettingRow>
 
@@ -142,8 +139,8 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
           >
             <Switch
               checked={settings.launchOnStartup}
-              onCheckedChange={(v) => onUpdate({ launchOnStartup: v })}
-              disabled={isSaving}
+              onCheckedChange={(v) => updateSettings({ launchOnStartup: v })}
+              disabled={settingsSaving}
             />
           </SettingRow>
 
@@ -155,10 +152,10 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
               <Switch
                 checked={settings.showTrayIcon}
                 onCheckedChange={(v) => {
-                  onUpdate({ showTrayIcon: v })
+                  updateSettings({ showTrayIcon: v })
                   if (isLinux) setTrayRestartNeeded(true)
                 }}
-                disabled={isSaving || (isLinux && trayRestartNeeded)}
+                disabled={settingsSaving || (isLinux && trayRestartNeeded)}
               />
               {isLinux && trayRestartNeeded && (
                 <span className="text-[10px] text-amber-500 leading-none">Restart to apply</span>
@@ -172,8 +169,8 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
           >
             <Select
               value={String(settings.unloadModelAfterMinutes)}
-              onValueChange={(v) => onUpdate({ unloadModelAfterMinutes: Number(v) })}
-              disabled={isSaving}
+              onValueChange={(v) => updateSettings({ unloadModelAfterMinutes: Number(v) })}
+              disabled={settingsSaving}
             >
               <SelectTrigger className="w-36 h-8 text-xs">
                 <SelectValue />
@@ -220,8 +217,8 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
           >
             <Switch
               checked={settings.muteWhileRecording}
-              onCheckedChange={(v) => onUpdate({ muteWhileRecording: v })}
-              disabled={isSaving}
+              onCheckedChange={(v) => updateSettings({ muteWhileRecording: v })}
+              disabled={settingsSaving}
             />
           </SettingRow>
 
@@ -242,8 +239,8 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
           >
             <Select
               value={String(settings.historyLimit)}
-              onValueChange={(v) => onUpdate({ historyLimit: Number(v) })}
-              disabled={isSaving}
+              onValueChange={(v) => updateSettings({ historyLimit: Number(v) })}
+              disabled={settingsSaving}
             >
               <SelectTrigger className="w-36 h-8 text-xs">
                 <SelectValue />
@@ -264,8 +261,8 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
           >
             <Select
               value={settings.autoDeleteRecordings}
-              onValueChange={(v) => onUpdate({ autoDeleteRecordings: v as HistoryAutoDelete })}
-              disabled={isSaving}
+              onValueChange={(v) => updateSettings({ autoDeleteRecordings: v as HistoryAutoDelete })}
+              disabled={settingsSaving}
             >
               <SelectTrigger className="w-44 h-8 text-xs">
                 <SelectValue />
@@ -286,8 +283,8 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
           >
             <Switch
               checked={settings.keepStarredUntilDeleted}
-              onCheckedChange={(v) => onUpdate({ keepStarredUntilDeleted: v })}
-              disabled={isSaving}
+              onCheckedChange={(v) => updateSettings({ keepStarredUntilDeleted: v })}
+              disabled={settingsSaving}
             />
           </SettingRow>
 
@@ -295,7 +292,7 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
         <div className="px-4 pb-4" />
       </section>
 
-      {isSaving && (
+      {settingsSaving && (
         <p className="text-[11px] text-muted-foreground text-center">Saving…</p>
       )}
     </div>

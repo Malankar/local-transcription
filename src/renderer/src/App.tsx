@@ -28,6 +28,14 @@ import { cn } from '@/lib/utils'
 type View = 'recording' | 'models' | 'history'
 type RecordingSubView = 'meetings' | 'live'
 type CaptureProfile = 'meeting' | 'live'
+type CaptureProfileAppearance = {
+  label: string
+  icon: string
+  accentDotClass: string
+  iconWrapClass: string
+  cardClass: string
+  cardSelectedClass: string
+}
 
 const initialStatus: AppStatus = { stage: 'idle', detail: 'Load sources to begin' }
 const TRANSCRIPT_MERGE_GAP_MS = 2_000
@@ -65,6 +73,32 @@ function getLiveCaptionHint(model: TranscriptionModel | null): string {
   if (model.speed >= 4) return 'Live captions typically appear every 2-4 seconds.'
   if (model.speed === 3) return 'Live captions typically appear every 3-5 seconds.'
   return 'Live captions typically appear every 4-7 seconds.'
+}
+
+function getCaptureProfileAppearance(profile: CaptureProfile): CaptureProfileAppearance {
+  if (profile === 'live') {
+    return {
+      label: 'Live Transcription',
+      icon: 'instant_mix',
+      accentDotClass: 'bg-sky-400',
+      iconWrapClass: 'border-sky-500/20 bg-sky-500/10 text-sky-300',
+      cardClass:
+        'border-border/70 bg-[linear-gradient(180deg,rgba(56,189,248,0.08),rgba(9,9,11,0.78)_30%,rgba(9,9,11,0.92))] hover:border-sky-500/30',
+      cardSelectedClass:
+        'border-sky-500/35 bg-[linear-gradient(180deg,rgba(56,189,248,0.14),rgba(9,9,11,0.86)_34%,rgba(9,9,11,0.96))] shadow-lg shadow-sky-950/20',
+    }
+  }
+
+  return {
+    label: 'Meeting Recording',
+    icon: 'groups',
+    accentDotClass: 'bg-primary',
+    iconWrapClass: 'border-primary/20 bg-primary/10 text-primary',
+    cardClass:
+      'border-border/70 bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(9,9,11,0.78)_30%,rgba(9,9,11,0.92))] hover:border-primary/25',
+    cardSelectedClass:
+      'border-primary/35 bg-[linear-gradient(180deg,rgba(139,92,246,0.16),rgba(9,9,11,0.86)_34%,rgba(9,9,11,0.96))] shadow-lg shadow-primary/10',
+  }
 }
 
 // ── Transcript merging ─────────────────────────────────────────────────────
@@ -953,7 +987,7 @@ function HistoryView({
                   {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'} saved locally
                 </p>
               </div>
-              <div className="rounded-xl text-primary">
+              <div className="rounded-xl border border-primary/20 bg-primary/10 p-2 text-primary">
                 <Icon name="history" filled size={18} />
               </div>
             </div>
@@ -972,62 +1006,82 @@ function HistoryView({
           ) : (
             <ScrollArea className="flex-1">
               <div className="space-y-3 p-4">
-                {sessions.map((session) => (
-                  <button
-                    key={session.id}
-                    onClick={() => onSelectSession(session.id)}
-                    className={cn(
-                      'group block w-full rounded-2xl border p-4 text-left transition-all',
-                      selectedSessionId === session.id
-                        ? 'border-primary/40 bg-card shadow-lg shadow-primary/5'
-                        : 'border-border/70 bg-card/60 hover:border-primary/25 hover:bg-card',
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-semibold text-foreground">{session.label}</p>
-                          {selectedSessionId === session.id && (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
-                          )}
+                {sessions.map((session) => {
+                  const profileAppearance = getCaptureProfileAppearance(session.profile)
+
+                  return (
+                    <button
+                      key={session.id}
+                      onClick={() => onSelectSession(session.id)}
+                      className={cn(
+                        'group block w-full rounded-2xl border p-4 text-left transition-all',
+                        selectedSessionId === session.id
+                          ? profileAppearance.cardSelectedClass
+                          : profileAppearance.cardClass,
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/80">
+                            <span
+                              className={cn(
+                                'flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border',
+                                profileAppearance.iconWrapClass,
+                              )}
+                            >
+                              <Icon
+                                name={profileAppearance.icon}
+                                filled={session.profile === 'meeting'}
+                                size={14}
+                              />
+                            </span>
+                            <span className="truncate">{profileAppearance.label}</span>
+                            {selectedSessionId === session.id && (
+                              <span
+                                className={cn(
+                                  'h-2 w-2 shrink-0 rounded-full',
+                                  profileAppearance.accentDotClass,
+                                )}
+                              />
+                            )}
+                          </div>
+
+                          <p className="mt-3 truncate text-sm font-semibold text-foreground">
+                            {session.label}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {formatSessionDate(session.startTime)}
+                          </p>
                         </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {formatSessionDate(session.startTime)}
-                        </p>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onDeleteSession(session.id)
+                          }}
+                          className={cn(
+                            'rounded-full p-2 text-muted-foreground/60 transition-all',
+                            'opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive',
+                          )}
+                          title="Delete session"
+                        >
+                          <Icon name="delete" size={14} />
+                        </button>
                       </div>
-                      <Badge
-                        variant={selectedSessionId === session.id ? 'default' : 'secondary'}
-                        className="h-6 rounded-full px-2.5 text-[10px] uppercase tracking-[0.18em]"
-                      >
-                        {session.profile}
-                      </Badge>
-                    </div>
 
-                    <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      <span className="rounded-full bg-muted px-2.5 py-1">{formatDuration(session.durationMs)}</span>
-                      <span className="rounded-full bg-muted px-2.5 py-1">{session.wordCount} words</span>
-                    </div>
+                      <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="rounded-full bg-muted px-2.5 py-1">{formatDuration(session.durationMs)}</span>
+                        <span className="rounded-full bg-muted px-2.5 py-1">{session.wordCount} words</span>
+                      </div>
 
-                    <div className="mt-4 flex items-center justify-between">
-                      <span className="text-[11px] text-muted-foreground/70">
-                        Click to open transcript
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDeleteSession(session.id)
-                        }}
-                        className={cn(
-                          'rounded-full p-2 text-muted-foreground/60 transition-all',
-                          'opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive',
-                        )}
-                        title="Delete session"
-                      >
-                        <Icon name="delete" size={14} />
-                      </button>
-                    </div>
-                  </button>
-                ))}
+                      <div className="mt-4 flex items-center justify-between">
+                        <span className="text-[11px] text-muted-foreground/70">
+                          Click to open transcript
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </ScrollArea>
           )}

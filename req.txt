@@ -1,5 +1,5 @@
 add live transcription on that behaves like voice to text using ai like chatgpt or claude code - get the details from web what is right way to implment this - done
-add detail history to store transcript and show them also label them using ai - be careful of the ui for this determine which would be best 
+add detail history to store transcript and show them also label them using ai - be careful of the ui for this determine which would be best - done
 add setting tab that addes 
     general - 
         start hidden toggle, 

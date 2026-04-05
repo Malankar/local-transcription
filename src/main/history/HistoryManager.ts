@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 
-import type { HistorySession, HistorySessionMeta, TranscriptSegment } from '../../shared/types'
+import type { AppSettings, HistoryAutoDelete, HistorySession, HistorySessionMeta, TranscriptSegment } from '../../shared/types'
 
 const STOP_WORDS = new Set([
   'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'it', 'for',
@@ -102,6 +102,53 @@ export class HistoryManager {
 
   async deleteSession(id: string): Promise<void> {
     await fs.unlink(join(this.dir, `${id}.json`))
+  }
+
+  async starSession(id: string, starred: boolean): Promise<void> {
+    const session = await this.getSession(id)
+    if (!session) return
+    session.starred = starred
+    await fs.writeFile(join(this.dir, `${id}.json`), JSON.stringify(session, null, 2), 'utf8')
+  }
+
+  async pruneHistory(settings: Pick<AppSettings, 'historyLimit' | 'autoDeleteRecordings' | 'keepStarredUntilDeleted'>): Promise<void> {
+    const sessions = await this.listSessions()
+    if (sessions.length === 0) return
+
+    const toDelete = new Set<string>()
+
+    // Time-based pruning
+    const autoDelete: HistoryAutoDelete = settings.autoDeleteRecordings
+    if (autoDelete !== 'never') {
+      const keepLatestMatch = autoDelete.match(/^keep-latest-(\d+)$/)
+      const olderThanMatch = autoDelete.match(/^older-than-(\d+)d$/)
+
+      if (keepLatestMatch) {
+        const keep = Number.parseInt(keepLatestMatch[1], 10)
+        sessions.slice(keep).forEach((s) => toDelete.add(s.id))
+      } else if (olderThanMatch) {
+        const days = Number.parseInt(olderThanMatch[1], 10)
+        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000
+        sessions
+          .filter((s) => new Date(s.startTime).getTime() < cutoff)
+          .forEach((s) => toDelete.add(s.id))
+      }
+    }
+
+    // Count-based pruning via historyLimit
+    if (settings.historyLimit > 0 && sessions.length > settings.historyLimit) {
+      sessions.slice(settings.historyLimit).forEach((s) => toDelete.add(s.id))
+    }
+
+    // Preserve starred sessions if the setting is enabled
+    if (settings.keepStarredUntilDeleted) {
+      for (const id of toDelete) {
+        const session = sessions.find((s) => s.id === id)
+        if (session?.starred) toDelete.delete(id)
+      }
+    }
+
+    await Promise.all([...toDelete].map((id) => this.deleteSession(id)))
   }
 
   generateLabel(segments: TranscriptSegment[]): string {

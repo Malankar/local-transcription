@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 
 import type {
+  AppSettings,
   AppStatus,
   AudioSource,
   AudioSourceMode,
@@ -10,6 +11,7 @@ import type {
   TranscriptionModel,
   TranscriptSegment,
 } from './types'
+import { SettingsView } from '@/components/SettingsView'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -25,7 +27,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
-type View = 'recording' | 'models' | 'history'
+type View = 'recording' | 'models' | 'history' | 'settings'
 type RecordingSubView = 'meetings' | 'live'
 type CaptureProfile = 'meeting' | 'live'
 type CaptureProfileAppearance = {
@@ -1250,6 +1252,9 @@ export function App() {
   const [selectedSession, setSelectedSession] = useState<HistorySession | null>(null)
   const [historyExportStatus, setHistoryExportStatus] = useState<AppStatus | null>(null)
 
+  const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+
   const systemSources = useMemo(() => sources.filter((s) => s.isMonitor), [sources])
   const micSources = useMemo(() => sources.filter((s) => !s.isMonitor), [sources])
   const downloadedModels = useMemo(() => models.filter((m) => m.isDownloaded), [models])
@@ -1307,6 +1312,7 @@ export function App() {
     void loadModels()
     void refreshSources()
     void window.api.listHistory().then(setHistorySessions)
+    void window.api.getSettings().then(setSettings)
 
     return () => {
       unsubscribeSegment()
@@ -1469,6 +1475,16 @@ export function App() {
     setActiveView('recording')
   }
 
+  async function handleUpdateSettings(partial: Partial<AppSettings>): Promise<void> {
+    setSettingsSaving(true)
+    try {
+      const updated = await window.api.setSettings(partial)
+      setSettings(updated)
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
   const canStart =
     !isBusy &&
     !isCapturing &&
@@ -1483,12 +1499,14 @@ export function App() {
     { id: 'recording' as View, label: 'Transcribe', icon: 'mic' },
     { id: 'models' as View, label: 'Models', icon: 'memory' },
     { id: 'history' as View, label: 'History', icon: 'history' },
+    { id: 'settings' as View, label: 'Settings', icon: 'settings' },
   ]
 
   const topBarSectionLabel: Record<View, string> = {
     recording: recordingSubView === 'live' ? 'Live Transcription' : 'Meeting Recording',
     models: 'Model Library',
     history: 'Session History',
+    settings: 'Settings',
   }
 
   const sourceControlProps: SourceControlsProps = {
@@ -1590,8 +1608,8 @@ export function App() {
           <div className="flex items-center gap-1">
             <button
               className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
-              title="Model settings"
-              onClick={() => setActiveView('models')}
+              title="Settings"
+              onClick={() => setActiveView('settings')}
             >
               <Icon name="settings" size={16} />
             </button>
@@ -1659,6 +1677,13 @@ export function App() {
               onDeleteSession={(id) => void deleteHistorySession(id)}
               onExportTxt={() => void exportHistoryTxt()}
               onExportSrt={() => void exportHistorySrt()}
+            />
+          )}
+          {activeView === 'settings' && settings && (
+            <SettingsView
+              settings={settings}
+              onUpdate={(partial) => void handleUpdateSettings(partial)}
+              isSaving={settingsSaving}
             />
           )}
         </div>

@@ -89,6 +89,31 @@ export interface HistorySessionMeta {
   segmentCount: number
   preview: string     // first ~160 chars of transcript
   profile: 'meeting' | 'live'
+  starred?: boolean
+}
+
+export type HistoryAutoDelete =
+  | 'never'
+  | 'keep-latest-5'
+  | 'keep-latest-10'
+  | 'keep-latest-20'
+  | 'keep-latest-50'
+  | 'older-than-7d'
+  | 'older-than-30d'
+  | 'older-than-90d'
+
+export interface AppSettings {
+  // General
+  startHidden: boolean
+  launchOnStartup: boolean
+  showTrayIcon: boolean
+  unloadModelAfterMinutes: number  // 0 = never, default 5
+  voiceToTextShortcut: string      // Electron accelerator string
+  muteWhileRecording: boolean
+  // History
+  historyLimit: number             // max sessions to keep, 0 = unlimited, default 5
+  autoDeleteRecordings: HistoryAutoDelete
+  keepStarredUntilDeleted: boolean
 }
 
 export interface HistorySession extends HistorySessionMeta {
@@ -113,7 +138,11 @@ export interface LocalTranscribeApi {
   listHistory: () => Promise<HistorySessionMeta[]>
   getHistorySession: (id: string) => Promise<HistorySession | null>
   deleteHistorySession: (id: string) => Promise<void>
+  starHistorySession: (id: string, starred: boolean) => Promise<void>
   exportHistoryTxt: (id: string) => Promise<ExportResult>
   exportHistorySrt: (id: string) => Promise<ExportResult>
   onHistorySaved: (listener: (meta: HistorySessionMeta) => void) => () => void
+  getSettings: () => Promise<AppSettings>
+  setSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>
+  platform: string
 }

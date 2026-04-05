@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 import type {
+  AppSettings,
   AppStatus,
   CaptureStartOptions,
   ExportResult,
@@ -30,10 +31,15 @@ const api: LocalTranscribeApi = {
   listHistory: () => ipcRenderer.invoke('history:list'),
   getHistorySession: (id: string) => ipcRenderer.invoke('history:get', id),
   deleteHistorySession: (id: string) => ipcRenderer.invoke('history:delete', id),
+  starHistorySession: (id: string, starred: boolean) => ipcRenderer.invoke('history:star', id, starred),
   exportHistoryTxt: (id: string) => ipcRenderer.invoke('history:export:txt', id),
   exportHistorySrt: (id: string) => ipcRenderer.invoke('history:export:srt', id),
   onHistorySaved: (listener: (meta: HistorySessionMeta) => void) =>
     subscribe('history:saved', listener),
+  getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
+  setSettings: (settings: Partial<AppSettings>): Promise<AppSettings> =>
+    ipcRenderer.invoke('settings:set', settings),
+  platform: process.platform,
 }
 
 contextBridge.exposeInMainWorld('api', api)

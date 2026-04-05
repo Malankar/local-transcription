@@ -13,6 +13,7 @@ import { ChunkQueue } from '../transcription/ChunkQueue'
 import { WhisperEngine } from '../transcription/WhisperEngine'
 import { ModelManager } from '../transcription/ModelManager'
 import { HistoryManager } from '../history/HistoryManager'
+import { SettingsManager } from '../settings/SettingsManager'
 import { AppLogger } from '../logging/AppLogger'
 
 interface RegisterHandlersOptions {
@@ -22,11 +23,13 @@ interface RegisterHandlersOptions {
   whisperEngine: WhisperEngine
   modelManager: ModelManager
   historyManager: HistoryManager
+  settingsManager: SettingsManager
   logger: AppLogger
   getMainWindow: () => BrowserWindow | null
   getTranscriptSegments: () => TranscriptSegment[]
   resetTranscriptSegments: () => void
   onCaptureStarted: (profile: 'meeting' | 'live', startTime: string) => void
+  onSettingsChanged: (settings: import('../../shared/types').AppSettings) => void
   sendStatus: (status: AppStatus) => void
   sendError: (message: string) => void
 }
@@ -39,11 +42,13 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     whisperEngine,
     modelManager,
     historyManager,
+    settingsManager,
     logger,
     getMainWindow,
     getTranscriptSegments,
     resetTranscriptSegments,
     onCaptureStarted,
+    onSettingsChanged,
     sendStatus,
     sendError,
   } = options
@@ -166,6 +171,32 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     const session = await historyManager.getSession(id)
     if (!session) return { canceled: true }
     return exportTranscript(getMainWindow(), session.segments, 'srt', logger)
+  })
+
+  ipcMain.handle('history:star', async (_event, id: string, starred: boolean) => {
+    await historyManager.starSession(id, starred)
+    logger.info('History session starred', { id, starred })
+  })
+
+  ipcMain.handle('settings:get', async () => {
+    return settingsManager.getSettings()
+  })
+
+  ipcMain.handle('settings:set', async (_event, partial: Partial<import('../../shared/types').AppSettings>) => {
+    const updated = await settingsManager.updateSettings(partial)
+    logger.info('Settings updated', { keys: Object.keys(partial) })
+    onSettingsChanged(updated)
+
+    // Enforce history pruning when history settings change
+    if ('historyLimit' in partial || 'autoDeleteRecordings' in partial || 'keepStarredUntilDeleted' in partial) {
+      await historyManager.pruneHistory({
+        historyLimit: updated.historyLimit,
+        autoDeleteRecordings: updated.autoDeleteRecordings,
+        keepStarredUntilDeleted: updated.keepStarredUntilDeleted,
+      })
+    }
+
+    return updated
   })
 }
 

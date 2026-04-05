@@ -1,8 +1,10 @@
 export type {
+  AppSettings,
   AppStatus,
   AudioSource,
   AudioSourceMode,
   ExportResult,
+  HistoryAutoDelete,
   HistorySession,
   HistorySessionMeta,
   ModelDownloadProgress,

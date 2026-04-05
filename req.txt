@@ -12,5 +12,5 @@ add setting tab that addes
         history limit 5 by default, 
         auto delete recording having options never, keep latest 5, some more that seems proper, keep star recordings till i delete toggle   
 have the model selection some where more accessible then going to model and selecting it, model view be showing downloaded models and showing downloadble models user select from here as well but it should in more accessible place as well
-in setup tab under device add default for device which are default by options
+in setup tab under device add default for device which are default by options - done
 

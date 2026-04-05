@@ -940,7 +940,7 @@ function HistoryView({
 
   return (
     <div className="flex h-full bg-background">
-      <aside className="w-[320px] shrink-0 border-r border-border/70 bg-muted/20">
+      <aside className="w-[360px] shrink-0 border-r border-border/70 bg-muted/20">
         <div className="flex h-full flex-col">
           <div className="border-b border-border/70 px-5 py-5">
             <div className="flex items-start justify-between gap-3">
@@ -948,12 +948,12 @@ function HistoryView({
                 <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
                   Session Archive
                 </p>
-                <h2 className="mt-2 text-lg font-semibold tracking-tight">Recent transcripts</h2>
+                <h2 className="font-serif mt-2 text-lg font-semibold tracking-tight">Recent transcripts</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'} saved locally
                 </p>
               </div>
-              <div className="rounded-xl border border-primary/20 bg-primary/10 p-2 text-primary">
+              <div className="rounded-xl text-primary">
                 <Icon name="history" filled size={18} />
               </div>
             </div>

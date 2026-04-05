@@ -84,6 +84,8 @@ export interface SettingsViewProps {
 export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps) {
   const [shortcutInput, setShortcutInput] = useState(settings.voiceToTextShortcut)
   const [shortcutEditing, setShortcutEditing] = useState(false)
+  const [trayRestartNeeded, setTrayRestartNeeded] = useState(false)
+  const isLinux = window.api.platform === 'linux'
 
   function handleShortcutKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     e.preventDefault()
@@ -149,11 +151,19 @@ export function SettingsView({ settings, onUpdate, isSaving }: SettingsViewProps
             label="Show tray icon"
             description="Display an icon in the system tray for quick access."
           >
-            <Switch
-              checked={settings.showTrayIcon}
-              onCheckedChange={(v) => onUpdate({ showTrayIcon: v })}
-              disabled={isSaving}
-            />
+            <div className="flex flex-col items-end gap-1">
+              <Switch
+                checked={settings.showTrayIcon}
+                onCheckedChange={(v) => {
+                  onUpdate({ showTrayIcon: v })
+                  if (isLinux) setTrayRestartNeeded(true)
+                }}
+                disabled={isSaving || (isLinux && trayRestartNeeded)}
+              />
+              {isLinux && trayRestartNeeded && (
+                <span className="text-[10px] text-amber-500 leading-none">Restart to apply</span>
+              )}
+            </div>
           </SettingRow>
 
           <SettingRow

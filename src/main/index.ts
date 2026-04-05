@@ -23,6 +23,27 @@ let captureStartTime: string | null = null
 let currentCaptureProfile: 'meeting' | 'live' = 'meeting'
 let modelUnloadTimer: ReturnType<typeof setTimeout> | null = null
 let registeredShortcut: string | null = null
+let lastAppliedTrayVisibility: boolean | null = null
+let trayCreateTimer: ReturnType<typeof setTimeout> | null = null
+
+function createTrayIcon() {
+  const traySvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+      <rect x="5" y="4" width="22" height="24" rx="6" fill="#1f2937"/>
+      <rect x="10" y="9" width="12" height="2.5" rx="1.25" fill="#f9fafb"/>
+      <rect x="10" y="14.75" width="12" height="2.5" rx="1.25" fill="#f9fafb"/>
+      <rect x="10" y="20.5" width="8" height="2.5" rx="1.25" fill="#f9fafb"/>
+    </svg>
+  `.trim()
+  const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(traySvg)}`
+  const icon = nativeImage.createFromDataURL(dataUrl).resize({ width: 20, height: 20 })
+
+  if (process.platform === 'darwin') {
+    icon.setTemplateImage(true)
+  }
+
+  return icon
+}
 
 const sendStatus = (status: AppStatus): void => {
   logger.info('Status update', status)
@@ -190,7 +211,7 @@ function applyVoiceShortcut(shortcut: string): void {
 
 function applyTray(show: boolean): void {
   if (show && !tray) {
-    const icon = nativeImage.createEmpty()
+    const icon = createTrayIcon()
     tray = new Tray(icon)
     tray.setToolTip('LocalTranscribe')
     const menu = Menu.buildFromTemplate([
@@ -212,16 +233,67 @@ function applyTray(show: boolean): void {
         mainWindow?.focus()
       }
     })
+    logger.info('Tray icon created', { platform: process.platform, iconEmpty: icon.isEmpty() })
   } else if (!show && tray) {
     tray.destroy()
     tray = null
+    logger.info('Tray icon removed')
   }
+}
+
+function clearTrayCreateTimer(): void {
+  if (trayCreateTimer) {
+    clearTimeout(trayCreateTimer)
+    trayCreateTimer = null
+  }
+}
+
+function safeApplyTray(show: boolean): void {
+  try {
+    applyTray(show)
+  } catch (error) {
+    logger.error('Failed to apply tray visibility', { show, error })
+  }
+}
+
+function syncTrayVisibility(show: boolean): void {
+  clearTrayCreateTimer()
+
+  // On Linux, recreating a Tray after destroy causes D-Bus "already exported" errors
+  // from Chromium's internal D-Bus layer (Electron bug with KDE StatusNotifierItem).
+  // Apply the tray setting only once at startup; mid-session changes require a restart.
+  if (process.platform === 'linux' && lastAppliedTrayVisibility !== null) {
+    return
+  }
+
+  if (lastAppliedTrayVisibility === show) {
+    return
+  }
+
+  if (!show) {
+    safeApplyTray(false)
+    lastAppliedTrayVisibility = false
+    return
+  }
+
+  if (process.platform === 'linux') {
+    trayCreateTimer = setTimeout(() => {
+      trayCreateTimer = null
+      safeApplyTray(true)
+      lastAppliedTrayVisibility = true
+    }, 200)
+    logger.info('Scheduling tray icon creation for Linux', { delayMs: 200 })
+    return
+  }
+
+  safeApplyTray(true)
+  lastAppliedTrayVisibility = true
 }
 
 function applySettings(settings: AppSettings): void {
   app.setLoginItemSettings({ openAtLogin: settings.launchOnStartup })
   applyVoiceShortcut(settings.voiceToTextShortcut)
-  applyTray(settings.showTrayIcon)
+  syncTrayVisibility(settings.showTrayIcon)
   // Reset unload timer using current setting (only when not capturing)
   if (!audioCapture.isRunning()) {
     scheduleModelUnload(settings.unloadModelAfterMinutes)
@@ -349,5 +421,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('will-quit', () => {
+  clearTrayCreateTimer()
   globalShortcut.unregisterAll()
 })

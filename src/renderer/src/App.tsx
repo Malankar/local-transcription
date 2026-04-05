@@ -987,7 +987,7 @@ function HistoryView({
                   {sessions.length} {sessions.length === 1 ? 'session' : 'sessions'} saved locally
                 </p>
               </div>
-              <div className="rounded-xl border border-primary/20 bg-primary/10 p-2 text-primary">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
                 <Icon name="history" filled size={18} />
               </div>
             </div>

@@ -42,6 +42,13 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
     this.queue = []
   }
 
+  /** Node EventEmitter throws if `error` is emitted with no listeners; avoid breaking the queue. */
+  private emitProcessorError(error: Error): void {
+    if (this.listenerCount('error') > 0) {
+      this.emit('error', error)
+    }
+  }
+
   private async processNext(): Promise<void> {
     if (this.processing) {
       return
@@ -58,17 +65,20 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
 
     try {
       const segments = await this.processor(nextChunk)
-      for (const segment of segments) {
-        this.emit('segment', segment)
+      if (Array.isArray(segments)) {
+        for (const segment of segments) {
+          this.emit('segment', segment)
+        }
+      } else {
+        this.emitProcessorError(
+          new Error(`Processor must resolve to TranscriptSegment[]; got ${typeof segments}`),
+        )
       }
     } catch (error) {
       const normalized = error instanceof Error ? error : new Error(String(error))
-      this.emit('error', normalized)
+      this.emitProcessorError(normalized)
     } finally {
       this.processing = false
-      if (this.queue.length === 0) {
-        this.emit('drained')
-      }
       void this.processNext()
     }
   }

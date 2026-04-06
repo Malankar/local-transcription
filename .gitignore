@@ -4,6 +4,8 @@ dist/
 release/
 
 logs/
+coverage/
+coverage.txt
 *.log
 
 *.tsbuildinfo

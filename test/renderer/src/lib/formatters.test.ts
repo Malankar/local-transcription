@@ -7,8 +7,8 @@ import {
   getLiveCaptionHint,
   getCaptureProfileAppearance,
   formatSessionDate,
-} from './formatters'
-import type { TranscriptionModel } from '../types'
+} from '../../../../src/renderer/src/lib/formatters'
+import type { TranscriptionModel } from '../../../../src/renderer/src/types'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Test helpers

@@ -6,8 +6,8 @@ import {
   shouldMergeSegments,
   mergeTranscriptSegments,
   TRANSCRIPT_MERGE_GAP_MS,
-} from './transcriptMerge'
-import type { TranscriptSegment } from '../types'
+} from '../../../../src/renderer/src/lib/transcriptMerge'
+import type { TranscriptSegment } from '../../../../src/renderer/src/types'
 
 describe('transcriptMerge', () => {
   describe('joinTranscriptText', () => {

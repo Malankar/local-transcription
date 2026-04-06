@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest'
-import { AppLogger } from './AppLogger'
+import { AppLogger } from '../../../src/main/logging/AppLogger'
 import * as fs from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'

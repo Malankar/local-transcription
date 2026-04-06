@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { WhisperEngine } from './WhisperEngine'
+import { WhisperEngine } from '../../../src/main/transcription/WhisperEngine'
 import { fork, type ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import type { TranscriptionModel, AudioChunk } from '../../shared/types'
+import type { TranscriptionModel, AudioChunk } from '../../../src/shared/types'
 
 vi.mock('node:child_process', () => {
   const fork = vi.fn()

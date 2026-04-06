@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { HistoryManager } from './HistoryManager'
+import { HistoryManager } from '../../../src/main/history/HistoryManager'
 import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
-import type { TranscriptSegment, HistoryAutoDelete } from '../../shared/types'
+import type { TranscriptSegment, HistoryAutoDelete } from '../../../src/shared/types'
 
 vi.mock('node:fs', () => {
   const promises = {

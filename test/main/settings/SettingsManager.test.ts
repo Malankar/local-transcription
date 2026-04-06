@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { SettingsManager } from './SettingsManager'
+import { SettingsManager } from '../../../src/main/settings/SettingsManager'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

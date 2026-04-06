@@ -36,7 +36,7 @@ vi.mock('nodejs-whisper/dist/constants', () => ({
 // ──────────────────────────────────────────────────────────────────────────────
 // Import units under test after mock registration.
 // ──────────────────────────────────────────────────────────────────────────────
-import { ModelManager, MODEL_CATALOG } from './ModelManager'
+import { ModelManager, MODEL_CATALOG } from '../../../src/main/transcription/ModelManager'
 import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 

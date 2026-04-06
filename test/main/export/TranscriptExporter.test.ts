@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { TranscriptExporter } from './TranscriptExporter'
+import { TranscriptExporter } from '../../../src/main/export/TranscriptExporter'
 
 describe('TranscriptExporter', () => {
   describe('toTxt', () => {

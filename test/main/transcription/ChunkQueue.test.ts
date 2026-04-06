@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { ChunkQueue } from './ChunkQueue'
-import type { AudioChunk, TranscriptSegment } from '../../shared/types'
+import { ChunkQueue } from '../../../src/main/transcription/ChunkQueue'
+import type { AudioChunk, TranscriptSegment } from '../../../src/shared/types'
 
 function makeChunk(startMs: number, endMs: number): AudioChunk {
   return { audio: new Float32Array(16000), startMs, endMs }

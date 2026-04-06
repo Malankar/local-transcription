@@ -1,4 +1,4 @@
-import { mkdirSync, appendFileSync } from 'fs'
+import { mkdirSync, appendFileSync, statSync, writeFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 
 type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
@@ -12,6 +12,19 @@ export class AppLogger {
 
   configureFile(logFilePath: string): string {
     mkdirSync(dirname(logFilePath), { recursive: true })
+
+    const MAX_LOG_SIZE = 5 * 1024 * 1024 // 5MB
+    if (existsSync(logFilePath)) {
+      try {
+        const stats = statSync(logFilePath)
+        if (stats.size > MAX_LOG_SIZE) {
+          writeFileSync(logFilePath, '', 'utf8')
+        }
+      } catch (e) {
+        console.error('Failed to rotate log file', e)
+      }
+    }
+
     this.logFilePath = logFilePath
     this.info('Logger initialized', { logFilePath: this.logFilePath })
     return this.logFilePath

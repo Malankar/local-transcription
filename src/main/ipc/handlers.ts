@@ -12,6 +12,7 @@ import { SourceDiscovery } from '../audio/SourceDiscovery'
 import { ChunkQueue } from '../transcription/ChunkQueue'
 import { WhisperEngine } from '../transcription/WhisperEngine'
 import { ModelManager } from '../transcription/ModelManager'
+import { TranscriptExporter } from '../export/TranscriptExporter'
 import { HistoryManager } from '../history/HistoryManager'
 import { SettingsManager } from '../settings/SettingsManager'
 import { AppLogger } from '../logging/AppLogger'
@@ -119,6 +120,10 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     return exportTranscript(getMainWindow(), getTranscriptSegments(), 'srt', logger)
   })
 
+  ipcMain.handle('export:vtt', async () => {
+    return exportTranscript(getMainWindow(), getTranscriptSegments(), 'vtt', logger)
+  })
+
   ipcMain.handle('models:list', () => {
     return modelManager.getModels()
   })
@@ -173,6 +178,12 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     return exportTranscript(getMainWindow(), session.segments, 'srt', logger)
   })
 
+  ipcMain.handle('history:export:vtt', async (_event, id: string) => {
+    const session = await historyManager.getSession(id)
+    if (!session) return { canceled: true }
+    return exportTranscript(getMainWindow(), session.segments, 'vtt', logger)
+  })
+
   ipcMain.handle('history:star', async (_event, id: string, starred: boolean) => {
     await historyManager.starSession(id, starred)
     logger.info('History session starred', { id, starred })
@@ -203,7 +214,7 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
 async function exportTranscript(
   mainWindow: BrowserWindow | null,
   segments: TranscriptSegment[],
-  format: 'txt' | 'srt',
+  format: 'txt' | 'srt' | 'vtt',
   logger: AppLogger
 ): Promise<ExportResult> {
   const defaultPath = `transcript.${format}`
@@ -225,7 +236,11 @@ async function exportTranscript(
     return { canceled: true }
   }
 
-  const content = format === 'txt' ? toTxt(segments) : toSrt(segments)
+  let content = ''
+  if (format === 'txt') content = TranscriptExporter.toTxt(segments)
+  else if (format === 'srt') content = TranscriptExporter.toSrt(segments)
+  else if (format === 'vtt') content = TranscriptExporter.toVtt(segments)
+
   await fs.writeFile(response.filePath, content, 'utf8')
   logger.info('Transcript exported', {
     format,
@@ -239,30 +254,7 @@ async function exportTranscript(
   }
 }
 
-function toTxt(segments: TranscriptSegment[]): string {
-  return segments.map((segment) => segment.text).join('\n').trim()
-}
 
-function toSrt(segments: TranscriptSegment[]): string {
-  return segments
-    .map((segment, index) => {
-      return `${index + 1}\n${formatSrtTime(segment.startMs)} --> ${formatSrtTime(segment.endMs)}\n${segment.text}`
-    })
-    .join('\n\n')
-    .trim()
-}
-
-function formatSrtTime(totalMs: number): string {
-  const hours = Math.floor(totalMs / 3_600_000)
-  const minutes = Math.floor((totalMs % 3_600_000) / 60_000)
-  const seconds = Math.floor((totalMs % 60_000) / 1_000)
-  const milliseconds = totalMs % 1_000
-
-  return [hours, minutes, seconds]
-    .map((value) => String(value).padStart(2, '0'))
-    .join(':')
-    .concat(`,${String(milliseconds).padStart(3, '0')}`)
-}
 
 function toMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)

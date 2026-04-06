@@ -1,6 +1,6 @@
-import { EventEmitter } from 'events'
-import { spawn, type ChildProcessByStdio } from 'child_process'
-import type { Readable } from 'stream'
+import { EventEmitter } from 'node:events'
+import { spawn, type ChildProcessByStdio } from 'node:child_process'
+import type { Readable } from 'node:stream'
 
 import type { AudioChunk, CaptureStartOptions } from '../../shared/types'
 

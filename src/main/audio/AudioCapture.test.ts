@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { Readable } from 'node:stream'
 
-vi.mock('child_process', () => {
+vi.mock('node:child_process', () => {
   const spawn = vi.fn()
   return {
     spawn,

@@ -285,8 +285,9 @@ function RecordingView() {
   }, [isMeetingCapturing])
 
   useEffect(() => {
-    if (transcriptRef.current) {
-      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
+    const viewport = transcriptRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement | null
+    if (viewport) {
+      viewport.scrollTop = viewport.scrollHeight
     }
   }, [segments])
 

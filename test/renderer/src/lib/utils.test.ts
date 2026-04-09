@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest'
+
+import { cn } from '../../../../src/renderer/src/lib/utils'
+
+describe('cn', () => {
+  it('merges conditional classes and resolves tailwind conflicts', () => {
+    expect(cn('px-2', false && 'hidden', 'px-4', ['text-sm'])).toBe('px-4 text-sm')
+  })
+})

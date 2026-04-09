@@ -470,7 +470,7 @@ async function requestParakeetTranscription(
   })
 }
 
-function normalizeParakeetSegments(
+export function normalizeParakeetSegments(
   segments: ParakeetSegment[],
   chunk: AudioChunk
 ): TranscriptSegment[] {
@@ -515,7 +515,7 @@ function cleanupFiles(...paths: string[]): void {
 // Whisper.cpp emits special bracket tokens for silence/noise — strip them before storing.
 const WHISPER_TOKEN_PATTERN = /\[[A-Z_]+\]/g
 
-function stripWhisperTokens(raw: string): string {
+export function stripWhisperTokens(raw: string): string {
   return raw.replaceAll(WHISPER_TOKEN_PATTERN, '').replaceAll(/\s{2,}/g, ' ').trim()
 }
 

@@ -12,7 +12,7 @@ export function getLinuxSources(): AudioSource[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const parts = line.split(/\t+/)
+      const parts = line.split('\t')
       const id = parts[1] ?? ''
       const rawLabel = parts[1] ?? parts[0] ?? 'Unknown source'
       const isMonitor = id.endsWith('.monitor')

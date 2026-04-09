@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { HistoryAutoDelete } from '../types'
 import { useSettingsContext } from '../contexts/SettingsContext'
 import { Switch } from './ui/switch'
@@ -78,11 +78,18 @@ const HISTORY_LIMIT_OPTIONS = [
 
 export function SettingsView() {
   const { settings, updateSettings, settingsSaving } = useSettingsContext()
-  if (!settings) return null
-  const [shortcutInput, setShortcutInput] = useState(settings.voiceToTextShortcut)
+  const [shortcutInput, setShortcutInput] = useState(settings?.voiceToTextShortcut ?? '')
   const [shortcutEditing, setShortcutEditing] = useState(false)
   const [trayRestartNeeded, setTrayRestartNeeded] = useState(false)
   const isLinux = window.api.platform === 'linux'
+
+  useEffect(() => {
+    if (!shortcutEditing) {
+      setShortcutInput(settings?.voiceToTextShortcut ?? '')
+    }
+  }, [settings?.voiceToTextShortcut, shortcutEditing])
+
+  if (!settings) return null
 
   function handleShortcutKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     e.preventDefault()

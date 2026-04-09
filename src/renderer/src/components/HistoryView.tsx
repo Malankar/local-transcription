@@ -43,7 +43,7 @@ export function HistoryView() {
 
   return (
     <div className="flex h-full bg-background">
-      <aside className="w-[360px] shrink-0 border-r border-border/70 bg-muted/20">
+      <aside className="w-[360px] shrink-0 border-r border-border/70 bg-muted/10">
         <div className="flex h-full flex-col">
           <div className="border-b border-border/70 px-5 py-6">
             <div className="flex items-start justify-between gap-4">
@@ -66,7 +66,7 @@ export function HistoryView() {
 
           {historySessions.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center text-muted-foreground/50">
-              <div className="rounded-2xl border border-dashed border-border bg-card/60 p-4">
+              <div className="rounded-2xl border border-dashed border-primary/10 bg-primary/5 p-4 text-primary/75">
                 <Icon name="history" size={36} />
               </div>
               <div className="space-y-1">
@@ -159,12 +159,12 @@ export function HistoryView() {
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.12),transparent_28%),radial-gradient(circle_at_top_right,rgba(56,189,248,0.08),transparent_22%)]">
+      <div className="min-w-0 flex-1 bg-background">
         {!selectedSession ? (
           <div className="flex h-full items-center justify-center p-8">
-            <Card className="w-full max-w-xl border-border/70 bg-card/80 shadow-2xl shadow-black/20 backdrop-blur">
+            <Card className="w-full max-w-xl border-border/70 bg-card/88 shadow-xl shadow-black/20 backdrop-blur">
               <CardHeader className="items-center text-center">
-                <div className="mb-2 rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
+                <div className="mb-2 rounded-2xl border border-primary/15 bg-primary/10 p-3 text-primary/90">
                   <Icon name="article" filled size={24} />
                 </div>
                 <CardTitle>Select a session</CardTitle>
@@ -176,7 +176,7 @@ export function HistoryView() {
           </div>
         ) : (
           <div className="flex h-full flex-col p-6">
-            <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/70 bg-card/85 shadow-2xl shadow-black/20 backdrop-blur">
+            <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/70 bg-card/90 shadow-xl shadow-black/20 backdrop-blur">
               <CardHeader className="border-b border-border/70 pb-5">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 space-y-3">
@@ -238,7 +238,7 @@ export function HistoryView() {
                 <ScrollArea className="h-full">
                   {segments.length === 0 ? (
                     <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 px-8 text-center text-muted-foreground/50">
-                      <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-4">
+                      <div className="rounded-2xl border border-dashed border-primary/10 bg-primary/5 p-4 text-primary/70">
                         <Icon name="edit_off" size={36} />
                       </div>
                       <div className="space-y-1">

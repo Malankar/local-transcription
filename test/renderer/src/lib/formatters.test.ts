@@ -163,11 +163,19 @@ describe('getCaptureProfileAppearance', () => {
     const appearance = getCaptureProfileAppearance('live')
     expect(appearance.label).toBe('Live Transcription')
     expect(appearance.accentDotClass).toContain('sky')
+    expect(appearance.cardClass).toContain('bg-card/95')
+    expect(appearance.cardClass).toContain('hover:bg-card')
+    expect(appearance.cardSelectedClass).toContain('bg-sky-500/10')
+    expect(appearance.cardSelectedClass).toContain('shadow-black/20')
   })
 
   it('returns "meeting" appearance for the meeting profile', () => {
     const appearance = getCaptureProfileAppearance('meeting')
     expect(appearance.label).toBe('Meeting Recording')
+    expect(appearance.cardClass).toContain('bg-card/95')
+    expect(appearance.cardClass).toContain('hover:bg-card')
+    expect(appearance.cardSelectedClass).toContain('bg-primary/10')
+    expect(appearance.cardSelectedClass).toContain('shadow-black/20')
   })
 
   it('every appearance object has the expected shape', () => {

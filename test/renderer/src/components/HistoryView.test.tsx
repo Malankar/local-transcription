@@ -62,4 +62,24 @@ describe('HistoryView', () => {
     expect(exportHistoryTxt).toHaveBeenCalledWith('session-1')
     expect(container.textContent).toContain('/tmp/history.txt')
   })
+
+  it('uses neutral-first surfaces with restrained history accents', async () => {
+    installMockApi({
+      listHistory: vi.fn().mockResolvedValue([]),
+      getHistorySession: vi.fn().mockResolvedValue(null),
+    })
+
+    const { container } = await renderRendererApp(<HistoryView />)
+    await flushMicrotasks()
+
+    const aside = container.querySelector('aside')
+    expect(aside?.className).toContain('bg-muted/10')
+
+    const detailPane = aside?.nextElementSibling
+    expect(detailPane?.className).toContain('bg-background')
+    expect(detailPane?.className).not.toContain('radial-gradient')
+
+    expect(container.innerHTML).toContain('border-primary/10')
+    expect(container.innerHTML).toContain('bg-primary/5')
+  })
 })

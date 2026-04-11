@@ -107,7 +107,7 @@ describe('ChunkQueue', () => {
   })
 
   describe('realtime mode', () => {
-    it('discards all but newest pending chunk when switching to realtime', async () => {
+    it('does not discard pending chunks when switching to realtime', async () => {
       const processor = vi.fn(async () => {
         await new Promise(resolve => setTimeout(resolve, 20))
         return []
@@ -119,13 +119,15 @@ describe('ChunkQueue', () => {
       queue.enqueue(makeChunk(200, 300))
       queue.setMode('realtime')
 
-      await new Promise(resolve => setTimeout(resolve, 80))
+      await new Promise(resolve => setTimeout(resolve, 120))
 
-      expect(processor).toHaveBeenCalledTimes(2)
-      expect(processor).toHaveBeenNthCalledWith(2, expect.objectContaining({ startMs: 200 }))
+      expect(processor).toHaveBeenCalledTimes(3)
+      expect(processor).toHaveBeenNthCalledWith(1, expect.objectContaining({ startMs: 0 }))
+      expect(processor).toHaveBeenNthCalledWith(2, expect.objectContaining({ startMs: 100 }))
+      expect(processor).toHaveBeenNthCalledWith(3, expect.objectContaining({ startMs: 200 }))
     })
 
-    it('keeps only newest chunk when enqueuing in realtime mode while processing', async () => {
+    it('enqueues all chunks in FIFO order in realtime mode while processing', async () => {
       const callOrder: number[] = []
       const processor = vi.fn(async (chunk: AudioChunk) => {
         callOrder.push(chunk.startMs)
@@ -141,9 +143,9 @@ describe('ChunkQueue', () => {
       queue.enqueue(makeChunk(100, 200))
       queue.enqueue(makeChunk(200, 300))
 
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise(resolve => setTimeout(resolve, 120))
 
-      expect(callOrder).toEqual([0, 200])
+      expect(callOrder).toEqual([0, 100, 200])
     })
   })
 

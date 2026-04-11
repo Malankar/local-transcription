@@ -462,12 +462,20 @@ function RecordingView() {
 // ── Live Transcription View ────────────────────────────────────────────────
 
 function LiveTranscriptionView() {
-  const { liveTranscriptText } = useTranscriptContext()
+  const { liveTranscriptText, mergedLiveSegments } = useTranscriptContext()
   const { isCapturing, captureProfile, isBusy, status, startCapture, stopCapture, micSourceId } = useRecordingContext()
   const { selectedModel } = useModelsContext()
 
   const text = liveTranscriptText
   const isLiveCapturing = isCapturing && captureProfile === 'live'
+  const showProvisionalTail =
+    isLiveCapturing && status.stage === 'processing' && mergedLiveSegments.length > 0
+  const finalizedSegments = showProvisionalTail ? mergedLiveSegments.slice(0, -1) : mergedLiveSegments
+  const provisionalSegment = showProvisionalTail ? mergedLiveSegments.at(-1) : undefined
+  const finalizedText = finalizedSegments
+    .map((s) => s.text)
+    .join(' ')
+    .trim()
 
   const canStartLive =
     !isBusy &&
@@ -514,7 +522,7 @@ function LiveTranscriptionView() {
         </div>
         <p className="mb-6 max-w-md text-center text-sm text-[#94A3B8]">
           {isLiveCapturing
-            ? 'Speaking… your words appear below in real-time.'
+            ? 'Speaking… short windows show up quickly; the faded tail may shift slightly as the next chunk finalizes. Nothing is dropped from the queue.'
             : 'Tap the mic to start instant live transcription.'}
         </p>
         {!isLiveCapturing && !canStartLive && (
@@ -525,15 +533,31 @@ function LiveTranscriptionView() {
 
         <div className="mb-8 w-full max-w-2xl">
           <div className="relative min-h-[140px] rounded-2xl border border-white/10 bg-[#0F1115]/80 p-5 backdrop-blur-sm">
-            <textarea
-              value={text}
-              readOnly
-              placeholder="Your words will appear here..."
+            <div
+              role="log"
+              aria-live="polite"
+              aria-busy={isLiveCapturing && status.stage === 'processing'}
               className={cn(
                 'min-h-[120px] w-full resize-none rounded-xl bg-transparent pr-12 text-base leading-relaxed text-white/90',
-                'placeholder:text-[#64748B] focus:outline-none',
+                'whitespace-pre-wrap break-words',
               )}
-            />
+            >
+              {!text.trim() ? (
+                <span className="text-[#64748B]">Your words will appear here...</span>
+              ) : showProvisionalTail ? (
+                <>
+                  {finalizedText ? <span>{finalizedText}</span> : null}
+                  {finalizedText && provisionalSegment ? ' ' : null}
+                  {provisionalSegment ? (
+                    <span className="text-white/55 italic transition-[color,font-style] duration-300">
+                      {provisionalSegment.text}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                <span>{text}</span>
+              )}
+            </div>
             <button
               type="button"
               className={cn(

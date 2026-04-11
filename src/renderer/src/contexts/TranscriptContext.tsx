@@ -9,6 +9,7 @@ interface TranscriptContextValue {
 
   // Derived
   mergedMeetingSegments: TranscriptSegment[]
+  mergedLiveSegments: TranscriptSegment[]
   liveTranscriptText: string
 
   // Actions
@@ -31,13 +32,16 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     [meetingSegments],
   )
 
-  const liveTranscriptText = useMemo(() => {
-    const mergedLive = mergeTranscriptSegments(liveSegments)
-    return mergedLive
-      .map((s) => s.text)
-      .join(' ')
-      .trim()
-  }, [liveSegments])
+  const mergedLiveSegments = useMemo(() => mergeTranscriptSegments(liveSegments), [liveSegments])
+
+  const liveTranscriptText = useMemo(
+    () =>
+      mergedLiveSegments
+        .map((s) => s.text)
+        .join(' ')
+        .trim(),
+    [mergedLiveSegments],
+  )
 
   useEffect(() => {
     const unsub = window.api.onTranscriptSegment((segment) => {
@@ -70,6 +74,7 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     meetingSegments,
     liveSegments,
     mergedMeetingSegments,
+    mergedLiveSegments,
     liveTranscriptText,
     clearMeeting,
     clearLive,

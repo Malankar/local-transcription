@@ -23,17 +23,9 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
 
   setMode(mode: QueueMode): void {
     this.mode = mode
-    if (mode === 'realtime' && this.queue.length > 1) {
-      this.queue = [this.queue[this.queue.length - 1]]
-    }
   }
 
   enqueue(chunk: AudioChunk): void {
-    if (this.mode === 'realtime' && this.processing) {
-      // Keep only the newest pending audio in live mode so captions do not lag behind.
-      this.queue = [chunk]
-      return
-    }
     this.queue.push(chunk)
     void this.processNext()
   }
@@ -61,7 +53,12 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
     }
 
     this.processing = true
-    this.emit('status', 'Transcribing the latest natural audio window...')
+    this.emit(
+      'status',
+      this.mode === 'realtime'
+        ? 'Transcribing live audio (queued windows are preserved)...'
+        : 'Transcribing the latest natural audio window...',
+    )
 
     try {
       const segments = await this.processor(nextChunk)

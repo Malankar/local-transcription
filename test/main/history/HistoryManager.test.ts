@@ -87,14 +87,14 @@ describe('HistoryManager', () => {
 
   describe('pruneHistory', () => {
     const mockSessions = [
-      { id: '1', startTime: '2023-01-10T10:00:00Z', starred: false },
-      { id: '2', startTime: '2023-01-09T10:00:00Z', starred: true },
-      { id: '3', startTime: '2023-01-08T10:00:00Z', starred: false },
-      { id: '4', startTime: '2023-01-07T10:00:00Z', starred: false },
+      { id: '1', startTime: '2023-01-10T10:00:00Z', starred: false, profile: 'meeting' as const },
+      { id: '2', startTime: '2023-01-09T10:00:00Z', starred: true, profile: 'meeting' as const },
+      { id: '3', startTime: '2023-01-08T10:00:00Z', starred: false, profile: 'meeting' as const },
+      { id: '4', startTime: '2023-01-07T10:00:00Z', starred: false, profile: 'meeting' as const },
     ]
 
     beforeEach(() => {
-      vi.spyOn(historyManager, 'listSessions').mockResolvedValue(mockSessions as any)
+      vi.spyOn(historyManager, 'readAllMetasSorted').mockResolvedValue(mockSessions as any)
     })
 
     it('prunes based on historyLimit', async () => {
@@ -153,12 +153,12 @@ describe('HistoryManager', () => {
       const oldDate2   = new Date(now - 45 * 24 * 60 * 60 * 1000).toISOString()  // 45 days ago
 
       const timedSessions = [
-        { id: 'a', startTime: recentDate, starred: false },
-        { id: 'b', startTime: recentDate, starred: false },
-        { id: 'c', startTime: oldDate1,   starred: false },
-        { id: 'd', startTime: oldDate2,   starred: false },
+        { id: 'a', startTime: recentDate, starred: false, profile: 'meeting' as const },
+        { id: 'b', startTime: recentDate, starred: false, profile: 'meeting' as const },
+        { id: 'c', startTime: oldDate1,   starred: false, profile: 'meeting' as const },
+        { id: 'd', startTime: oldDate2,   starred: false, profile: 'meeting' as const },
       ]
-      vi.spyOn(historyManager, 'listSessions').mockResolvedValue(timedSessions as any)
+      vi.spyOn(historyManager, 'readAllMetasSorted').mockResolvedValue(timedSessions as any)
 
       const settings = {
         historyLimit: 0,
@@ -180,10 +180,10 @@ describe('HistoryManager', () => {
       const oldDate = new Date(now - 40 * 24 * 60 * 60 * 1000).toISOString()
 
       const timedSessions = [
-        { id: 'e', startTime: oldDate, starred: true  },
-        { id: 'f', startTime: oldDate, starred: false },
+        { id: 'e', startTime: oldDate, starred: true, profile: 'meeting' as const },
+        { id: 'f', startTime: oldDate, starred: false, profile: 'meeting' as const },
       ]
-      vi.spyOn(historyManager, 'listSessions').mockResolvedValue(timedSessions as any)
+      vi.spyOn(historyManager, 'readAllMetasSorted').mockResolvedValue(timedSessions as any)
 
       const settings = {
         historyLimit: 0,
@@ -199,7 +199,7 @@ describe('HistoryManager', () => {
     })
 
     it('does nothing when there are no sessions', async () => {
-      vi.spyOn(historyManager, 'listSessions').mockResolvedValue([])
+      vi.spyOn(historyManager, 'readAllMetasSorted').mockResolvedValue([])
 
       await historyManager.pruneHistory({
         historyLimit: 1,
@@ -242,6 +242,23 @@ describe('HistoryManager', () => {
       const sessions = await historyManager.listSessions()
       expect(sessions).toHaveLength(1)
       expect(sessions[0].id).toBe('good')
+    })
+
+    it('omits live-caption sessions from the library list', async () => {
+      vi.mocked(fs.readdir).mockResolvedValue(['m.json', 'l.json'] as any)
+      vi.mocked(fs.readFile)
+        .mockResolvedValueOnce(JSON.stringify({
+          id: 'm', startTime: '2023-01-10T00:00:00Z', segments: [],
+          label: 'M', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'meeting',
+        }))
+        .mockResolvedValueOnce(JSON.stringify({
+          id: 'l', startTime: '2023-01-11T00:00:00Z', segments: [],
+          label: 'L', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'live',
+        }))
+
+      const sessions = await historyManager.listSessions()
+      expect(sessions).toHaveLength(1)
+      expect(sessions[0].id).toBe('m')
     })
   })
 

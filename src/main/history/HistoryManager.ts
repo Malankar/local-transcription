@@ -66,7 +66,10 @@ export class HistoryManager {
     return meta
   }
 
-  async listSessions(): Promise<HistorySessionMeta[]> {
+  /**
+   * All session metas on disk (any profile), newest first. Used for pruning; tests may stub this.
+   */
+  async readAllMetasSorted(): Promise<HistorySessionMeta[]> {
     await this.ensureDir()
 
     let files: string[]
@@ -93,6 +96,12 @@ export class HistoryManager {
     return metas.sort((a, b) => b.startTime.localeCompare(a.startTime))
   }
 
+  /** Library list: meeting transcriptions only (no live-caption archive in History). */
+  async listSessions(): Promise<HistorySessionMeta[]> {
+    const metas = await this.readAllMetasSorted()
+    return metas.filter((m) => m.profile === 'meeting')
+  }
+
   async getSession(id: string): Promise<HistorySession | null> {
     try {
       const raw = await fs.readFile(join(this.dir, `${id}.json`), 'utf8')
@@ -114,7 +123,7 @@ export class HistoryManager {
   }
 
   async pruneHistory(settings: Pick<AppSettings, 'historyLimit' | 'autoDeleteRecordings' | 'keepStarredUntilDeleted'>): Promise<void> {
-    const sessions = await this.listSessions()
+    const sessions = await this.readAllMetasSorted()
     if (sessions.length === 0) return
 
     const toDelete = new Set<string>()

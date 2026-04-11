@@ -144,14 +144,17 @@ chunkQueue.on('drained', () => {
       void (async () => {
         try {
           const settings = await settingsManager.getSettings()
-          const meta = await historyManager.saveSession(segmentsToSave, profile, startTime)
-          logger.info('Session saved to history', { id: meta.id, label: meta.label })
-          mainWindow?.webContents.send('history:saved', meta)
-          await historyManager.pruneHistory({
-            historyLimit: settings.historyLimit,
-            autoDeleteRecordings: settings.autoDeleteRecordings,
-            keepStarredUntilDeleted: settings.keepStarredUntilDeleted,
-          })
+          // History stores meeting transcriptions only; live captions stay in-session until copied/exported.
+          if (profile === 'meeting') {
+            const meta = await historyManager.saveSession(segmentsToSave, profile, startTime)
+            logger.info('Session saved to history', { id: meta.id, label: meta.label })
+            mainWindow?.webContents.send('history:saved', meta)
+            await historyManager.pruneHistory({
+              historyLimit: settings.historyLimit,
+              autoDeleteRecordings: settings.autoDeleteRecordings,
+              keepStarredUntilDeleted: settings.keepStarredUntilDeleted,
+            })
+          }
           scheduleModelUnload(settings.unloadModelAfterMinutes)
         } catch (error) {
           logger.error('Failed to save session to history', error)

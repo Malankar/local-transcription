@@ -35,7 +35,6 @@ export function HistoryView() {
   } = useHistoryContext()
 
   const segments = selectedSession ? mergeTranscriptSegments(selectedSession.segments) : []
-  const selectedProfileLabel = selectedSession?.profile === 'meeting' ? 'Meeting' : 'Live'
 
   const transcriptPlainText = useMemo(
     () =>
@@ -55,15 +54,9 @@ export function HistoryView() {
             <div className="shrink-0 border-b border-white/5 px-8 pb-6 pt-8">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex flex-wrap items-center gap-3">
-                  {selectedProfileLabel === 'Meeting' ? (
-                    <span className="rounded bg-[#F7931A] px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-black">
-                      Meeting
-                    </span>
-                  ) : (
-                    <span className="rounded border border-[#FFD600]/40 bg-[#FFD600]/10 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-[#FFD600]">
-                      Live
-                    </span>
-                  )}
+                  <span className="rounded bg-[#F7931A] px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-black">
+                    Meeting
+                  </span>
                   <span className="rounded-full border border-white/20 px-3 py-1 font-mono text-[11px] text-[#94A3B8]">
                     {formatDuration(selectedSession.durationMs)}
                   </span>

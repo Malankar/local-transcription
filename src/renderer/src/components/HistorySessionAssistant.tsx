@@ -114,7 +114,7 @@ export function HistorySessionAssistant({
   return (
     <aside
       className={cn(
-        'flex h-full w-[280px] shrink-0 flex-col overflow-hidden border-l border-white/10 bg-[#0A0A0B]',
+        'flex h-full w-[400px] shrink-0 flex-col overflow-hidden border-l border-white/10 bg-[#0A0A0B]',
         'max-md:w-full max-md:border-l-0 max-md:border-t',
       )}
       aria-labelledby={headingId}

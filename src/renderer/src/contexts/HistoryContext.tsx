@@ -49,9 +49,7 @@ export function HistoryProvider({ children, onSessionSaved }: HistoryProviderPro
     const unsubscribe = window.api.onHistorySaved((meta) => {
       setHistorySessions((prev) => [meta, ...prev.filter((s) => s.id !== meta.id)])
       setSelectedHistoryId(meta.id)
-      if (meta.profile === 'meeting') {
-        onSessionSaved?.()
-      }
+      onSessionSaved?.()
     })
     return unsubscribe
   }, [onSessionSaved])

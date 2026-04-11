@@ -464,7 +464,7 @@ function LiveTranscriptionView() {
   return (
     <div className="min-h-full bg-transparent">
       <div className="mx-auto flex min-h-full max-w-3xl flex-col px-6 py-8">
-        <div className="flex flex-1 flex-col items-center justify-center gap-10 py-10">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6 sm:gap-5 sm:py-8">
           <div className="text-center">
             <p className="font-mono text-xs uppercase tracking-[0.28em] text-[#F7931A]/80">
               {isLiveCapturing ? 'Listening now' : 'Ready'}
@@ -481,7 +481,12 @@ function LiveTranscriptionView() {
             )}
           </div>
 
-          <div className="flex min-h-24 items-end justify-center gap-2">
+          <div
+            className={cn(
+              'flex items-end justify-center gap-2',
+              isLiveCapturing ? 'min-h-24' : 'min-h-10',
+            )}
+          >
             {[0, 1, 2, 3].map((index) => (
               <div
                 key={index}
@@ -535,9 +540,14 @@ function LiveTranscriptionView() {
             type="button"
             className={cn(
               'flex h-14 w-14 items-center justify-center rounded-full border transition-all duration-300',
-              isLiveCapturing
-                ? 'border-[#F7931A]/50 bg-gradient-to-br from-[#EA580C]/30 to-[#F7931A]/20 text-white shadow-glow-orange'
-                : 'border-white/15 bg-black/40 text-foreground hover:border-[#F7931A]/35 hover:shadow-glow-card',
+              isLiveCapturing &&
+                'border-[#F7931A]/50 bg-gradient-to-br from-[#EA580C]/30 to-[#F7931A]/20 text-white shadow-glow-orange',
+              !isLiveCapturing &&
+                canStartLive &&
+                'border-transparent bg-gradient-to-r from-[#EA580C] to-[#F7931A] text-white shadow-glow-orange hover:brightness-110',
+              !isLiveCapturing &&
+                !canStartLive &&
+                'border-white/15 bg-black/40 text-muted-foreground opacity-60',
             )}
             onClick={isLiveCapturing ? () => void stopCapture() : () => void startCapture('live')}
             disabled={isLiveCapturing ? isBusy : !canStartLive}

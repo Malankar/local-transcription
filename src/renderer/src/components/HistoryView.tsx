@@ -42,17 +42,20 @@ export function HistoryView() {
   const selectedProfileLabel = selectedSession?.profile === 'meeting' ? 'Meeting' : 'Live'
 
   return (
-    <div className="flex h-full bg-background">
-      <aside className="w-[360px] shrink-0 border-r border-border/70 bg-muted/10">
+    <div className="flex h-full bg-transparent">
+      <aside className="w-[360px] shrink-0 border-r border-white/10 bg-black/20 backdrop-blur-sm">
         <div className="flex h-full flex-col">
           <div className="border-b border-border/70 px-5 py-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
+                <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-[#F7931A]/85">
                   Session Archive
                 </p>
-                <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground">
-                  Recent transcripts
+                <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+                  Recent{' '}
+                  <span className="bg-gradient-to-r from-[#F7931A] to-[#FFD600] bg-clip-text text-transparent">
+                    transcripts
+                  </span>
                 </h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   {historySessions.length} {historySessions.length === 1 ? 'session' : 'sessions'} saved locally

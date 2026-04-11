@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 
 import type { AudioSource, AudioSourceMode } from '../types'
 import { Button } from '@/components/ui/button'
@@ -78,9 +78,11 @@ function DeviceSelect({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-9 bg-card border-input text-sm gap-2">
+        <SelectTrigger className="h-10 gap-2 text-sm">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
@@ -105,10 +107,12 @@ function ModelAndRefresh() {
   return (
     <div className="flex items-end gap-2">
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">Model</span>
+        <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Model
+        </span>
         {downloadedModels.length > 0 ? (
           <Select value={selectedModelId ?? ''} onValueChange={selectModel} disabled={isBusy}>
-            <SelectTrigger className="h-9 bg-card border-input text-sm gap-2">
+            <SelectTrigger className="h-10 gap-2 text-sm">
               <SelectValue placeholder="Select model" />
             </SelectTrigger>
             <SelectContent>
@@ -119,7 +123,8 @@ function ModelAndRefresh() {
           </Select>
         ) : (
           <button
-            className="flex items-center gap-2 h-9 px-3 rounded-md border border-border bg-card hover:bg-muted/50 transition-colors text-sm text-destructive/80"
+            type="button"
+            className="flex h-10 items-center gap-2 rounded-lg border border-red-500/30 bg-black/40 px-3 text-sm text-red-300 transition-colors hover:border-red-500/50 hover:bg-red-950/30"
             onClick={() => navigateTo('models')}
           >
             <Icon name="memory" filled size={14} />
@@ -157,9 +162,9 @@ function SourceControls() {
 
   if (subView === 'live') {
     return (
-      <div className="px-6 py-4 border-b border-border bg-card/20 flex flex-col gap-3">
+      <div className="flex flex-col gap-3 border-b border-white/10 bg-black/25 px-6 py-4 backdrop-blur-sm">
         <div className="flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-40">
+          <div className="min-w-40 flex-1">
             <DeviceSelect
               label="Microphone"
               value={micSourceId}
@@ -187,20 +192,23 @@ function SourceControls() {
   ]
 
   return (
-    <div className="px-6 py-4 border-b border-border bg-card/20 flex flex-col gap-3">
+    <div className="flex flex-col gap-3 border-b border-white/10 bg-black/25 px-6 py-4 backdrop-blur-sm">
       <div className="flex flex-wrap items-end gap-4">
         {/* Mode selector */}
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Audio Input</span>
-          <div className="inline-flex rounded-lg border border-border bg-background p-0.5 gap-0.5">
+          <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Audio Input
+          </span>
+          <div className="inline-flex gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 backdrop-blur-sm">
             {sourceModes.map(({ id, icon, label }) => (
               <button
                 key={id}
+                type="button"
                 onClick={() => setMode(id)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+                  'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-300',
                   mode === id
-                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    ? 'bg-gradient-to-r from-[#EA580C] to-[#F7931A] text-white shadow-glow-orange'
                     : 'text-muted-foreground hover:text-foreground',
                 )}
               >
@@ -318,9 +326,9 @@ function RecordingView() {
   return (
     <div className="flex flex-col h-full">
       {/* Session Header */}
-      <div className="px-8 py-5 border-b border-border flex items-start justify-between shrink-0">
+      <div className="flex shrink-0 items-start justify-between border-b border-white/10 px-8 py-5">
         <div>
-          <h2 className="text-base font-semibold text-foreground tracking-tight">{sessionName}</h2>
+          <h2 className="font-heading text-base font-semibold tracking-tight text-foreground">{sessionName}</h2>
           <div className="flex items-center gap-3 mt-1.5">
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Icon name="memory" size={13} />
@@ -373,7 +381,7 @@ function RecordingView() {
       </ScrollArea>
 
       {/* Control Dock */}
-      <div className="shrink-0 border-t border-border bg-card/50 px-8 py-4">
+      <div className="shrink-0 border-t border-white/10 bg-black/20 px-8 py-4 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col gap-1.5">
             <WaveformBars active={isMeetingCapturing} />
@@ -403,19 +411,21 @@ function RecordingView() {
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 border-t border-border/50 px-8 py-2.5 flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3 border-t border-white/5 px-8 py-2.5">
         {[
           { icon: 'verified_user', label: 'Private & Offline' },
           { icon: 'cloud_off', label: 'Zero Data Egress' },
           { icon: 'memory', label: 'Neural Engine Active' },
         ].map(({ icon, label }, i) => (
-          <>
-            {i > 0 && <span key={`sep-${i}`} className="w-1 h-1 rounded-full bg-border" />}
-            <span key={label} className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
+          <Fragment key={label}>
+            {i > 0 && (
+              <span className="h-1 w-1 rounded-full bg-white/15" aria-hidden />
+            )}
+            <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/55">
               <Icon name={icon} size={11} />
               {label}
             </span>
-          </>
+          </Fragment>
         ))}
       </div>
     </div>
@@ -452,14 +462,14 @@ function LiveTranscriptionView() {
   }
 
   return (
-    <div className="min-h-full bg-background">
-      <div className="max-w-3xl mx-auto px-6 py-8 min-h-full flex flex-col">
-        <div className="flex-1 flex flex-col items-center justify-center gap-10 py-10">
+    <div className="min-h-full bg-transparent">
+      <div className="mx-auto flex min-h-full max-w-3xl flex-col px-6 py-8">
+        <div className="flex flex-1 flex-col items-center justify-center gap-10 py-10">
           <div className="text-center">
-            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">
+            <p className="font-mono text-xs uppercase tracking-[0.28em] text-[#F7931A]/80">
               {isLiveCapturing ? 'Listening now' : 'Ready'}
             </p>
-            <p className="text-sm text-muted-foreground mt-2">
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {isLiveCapturing
                 ? 'Speech is transcribed with the low-latency live profile.'
                 : 'Tap the mic to start instant live transcription.'}
@@ -471,11 +481,16 @@ function LiveTranscriptionView() {
             )}
           </div>
 
-          <div className="flex items-end justify-center gap-2 min-h-24">
+          <div className="flex min-h-24 items-end justify-center gap-2">
             {[0, 1, 2, 3].map((index) => (
               <div
                 key={index}
-                className={cn('rounded-full bg-foreground transition-all duration-200', isLiveCapturing && 'animate-pulse')}
+                className={cn(
+                  'rounded-full transition-all duration-200',
+                  isLiveCapturing
+                    ? 'animate-pulse bg-gradient-to-t from-[#EA580C] to-[#FFD600] shadow-glow-orange'
+                    : 'bg-white/12',
+                )}
                 style={{
                   width: index === 1 || index === 2 ? 28 : 22,
                   height: isLiveCapturing ? [34, 46, 46, 34][index] : [34, 42, 42, 34][index],
@@ -486,22 +501,24 @@ function LiveTranscriptionView() {
           </div>
 
           <div className="w-full max-w-md">
-            <div className="relative rounded-3xl border border-border bg-card shadow-sm">
+            <div className="relative rounded-2xl border border-white/10 bg-black/40 shadow-glow-card backdrop-blur-md">
               <textarea
                 value={text}
                 readOnly
                 placeholder="Your words will appear here..."
                 className={cn(
-                  'min-h-[132px] w-full resize-none rounded-3xl bg-transparent px-5 py-4 pr-14',
-                  'text-sm leading-6 text-foreground focus:outline-none',
-                  'placeholder:text-muted-foreground/50',
+                  'min-h-[132px] w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14',
+                  'text-sm leading-relaxed text-foreground focus:outline-none',
+                  'placeholder:text-muted-foreground/40',
                 )}
               />
               <button
+                type="button"
                 className={cn(
-                  'absolute right-3 top-3 h-9 w-9 rounded-full border border-border bg-background/90',
-                  'flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground',
-                  !text.trim() && 'opacity-40 cursor-not-allowed',
+                  'absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/50',
+                  'text-muted-foreground transition-all hover:border-[#F7931A]/40 hover:text-[#F7931A] hover:shadow-glow-orange',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  !text.trim() && 'cursor-not-allowed opacity-40 hover:border-white/15 hover:shadow-none',
                 )}
                 onClick={() => void handleCopy()}
                 disabled={!text.trim()}
@@ -515,11 +532,12 @@ function LiveTranscriptionView() {
 
         <div className="flex items-center justify-between gap-4 pt-4">
           <button
+            type="button"
             className={cn(
-              'h-14 w-14 rounded-full border flex items-center justify-center transition-colors',
+              'flex h-14 w-14 items-center justify-center rounded-full border transition-all duration-300',
               isLiveCapturing
-                ? 'border-border bg-card text-foreground'
-                : 'border-border bg-card/70 text-foreground hover:bg-card',
+                ? 'border-[#F7931A]/50 bg-gradient-to-br from-[#EA580C]/30 to-[#F7931A]/20 text-white shadow-glow-orange'
+                : 'border-white/15 bg-black/40 text-foreground hover:border-[#F7931A]/35 hover:shadow-glow-card',
             )}
             onClick={isLiveCapturing ? () => void stopCapture() : () => void startCapture('live')}
             disabled={isLiveCapturing ? isBusy : !canStartLive}
@@ -530,18 +548,24 @@ function LiveTranscriptionView() {
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Badge variant={isLiveCapturing ? 'default' : 'secondary'} className="gap-1.5">
-              {isLiveCapturing && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+              {isLiveCapturing && (
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FFD600] opacity-50" />
+                  <span className="relative h-2 w-2 rounded-full bg-[#FFD600]" />
+                </span>
+              )}
               {status.stage}
             </Badge>
-            <span>{isLiveCapturing ? 'Low delay mode' : 'Tap mic to begin'}</span>
+            <span className="font-mono">{isLiveCapturing ? 'Low delay mode' : 'Tap mic to begin'}</span>
           </div>
 
           <button
+            type="button"
             className={cn(
-              'h-14 w-14 rounded-full flex items-center justify-center transition-colors',
+              'flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300',
               isLiveCapturing
-                ? 'bg-[#ff6b61] text-white hover:bg-[#f85c51]'
-                : 'bg-muted text-muted-foreground',
+                ? 'border border-red-500/40 bg-red-600 text-white shadow-[0_0_22px_-6px_rgba(220,38,38,0.55)] hover:bg-red-500'
+                : 'border border-white/10 bg-white/5 text-muted-foreground',
             )}
             onClick={() => void stopCapture()}
             disabled={!isLiveCapturing || isBusy}
@@ -563,7 +587,6 @@ export default function RecordingHubView() {
 
   const subView = recordingSubView
 
-  const pageTitle = subView === 'meetings' ? 'Meeting Recording' : 'Live Transcription'
   const pageEyebrow = subView === 'meetings' ? 'Transcription Workspace' : 'Low-Latency Capture'
   const pageDescription =
     subView === 'meetings'
@@ -572,29 +595,48 @@ export default function RecordingHubView() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border/70 bg-background px-8 py-6 shrink-0">
-        <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
-          {pageEyebrow}
-        </p>
-        <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground">
-          {pageTitle}
-        </h2>
-        <p className="mt-1.5 text-sm text-muted-foreground">{pageDescription}</p>
+      <div className="relative shrink-0 overflow-hidden border-b border-white/10 px-8 py-8">
+        <div className="pointer-events-none absolute inset-0 bg-grid-void opacity-40" aria-hidden />
+        <div
+          className="pointer-events-none absolute -right-16 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-[#F7931A]/[0.12] blur-[100px]"
+          aria-hidden
+        />
+        <div className="relative">
+          <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-[#F7931A]/85">
+            {pageEyebrow}
+          </p>
+          {subView === 'meetings' ? (
+            <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+              <span className="text-foreground">Meeting </span>
+              <span className="bg-gradient-to-r from-[#F7931A] to-[#FFD600] bg-clip-text text-transparent">
+                Recording
+              </span>
+            </h2>
+          ) : (
+            <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+              <span className="text-foreground">Live </span>
+              <span className="bg-gradient-to-r from-[#F7931A] to-[#FFD600] bg-clip-text text-transparent">
+                Transcription
+              </span>
+            </h2>
+          )}
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{pageDescription}</p>
+        </div>
       </div>
 
-      {/* Tab bar */}
-      <div className="px-8 py-3 border-b border-border bg-background/90 shrink-0">
-        <div className="inline-flex rounded-xl border border-border bg-card p-1">
+      <div className="shrink-0 border-b border-white/10 bg-background/60 px-8 py-3 backdrop-blur-md">
+        <div className="inline-flex rounded-2xl border border-white/10 bg-black/35 p-1 shadow-glow-card backdrop-blur-sm">
           {[
             { id: 'meetings' as RecordingSubView, label: 'Meeting Recording' },
             { id: 'live' as RecordingSubView, label: 'Live Transcription' },
           ].map((item) => (
             <button
               key={item.id}
+              type="button"
               className={cn(
-                'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                'rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300',
                 subView === item.id
-                  ? 'bg-primary text-primary-foreground'
+                  ? 'bg-gradient-to-r from-[#EA580C] to-[#F7931A] text-white shadow-glow-orange'
                   : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => setRecordingSubView(item.id)}

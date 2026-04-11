@@ -49,12 +49,13 @@ export function getCaptureProfileAppearance(profile: CaptureProfile): CapturePro
     return {
       label: 'Live Transcription',
       icon: 'instant_mix',
-      accentDotClass: 'bg-sky-300',
-      iconWrapClass: 'border-sky-500/15 bg-sky-500/10 text-sky-200',
+      accentDotClass: 'bg-[#FFD600]',
+      iconWrapClass:
+        'border-[#FFD600]/25 bg-[#FFD600]/10 text-[#FDE047]',
       cardClass:
-        'border-border/70 bg-card/95 hover:border-sky-500/20 hover:bg-card',
+        'border-white/10 bg-card/95 hover:border-[#FFD600]/25 hover:bg-card hover:shadow-glow-gold',
       cardSelectedClass:
-        'border-sky-500/25 bg-sky-500/10 shadow-lg shadow-black/20',
+        'border-[#FFD600]/35 bg-[#FFD600]/10 shadow-[0_0_28px_-8px_rgba(255,214,0,0.25)]',
     }
   }
 
@@ -62,11 +63,11 @@ export function getCaptureProfileAppearance(profile: CaptureProfile): CapturePro
     label: 'Meeting Recording',
     icon: 'groups',
     accentDotClass: 'bg-primary',
-    iconWrapClass: 'border-primary/15 bg-primary/10 text-primary/90',
+    iconWrapClass: 'border-primary/20 bg-primary/10 text-[#FDBA74]',
     cardClass:
-      'border-border/70 bg-card/95 hover:border-primary/20 hover:bg-card',
+      'border-white/10 bg-card/95 hover:border-primary/35 hover:bg-card hover:shadow-glow-card',
     cardSelectedClass:
-      'border-primary/25 bg-primary/10 shadow-lg shadow-black/20',
+      'border-primary/45 bg-primary/12 shadow-[0_0_28px_-8px_rgba(247,147,26,0.3)]',
   }
 }
 

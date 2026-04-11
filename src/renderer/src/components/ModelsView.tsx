@@ -41,8 +41,11 @@ export function ModelsView() {
   return (
     <div className="px-8 py-6 max-w-5xl w-full mx-auto flex flex-col gap-4">
       <div>
-        <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground mb-1.5">
-          Model Library
+        <h2 className="mb-1.5 font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+          Model{' '}
+          <span className="bg-gradient-to-r from-[#F7931A] to-[#FFD600] bg-clip-text text-transparent">
+            Library
+          </span>
         </h2>
         <p className="text-sm text-muted-foreground">Select and manage local transcription engines.</p>
       </div>
@@ -58,10 +61,10 @@ export function ModelsView() {
               onClick={() => !isCapturing && !downloadingId && onSelectModel(model.id)}
               role="button"
               className={cn(
-                'relative rounded-xl border p-4 flex flex-col gap-2.5 transition-all duration-150',
+                'relative flex flex-col gap-2.5 rounded-2xl border p-4 transition-all duration-300',
                 isSelected
-                  ? 'border-primary/40 bg-primary/10 shadow-sm shadow-primary/5'
-                  : 'border-border bg-card hover:border-border/80',
+                  ? 'border-primary/45 bg-primary/12 shadow-[0_0_28px_-10px_rgba(247,147,26,0.25)]'
+                  : 'border-white/10 bg-card hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-glow-card',
                 (isCapturing || !!downloadingId) ? 'cursor-default' : 'cursor-pointer',
               )}
             >

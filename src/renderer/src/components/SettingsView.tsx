@@ -39,7 +39,7 @@ function SettingRow({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
+    <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-[#F7931A]/85">
       {children}
     </p>
   )
@@ -118,8 +118,11 @@ export function SettingsView() {
           <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
             Preferences
           </p>
-          <h2 className="font-serif text-3xl font-normal tracking-tight text-foreground">
-            Settings
+          <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+            App{' '}
+            <span className="bg-gradient-to-r from-[#F7931A] to-[#FFD600] bg-clip-text text-transparent">
+              Settings
+            </span>
           </h2>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Configure application behaviour and history management.

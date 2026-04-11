@@ -4,39 +4,40 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 6%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 6%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 250 87% 70%;
-    --primary-foreground: 250 87% 15%;
-    --secondary: 240 5% 10%;
+    /* Bitcoin DeFi palette — HSL channels for shadcn utilities */
+    --background: 240 7% 1%;
+    --foreground: 0 0% 100%;
+    --card: 220 14% 8%;
+    --card-foreground: 0 0% 100%;
+    --popover: 220 14% 9%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 33 100% 54%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 12% 12%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 5% 12%;
-    --muted-foreground: 240 5% 55%;
-    --accent: 240 5% 10%;
+    --muted: 220 10% 11%;
+    --muted-foreground: 215 16% 65%;
+    --accent: 220 12% 14%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 84% 70%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5% 12%;
-    --input: 240 5% 12%;
-    --ring: 250 87% 70%;
-    --radius: 0.5rem;
-    --chart-1: 250 87% 70%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 10% 5%;
-    --sidebar-foreground: 240 5% 65%;
-    --sidebar-primary: 250 87% 70%;
-    --sidebar-primary-foreground: 250 87% 15%;
-    --sidebar-accent: 240 5% 10%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 19% 17%;
+    --input: 217 19% 17%;
+    --ring: 33 100% 54%;
+    --radius: 1rem;
+    --chart-1: 33 100% 54%;
+    --chart-2: 51 100% 50%;
+    --chart-3: 20 91% 48%;
+    --chart-4: 33 90% 45%;
+    --chart-5: 48 96% 53%;
+    --sidebar-background: 240 8% 3.5%;
+    --sidebar-foreground: 215 14% 55%;
+    --sidebar-primary: 33 100% 54%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 12% 11%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 240 5% 9%;
-    --sidebar-ring: 250 87% 70%;
+    --sidebar-border: 217 19% 14%;
+    --sidebar-ring: 33 100% 54%;
   }
 }
 
@@ -45,8 +46,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    @apply bg-background text-foreground font-sans antialiased;
     overflow: hidden;
   }
   button,
@@ -54,6 +54,22 @@
   input {
     font-family: inherit;
   }
+}
+
+/* Typography helpers (design system) */
+@layer utilities {
+  .font-heading {
+    font-family: theme('fontFamily.heading');
+  }
+}
+
+/* Void grid — blockchain network motif */
+.bg-grid-void {
+  background-size: 50px 50px;
+  background-image:
+    linear-gradient(to right, rgba(30, 41, 59, 0.45) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(30, 41, 59, 0.45) 1px, transparent 1px);
+  mask-image: radial-gradient(circle at center, black 35%, transparent 75%);
 }
 
 /* Material Symbols */
@@ -69,11 +85,12 @@
 .waveBar {
   width: 3px;
   border-radius: 2px;
-  background: hsl(var(--muted-foreground));
+  background: hsl(var(--muted-foreground) / 0.5);
   transition: height 0.3s ease;
 }
 .waveBar--active {
-  background: hsl(var(--primary));
+  background: linear-gradient(to top, #ea580c, #f7931a);
+  box-shadow: 0 0 8px -2px rgba(247, 147, 26, 0.45);
   animation: waveBar 0.9s ease-in-out infinite;
 }
 
@@ -86,14 +103,34 @@
   display: inline-block;
   width: 2px;
   height: 1em;
-  background: hsl(var(--primary));
+  background: linear-gradient(to bottom, #f7931a, #ffd600);
   margin-left: 2px;
   vertical-align: text-bottom;
   animation: blink 1s ease-in-out infinite;
 }
 
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float-soft {
+  animation: float-soft 8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waveBar--active {
+    animation: none;
+  }
+  .cursor {
+    animation: none;
+  }
+  .animate-float-soft {
+    animation: none;
+  }
+}
+
 /* Scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: hsl(var(--border)) transparent;
+  scrollbar-color: hsl(var(--border) / 0.8) transparent;
 }

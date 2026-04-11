@@ -1,5 +1,8 @@
-import { cn } from '@/lib/utils'
+import { useEffect, useState } from 'react'
+
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 import { formatSessionDate, formatDuration } from '../lib/formatters'
 import type { HistorySessionMeta } from '../types'
 import { useHistoryContext } from '../contexts/HistoryContext'
@@ -27,12 +30,12 @@ function SidebarSessionRow({
   session,
   selected,
   onSelect,
-  onDelete,
+  onRequestDelete,
 }: Readonly<{
   session: HistorySessionMeta
   selected: boolean
   onSelect: () => void
-  onDelete: () => void
+  onRequestDelete: () => void
 }>) {
   return (
     <div className="group/row relative">
@@ -53,7 +56,10 @@ function SidebarSessionRow({
 
       <button
         type="button"
-        onClick={onDelete}
+        onClick={(e) => {
+          e.stopPropagation()
+          onRequestDelete()
+        }}
         className={cn(
           'absolute right-1 top-1/2 z-10 -translate-y-1/2 rounded-md p-1 text-muted-foreground/45 transition-all',
           'opacity-0 group-hover/row:opacity-100 hover:bg-destructive/10 hover:text-destructive',
@@ -71,6 +77,23 @@ function SidebarSessionRow({
  */
 export function HistorySidebarArchive() {
   const { historySessions, selectedHistoryId, selectSession, deleteSession } = useHistoryContext()
+  const [sessionPendingDelete, setSessionPendingDelete] = useState<HistorySessionMeta | null>(null)
+
+  useEffect(() => {
+    if (!sessionPendingDelete) return
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setSessionPendingDelete(null)
+    }
+    globalThis.addEventListener('keydown', onKeyDown)
+    return () => globalThis.removeEventListener('keydown', onKeyDown)
+  }, [sessionPendingDelete])
+
+  async function confirmDelete(): Promise<void> {
+    if (!sessionPendingDelete) return
+    const id = sessionPendingDelete.id
+    setSessionPendingDelete(null)
+    await deleteSession(id)
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -106,12 +129,50 @@ export function HistorySidebarArchive() {
                 session={session}
                 selected={selectedHistoryId === session.id}
                 onSelect={() => selectSession(session.id)}
-                onDelete={() => deleteSession(session.id)}
+                onRequestDelete={() => setSessionPendingDelete(session)}
               />
             ))}
           </div>
         </ScrollArea>
       )}
+
+      <dialog
+        open={sessionPendingDelete !== null}
+        aria-modal
+        aria-labelledby="history-delete-title"
+        className={cn(
+          'pointer-events-none fixed inset-0 z-[200] m-0 flex h-full w-full max-w-none items-center justify-center border-0 bg-transparent p-4',
+          'open:flex [&:not([open])]:hidden',
+        )}
+      >
+        {sessionPendingDelete ? (
+          <>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              className="pointer-events-auto absolute inset-0 bg-black/65 backdrop-blur-[2px] transition-opacity"
+              onClick={() => setSessionPendingDelete(null)}
+            />
+            <div className="pointer-events-auto relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-[#121214] p-5 shadow-xl shadow-black/40">
+              <h2 id="history-delete-title" className="text-base font-semibold text-white">
+                Delete this session?
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-[#94A3B8]">
+                <span className="font-medium text-white/90">{sessionPendingDelete.label}</span> will be removed from this
+                device. This cannot be undone.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setSessionPendingDelete(null)}>
+                  Cancel
+                </Button>
+                <Button type="button" variant="destructive" size="sm" onClick={() => void confirmDelete()}>
+                  Delete session
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : null}
+      </dialog>
     </div>
   )
 }

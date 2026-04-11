@@ -77,6 +77,47 @@ describe('HistoryView', () => {
     expect(container.textContent).toContain('/tmp/history.txt')
   })
 
+  it('asks for confirmation before deleting a session from the sidebar', async () => {
+    const historySession = {
+      id: 'session-1',
+      label: 'Weekly standup',
+      startTime: '2026-04-09T08:00:00Z',
+      endTime: '2026-04-09T08:10:00Z',
+      durationMs: 600_000,
+      wordCount: 48,
+      segmentCount: 2,
+      preview: 'hello world',
+      profile: 'meeting' as const,
+      segments: [],
+    }
+
+    const deleteHistorySession = vi.fn().mockResolvedValue(undefined)
+
+    installMockApi({
+      listHistory: vi.fn().mockResolvedValue([historySession]),
+      getHistorySession: vi.fn().mockResolvedValue(historySession),
+      deleteHistorySession,
+    })
+
+    const { container } = await renderRendererApp(<HistoryLayout />)
+    await flushMicrotasks()
+
+    const trash = container.querySelector('button[title="Delete session"]') as HTMLButtonElement | null
+    expect(trash).toBeTruthy()
+    trash!.click()
+    await flushMicrotasks()
+
+    expect(deleteHistorySession).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Delete this session?')
+
+    const confirm = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Delete session')
+    expect(confirm).toBeTruthy()
+    confirm!.click()
+    await flushMicrotasks()
+
+    expect(deleteHistorySession).toHaveBeenCalledWith('session-1')
+  })
+
   it('uses neutral-first surfaces with restrained history accents', async () => {
     installMockApi({
       listHistory: vi.fn().mockResolvedValue([]),

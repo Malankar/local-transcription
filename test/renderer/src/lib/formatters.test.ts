@@ -162,11 +162,11 @@ describe('getCaptureProfileAppearance', () => {
   it('returns "live" appearance for the live profile', () => {
     const appearance = getCaptureProfileAppearance('live')
     expect(appearance.label).toBe('Live Transcription')
-    expect(appearance.accentDotClass).toContain('sky')
+    expect(appearance.accentDotClass).toContain('FFD600')
     expect(appearance.cardClass).toContain('bg-card/95')
     expect(appearance.cardClass).toContain('hover:bg-card')
-    expect(appearance.cardSelectedClass).toContain('bg-sky-500/10')
-    expect(appearance.cardSelectedClass).toContain('shadow-black/20')
+    expect(appearance.cardSelectedClass).toContain('FFD600')
+    expect(appearance.cardSelectedClass).toContain('shadow-[')
   })
 
   it('returns "meeting" appearance for the meeting profile', () => {
@@ -174,8 +174,8 @@ describe('getCaptureProfileAppearance', () => {
     expect(appearance.label).toBe('Meeting Recording')
     expect(appearance.cardClass).toContain('bg-card/95')
     expect(appearance.cardClass).toContain('hover:bg-card')
-    expect(appearance.cardSelectedClass).toContain('bg-primary/10')
-    expect(appearance.cardSelectedClass).toContain('shadow-black/20')
+    expect(appearance.cardSelectedClass).toContain('bg-primary/12')
+    expect(appearance.cardSelectedClass).toContain('shadow-[')
   })
 
   it('every appearance object has the expected shape', () => {

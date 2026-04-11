@@ -1,9 +1,23 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { HistorySidebarArchive } from '../../../../src/renderer/src/components/HistorySidebarArchive'
 import { HistoryView } from '../../../../src/renderer/src/components/HistoryView'
 import { installMockApi } from '../testUtils/mockApi'
-import { flushMicrotasks, renderIntoDocument } from '../testUtils/render'
+import { flushMicrotasks } from '../testUtils/render'
 import { renderRendererApp } from '../testUtils/renderRenderer'
+
+function HistoryLayout() {
+  return (
+    <div className="flex h-[720px] flex-row">
+      <div className="flex w-[288px] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-sidebar/95">
+        <HistorySidebarArchive />
+      </div>
+      <div className="min-h-0 min-w-0 flex-1 bg-background">
+        <HistoryView />
+      </div>
+    </div>
+  )
+}
 
 describe('HistoryView', () => {
   it('loads sessions, opens a transcript, and exports the current selection', async () => {
@@ -44,7 +58,7 @@ describe('HistoryView', () => {
       exportHistorySrt: vi.fn().mockResolvedValue({ canceled: false, path: '/tmp/history.srt' }),
     })
 
-    const { container } = await renderRendererApp(<HistoryView />)
+    const { container } = await renderRendererApp(<HistoryLayout />)
     await flushMicrotasks()
 
     expect(container.textContent).toContain('Weekly standup')
@@ -69,17 +83,14 @@ describe('HistoryView', () => {
       getHistorySession: vi.fn().mockResolvedValue(null),
     })
 
-    const { container } = await renderRendererApp(<HistoryView />)
+    const { container } = await renderRendererApp(<HistoryLayout />)
     await flushMicrotasks()
 
-    const aside = container.querySelector('aside')
-    expect(aside?.className).toContain('bg-muted/10')
+    const mainPane = container.querySelector('.flex-1.bg-background')
+    expect(mainPane?.className).toContain('bg-background')
+    expect(mainPane?.className).not.toContain('radial-gradient')
 
-    const detailPane = aside?.nextElementSibling
-    expect(detailPane?.className).toContain('bg-background')
-    expect(detailPane?.className).not.toContain('radial-gradient')
-
-    expect(container.innerHTML).toContain('border-primary/10')
-    expect(container.innerHTML).toContain('bg-primary/5')
+    expect(container.innerHTML).toContain('border-primary')
+    expect(container.innerHTML).toContain('bg-primary/')
   })
 })

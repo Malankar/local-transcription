@@ -7,6 +7,7 @@ import { Button } from './ui/button'
 import RecordingHubView from './RecordingHubView'
 import { ModelsView } from './ModelsView'
 import { HistoryView } from './HistoryView'
+import { HistorySidebarArchive } from './HistorySidebarArchive'
 import { SettingsView } from './SettingsView'
 
 // ── Icon ────────────────────────────────────────────────────────────────────
@@ -69,11 +70,12 @@ export default function AppShell() {
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <aside
         className={cn(
-          'z-40 flex h-screen w-[220px] min-w-[220px] flex-col justify-between',
+          'z-40 flex h-screen flex-col overflow-hidden',
           'border-r border-white/10 bg-sidebar/95 backdrop-blur-xl',
+          activeView === 'history' ? 'w-[288px] min-w-[288px]' : 'w-[220px] min-w-[220px]',
         )}
       >
-        <div className="flex flex-col gap-5 p-4 pt-5">
+        <div className="flex shrink-0 flex-col gap-5 p-4 pt-5">
           <div className="flex items-center gap-2.5">
             <div
               className={cn(
@@ -131,7 +133,15 @@ export default function AppShell() {
           </nav>
         </div>
 
-        <div className="border-t border-white/10 p-4">
+        {activeView === 'history' ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-white/10 px-2 pb-1 pt-2">
+            <HistorySidebarArchive />
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1" aria-hidden />
+        )}
+
+        <div className="shrink-0 border-t border-white/10 p-4">
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
             <Icon name="verified_user" filled size={11} />
             <span>Local Only</span>

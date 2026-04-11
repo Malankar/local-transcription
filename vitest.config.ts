@@ -15,5 +15,16 @@ export default defineConfig({
     include: ['test/**/*.test.{ts,tsx}'],
     // Avoid fork worker shutdown issues (e.g. kill EACCES) in constrained environments.
     pool: 'threads',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      exclude: ['src/renderer/src/globals.css'],
+      thresholds: {
+        branches: 59,
+        functions: 61,
+        lines: 66,
+        statements: 65,
+      },
+    },
   },
 });

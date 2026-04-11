@@ -17,6 +17,8 @@ interface ChunkingProfile {
   targetChunkMs: number
   maxChunkMs: number
   minSilenceMs: number
+  speechPadMs: number
+  overlapMs: number
 }
 
 const CHUNKING_PROFILES: Record<'meeting' | 'live', ChunkingProfile> = {
@@ -25,12 +27,16 @@ const CHUNKING_PROFILES: Record<'meeting' | 'live', ChunkingProfile> = {
     targetChunkMs: 4_000,
     maxChunkMs: 6_000,
     minSilenceMs: 400,
+    speechPadMs: 200,
+    overlapMs: 350,
   },
   live: {
     minChunkMs: 1_200,
     targetChunkMs: 2_000,
     maxChunkMs: 3_500,
     minSilenceMs: 250,
+    speechPadMs: 100,
+    overlapMs: 200,
   },
 }
 
@@ -44,7 +50,7 @@ interface AudioCaptureEvents {
 export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
   private process: ChildProcessByStdio<null, Readable, Readable> | null = null
   private buffer = Buffer.alloc(0)
-  private emittedDurationMs = 0
+  private bufferStartMs = 0
   private chunkingProfile: ChunkingProfile = CHUNKING_PROFILES.meeting
 
   start(options: CaptureStartOptions): void {
@@ -55,7 +61,7 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     this.chunkingProfile = CHUNKING_PROFILES[options.profile ?? 'meeting']
     const args = buildFfmpegArgs(options)
     this.buffer = Buffer.alloc(0)
-    this.emittedDurationMs = 0
+    this.bufferStartMs = 0
     const process = spawn('ffmpeg', args, {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -82,6 +88,7 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     process.on('close', () => {
       this.process = null
       this.buffer = Buffer.alloc(0)
+      this.bufferStartMs = 0
       this.emit('stopped')
     })
   }
@@ -105,8 +112,15 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
 
     while (nextChunkByteSize !== null) {
       const chunk = this.buffer.subarray(0, nextChunkByteSize)
-      this.buffer = this.buffer.subarray(nextChunkByteSize)
-      this.emitChunk(chunk)
+      const overlapByteSize = Math.min(
+        toByteSize(this.chunkingProfile.overlapMs),
+        Math.max(0, nextChunkByteSize - ANALYSIS_WINDOW_BYTE_SIZE),
+      )
+      const consumeByteSize = Math.max(BYTES_PER_SAMPLE, nextChunkByteSize - overlapByteSize)
+
+      this.emitChunk(chunk, this.bufferStartMs)
+      this.buffer = this.buffer.subarray(consumeByteSize)
+      this.bufferStartMs += byteSizeToDurationMs(consumeByteSize)
       nextChunkByteSize = this.findChunkByteSize()
     }
   }
@@ -125,7 +139,8 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
 
     const chunk = this.buffer.subarray(0, remainingByteLength)
     this.buffer = Buffer.alloc(0)
-    this.emitChunk(chunk)
+    this.emitChunk(chunk, this.bufferStartMs)
+    this.bufferStartMs += byteSizeToDurationMs(remainingByteLength)
   }
 
   private findChunkByteSize(): number | null {
@@ -139,7 +154,7 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
 
     const silenceBoundary = this.findSilenceBoundary(availableByteLength, minChunkByteSize)
     if (silenceBoundary !== null) {
-      return silenceBoundary
+      return this.extendBoundaryWithSpeechPadding(silenceBoundary, availableByteLength)
     }
 
     if (availableByteLength < maxChunkByteSize) {
@@ -152,6 +167,15 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     )
 
     return quietBoundary ?? maxChunkByteSize
+  }
+
+  private extendBoundaryWithSpeechPadding(boundaryByteSize: number, availableByteLength: number): number {
+    const paddedBoundary = Math.min(
+      availableByteLength,
+      boundaryByteSize + toByteSize(this.chunkingProfile.speechPadMs),
+    )
+
+    return paddedBoundary - (paddedBoundary % BYTES_PER_SAMPLE)
   }
 
   private findSilenceBoundary(availableByteLength: number, minChunkByteSize: number): number | null {
@@ -204,13 +228,9 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     return quietestBoundary
   }
 
-  private emitChunk(chunk: Buffer): void {
-    const durationMs = Math.round(
-      (chunk.length / (SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE)) * 1_000
-    )
-    const chunkStartMs = this.emittedDurationMs
+  private emitChunk(chunk: Buffer, chunkStartMs: number): void {
+    const durationMs = byteSizeToDurationMs(chunk.length)
     const chunkEndMs = chunkStartMs + durationMs
-    this.emittedDurationMs = chunkEndMs
 
     // Skip chunks that are entirely silent to avoid sending blank audio to the
     // transcription engine, which causes [BLANK_AUDIO] spam and needless failures.
@@ -228,6 +248,10 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
 
 function toByteSize(durationMs: number): number {
   return SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (durationMs / 1_000)
+}
+
+function byteSizeToDurationMs(byteSize: number): number {
+  return Math.round((byteSize / (SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE)) * 1_000)
 }
 
 function buildFfmpegArgs(options: CaptureStartOptions): string[] {

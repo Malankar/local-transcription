@@ -20,6 +20,17 @@ describe('TranscriptExporter', () => {
       const result = TranscriptExporter.toTxt(segments)
       expect(result).toBe('Hello')
     })
+
+    it('dedupes overlapping chunk text before formatting', () => {
+      const segments = [
+        { id: '1', startMs: 0, endMs: 1800, text: 'Hello world', timestamp: '00:01' },
+        { id: '2', startMs: 1700, endMs: 2600, text: 'world again', timestamp: '00:02' },
+      ]
+
+      const result = TranscriptExporter.toTxt(segments)
+
+      expect(result).toBe('Hello world\nagain')
+    })
   })
 
   describe('toSrt', () => {

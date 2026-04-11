@@ -74,6 +74,26 @@ describe('AudioCapture', () => {
       expect(chunks.length).toBeGreaterThan(0)
     })
 
+    it('retains a small overlap between consecutive forced chunks', async () => {
+      audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
+
+      const chunks: any[] = []
+      audioCapture.on('chunk', (c) => chunks.push(c))
+
+      // Generate 8 seconds of non-silent PCM so the chunker must force multiple windows.
+      const data = Buffer.alloc(16000 * 2 * 8)
+      for (let i = 0; i < data.length; i += 2) {
+        data.writeInt16LE(15000, i)
+      }
+
+      mockProcess.stdout.push(data)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      audioCapture.stop()
+
+      expect(chunks.length).toBeGreaterThanOrEqual(3)
+      expect(chunks[1].startMs).toBeLessThan(chunks[0].endMs)
+    })
+
     it('does not emit chunk for silence', async () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default' })
       

@@ -11,7 +11,12 @@ pnpm typecheck    # type-check renderer+preload (tsconfig.json) and main (tsconf
 pnpm dist         # build then package into AppImage via electron-builder
 ```
 
-There is no test suite. Typecheck is the primary static validation step.
+```bash
+pnpm test                        # run Vitest test suite
+pnpm vitest run --coverage       # run tests with v8 coverage report
+```
+
+Tests live in `test/` mirroring `src/` structure (main, preload, renderer). Vitest with jsdom environment. Typecheck is also a static validation step.
 
 ## Architecture
 

@@ -65,6 +65,24 @@ describe('HistoryManager', () => {
       expect(meta.startTime).toBe(startTime)
       expect(meta.endTime).toBe('2023-01-01T10:00:01Z')
     })
+
+    it('stitches overlapping duplicate chunk text before saving', async () => {
+      const segments: TranscriptSegment[] = [
+        { id: '1', startMs: 0, endMs: 1800, text: 'Hello world', timestamp: '2023-01-01T10:00:01Z' },
+        { id: '2', startMs: 1700, endMs: 2600, text: 'world again', timestamp: '2023-01-01T10:00:02Z' },
+      ]
+
+      const meta = await historyManager.saveSession(segments, 'meeting', '2023-01-01T10:00:00Z')
+
+      expect(meta.wordCount).toBe(3)
+      expect(meta.segmentCount).toBe(2)
+
+      const [, writtenJson] = vi.mocked(fs.writeFile).mock.calls[0]
+      const savedSession = JSON.parse(String(writtenJson))
+      expect(savedSession.segments).toHaveLength(2)
+      expect(savedSession.segments[0].text).toBe('Hello world')
+      expect(savedSession.segments[1].text).toBe('again')
+    })
   })
 
   describe('pruneHistory', () => {

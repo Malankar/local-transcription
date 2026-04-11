@@ -142,5 +142,18 @@ describe('transcriptMerge', () => {
       expect(merged).toHaveLength(1)
       expect(merged[0].text).toBe('Actual text')
     })
+
+    it('dedupes repeated words across overlapping chunk boundaries', () => {
+      const segments: TranscriptSegment[] = [
+        { id: '1', startMs: 0, endMs: 1800, text: 'Hello world', timestamp: 'T1' },
+        { id: '2', startMs: 1700, endMs: 2600, text: 'world again', timestamp: 'T2' },
+      ]
+
+      const merged = mergeTranscriptSegments(segments)
+
+      expect(merged).toHaveLength(1)
+      expect(merged[0].text).toBe('Hello world again')
+      expect(merged[0].endMs).toBe(2600)
+    })
   })
 })

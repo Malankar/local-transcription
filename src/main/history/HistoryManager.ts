@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 
 import type { AppSettings, HistoryAutoDelete, HistorySession, HistorySessionMeta, TranscriptSegment } from '../../shared/types'
+import { dedupeTranscriptSegments } from '../../shared/transcriptSegments'
 
 const STOP_WORDS = new Set([
   'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'it', 'for',
@@ -39,26 +40,27 @@ export class HistoryManager {
   ): Promise<HistorySessionMeta> {
     await this.ensureDir()
 
+    const stitchedSegments = dedupeTranscriptSegments(segments)
     const id = `${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`
-    const fullText = segments.map((s) => s.text.trim()).filter(Boolean).join(' ')
+    const fullText = stitchedSegments.map((s) => s.text.trim()).filter(Boolean).join(' ')
     const wordCount = fullText ? fullText.split(/\s+/).filter(Boolean).length : 0
-    const startMs = segments[0]?.startMs ?? 0
-    const endMs = segments.at(-1)?.endMs ?? 0
-    const endTime = segments.at(-1)?.timestamp ?? new Date().toISOString()
+    const startMs = stitchedSegments[0]?.startMs ?? 0
+    const endMs = stitchedSegments.at(-1)?.endMs ?? 0
+    const endTime = stitchedSegments.at(-1)?.timestamp ?? new Date().toISOString()
 
     const meta: HistorySessionMeta = {
       id,
-      label: this.generateLabel(segments),
+      label: this.generateLabel(stitchedSegments),
       startTime: captureStartTime,
       endTime,
       durationMs: endMs - startMs,
       wordCount,
-      segmentCount: segments.length,
+      segmentCount: stitchedSegments.length,
       preview: fullText.slice(0, 160),
       profile,
     }
 
-    const session: HistorySession = { ...meta, segments }
+    const session: HistorySession = { ...meta, segments: stitchedSegments }
     await fs.writeFile(join(this.dir, `${id}.json`), JSON.stringify(session, null, 2), 'utf8')
 
     return meta

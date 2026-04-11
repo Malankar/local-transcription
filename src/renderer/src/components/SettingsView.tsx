@@ -25,23 +25,26 @@ function SettingRow({
   disabled?: boolean
 }) {
   return (
-    <div className={cn('flex items-center justify-between gap-4 py-3.5', disabled && 'opacity-50')}>
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <span className="text-sm font-medium text-foreground leading-none">{label}</span>
-        {description && (
-          <span className="text-xs text-muted-foreground leading-snug mt-1">{description}</span>
-        )}
+    <div
+      className={cn(
+        'flex items-start justify-between gap-4 px-6 py-5 transition-colors hover:bg-white/[0.02]',
+        disabled && 'opacity-50',
+      )}
+    >
+      <div className="min-w-0 pr-4">
+        <h3 className="mb-0.5 text-sm font-medium text-white">{label}</h3>
+        {description && <p className="text-sm leading-snug text-[#94A3B8]">{description}</p>}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="shrink-0 self-center">{children}</div>
     </div>
   )
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-[#F7931A]/85">
+    <h2 className="mb-4 font-mono text-xs font-semibold uppercase tracking-widest text-[#F7931A]">
       {children}
-    </p>
+    </h2>
   )
 }
 
@@ -112,27 +115,19 @@ export function SettingsView() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto p-8">
+      <div className="mx-auto w-full max-w-3xl space-y-8">
+      <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.24em] text-primary/70">
-            Preferences
-          </p>
-          <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            App{' '}
-            <span className="bg-gradient-to-r from-[#F7931A] to-[#FFD600] bg-clip-text text-transparent">
-              Settings
-            </span>
-          </h2>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Configure application behaviour and history management.
-          </p>
+          <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-widest text-[#F7931A]">Preferences</p>
+          <h1 className="font-heading mb-2 text-4xl font-bold text-white">Settings</h1>
+          <p className="text-sm text-[#94A3B8]">Configure application behaviour and history management.</p>
         </div>
-        <div className="mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#F7931A]/30 bg-[#F7931A]/10 text-[#F7931A]">
           <span
             className="material-symbols-outlined"
             style={{
-              fontSize: 18,
+              fontSize: 20,
               fontVariationSettings: `'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
               userSelect: 'none',
               lineHeight: 1,
@@ -147,12 +142,9 @@ export function SettingsView() {
       </div>
 
       {/* ── General ── */}
-      <section className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-4 pt-4 pb-0">
-          <SectionLabel>General</SectionLabel>
-        </div>
-        <div className="px-4 divide-y divide-border/60">
-
+      <section>
+        <SectionLabel>General</SectionLabel>
+        <div className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-[#0F1115]">
           <SettingRow
             label="Start hidden"
             description="Launch minimised to the tray instead of showing the window."
@@ -203,7 +195,7 @@ export function SettingsView() {
               onValueChange={(v) => updateSettings({ unloadModelAfterMinutes: Number(v) })}
               disabled={settingsSaving}
             >
-              <SelectTrigger className="w-36 h-8 text-xs">
+              <SelectTrigger className="h-10 min-w-[140px] border-[#030304] bg-[#030304] text-xs text-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -220,24 +212,24 @@ export function SettingsView() {
             label="Voice-to-text shortcut"
             description="Global keyboard shortcut to start / stop recording from anywhere."
           >
-            <div className="relative">
-              <input
+            <div className="flex items-center gap-2">
+              <div
                 className={cn(
-                  'h-8 w-44 rounded-md border bg-background px-3 text-xs font-mono text-foreground outline-none transition-colors',
-                  shortcutEditing
-                    ? 'border-primary ring-1 ring-primary'
-                    : 'border-input hover:border-border',
+                  'flex h-10 items-center rounded-xl border border-white/10 bg-[#030304] px-4 font-mono text-sm text-white outline-none transition-colors',
+                  shortcutEditing ? 'border-[#F7931A]/50 ring-1 ring-[#F7931A]/30' : 'hover:border-white/20',
                 )}
-                readOnly
-                value={shortcutEditing ? 'Press keys…' : shortcutInput}
-                onFocus={() => setShortcutEditing(true)}
-                onBlur={() => setShortcutEditing(false)}
-                onKeyDown={handleShortcutKeyDown}
-              />
+              >
+                <input
+                  className="min-w-[10rem] flex-1 bg-transparent text-sm font-mono text-white outline-none"
+                  readOnly
+                  value={shortcutEditing ? 'Press keys…' : shortcutInput}
+                  onFocus={() => setShortcutEditing(true)}
+                  onBlur={() => setShortcutEditing(false)}
+                  onKeyDown={handleShortcutKeyDown}
+                />
+              </div>
               {!shortcutEditing && (
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/60 pointer-events-none select-none">
-                  edit
-                </span>
+                <span className="text-xs text-[#94A3B8]">edit</span>
               )}
             </div>
           </SettingRow>
@@ -252,18 +244,13 @@ export function SettingsView() {
               disabled={settingsSaving}
             />
           </SettingRow>
-
         </div>
-        <div className="px-4 pb-4" />
       </section>
 
       {/* ── History ── */}
-      <section className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-4 pt-4 pb-0">
-          <SectionLabel>History</SectionLabel>
-        </div>
-        <div className="px-4 divide-y divide-border/60">
-
+      <section>
+        <SectionLabel>History</SectionLabel>
+        <div className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-[#0F1115]">
           <SettingRow
             label="Session limit"
             description="Maximum number of recording sessions to keep on disk."
@@ -273,7 +260,7 @@ export function SettingsView() {
               onValueChange={(v) => updateSettings({ historyLimit: Number(v) })}
               disabled={settingsSaving}
             >
-              <SelectTrigger className="w-36 h-8 text-xs">
+              <SelectTrigger className="h-10 min-w-[140px] border-[#030304] bg-[#030304] text-xs text-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -295,7 +282,7 @@ export function SettingsView() {
               onValueChange={(v) => updateSettings({ autoDeleteRecordings: v as HistoryAutoDelete })}
               disabled={settingsSaving}
             >
-              <SelectTrigger className="w-44 h-8 text-xs">
+              <SelectTrigger className="h-10 min-w-[160px] border-[#030304] bg-[#030304] text-xs text-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -318,14 +305,13 @@ export function SettingsView() {
               disabled={settingsSaving}
             />
           </SettingRow>
-
         </div>
-        <div className="px-4 pb-4" />
       </section>
 
       {settingsSaving && (
-        <p className="text-[11px] text-muted-foreground text-center">Saving…</p>
+        <p className="text-center text-[11px] text-[#64748B]">Saving…</p>
       )}
+      </div>
     </div>
   )
 }

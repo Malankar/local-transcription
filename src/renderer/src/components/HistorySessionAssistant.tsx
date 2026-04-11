@@ -71,13 +71,7 @@ export function HistorySessionAssistant({
   useEffect(() => {
     setTranscriptAttached(false)
     setDraft('')
-    setMessages([
-      {
-        id: makeId(),
-        role: 'assistant',
-        content: WELCOME_BODY,
-      },
-    ])
+    setMessages([])
   }, [sessionId])
 
   useEffect(() => {
@@ -120,47 +114,46 @@ export function HistorySessionAssistant({
   return (
     <aside
       className={cn(
-        'flex h-full w-[min(100%,380px)] shrink-0 flex-col border-l border-white/10',
-        'bg-gradient-to-b from-black/35 via-black/20 to-black/30 backdrop-blur-md',
+        'flex h-full w-[280px] shrink-0 flex-col overflow-hidden border-l border-white/10 bg-[#0A0A0B]',
+        'max-md:w-full max-md:border-l-0 max-md:border-t',
       )}
       aria-labelledby={headingId}
     >
-      <div className="border-b border-white/10 px-5 py-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="mb-2 font-mono text-[10px] font-medium uppercase tracking-[0.2em] text-[#F7931A]/80">
-              On-device workspace
-            </p>
-            <h2 id={headingId} className="font-heading text-lg font-semibold leading-snug tracking-tight text-foreground">
-              Session assistant
-            </h2>
-            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{sessionLabel}</p>
-          </div>
+      <div className="shrink-0 border-b border-white/5 px-5 pb-4 pt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#F7931A]">
+            On-Device Workspace
+          </p>
           <div
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/25 bg-primary/10 text-primary shadow-[0_0_24px_-10px_rgba(247,147,26,0.55)]"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#EA580C] to-[#F7931A] text-white"
             aria-hidden
           >
-            <Icon name="smart_toy" filled size={20} />
+            <Icon name="smart_toy" filled size={16} />
           </div>
         </div>
+        <h2 id={headingId} className="font-heading text-lg font-semibold text-white">
+          Session assistant
+        </h2>
+        <p className="mt-0.5 line-clamp-2 text-xs text-[#64748B]">{sessionLabel}</p>
+      </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button
+      <div className="shrink-0 border-b border-white/5 px-5 py-4">
+        <div className="flex flex-wrap gap-2">
+          <button
             type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 rounded-lg border-primary/20 bg-primary/5 px-2.5 text-[11px] text-foreground hover:bg-primary/10"
+            className={cn(
+              'flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white transition-colors hover:bg-white/10',
+              transcriptAttached && transcriptPlainText.trim().length > 0 && 'opacity-60',
+            )}
             onClick={attachTranscript}
             disabled={transcriptAttached && transcriptPlainText.trim().length > 0}
           >
-            <Icon name="attach_file" size={14} />
-            {transcriptAttached ? 'Transcript noted' : 'Note transcript'}
-          </Button>
-          <Button
+            <Icon name="history" size={14} />
+            Note transcript
+          </button>
+          <button
             type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 rounded-lg border-white/12 bg-white/[0.03] px-2.5 text-[11px] hover:bg-white/[0.06]"
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white transition-colors hover:bg-white/10 disabled:opacity-40"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(transcriptPlainText)
@@ -173,85 +166,79 @@ export function HistorySessionAssistant({
           >
             <Icon name="content_copy" size={14} />
             Copy text
-          </Button>
+          </button>
         </div>
-
-        <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground/85">
-          <span className="font-medium text-[#F7931A]/90">Local only</span> — prompts and replies stay in this panel until you copy them out.
+        <p className="mt-3 text-[10px] leading-relaxed text-[#64748B]">
+          <span className="text-[#F7931A]">Local only</span> — prompts and replies stay in this panel until you copy them out.
         </p>
       </div>
 
+      <div className="shrink-0 border-b border-white/5 px-5 py-4">
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-[#94A3B8]">Assistant</p>
+        <p className="text-xs leading-relaxed text-[#94A3B8]">{WELCOME_BODY}</p>
+      </div>
+
       <ScrollArea ref={scrollRef} className="min-h-0 flex-1">
-        <div className="space-y-3 p-4" role="log" aria-live="polite" aria-relevant="additions">
+        <div className="space-y-2 p-4" role="log" aria-live="polite" aria-relevant="additions">
           {messages.map((m, i) => (
             <div
               key={m.id}
               className={cn(
-                'rounded-2xl border px-3.5 py-3 text-sm leading-relaxed transition-[border-color,box-shadow] duration-300',
+                'rounded-lg border px-3 py-2.5 text-xs leading-relaxed',
                 m.role === 'assistant'
-                  ? 'border-primary/15 bg-[#141414]/90 text-foreground/90 shadow-[inset_0_1px_0_0_rgba(247,147,26,0.06)]'
-                  : 'border-white/10 bg-card/80 text-foreground/95',
+                  ? 'border-white/10 bg-[#0F1115] text-[#CBD5E1]'
+                  : 'border-white/10 bg-[#1E293B]/80 text-white/90',
               )}
               style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
             >
-              <div className="mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/90">
-                {m.role === 'assistant' ? (
-                  <span className="text-[#F7931A]/90">Assistant</span>
-                ) : (
-                  <span>You</span>
-                )}
+              <div className="mb-1 font-mono text-[9px] uppercase tracking-wider text-[#64748B]">
+                {m.role === 'assistant' ? 'Assistant' : 'You'}
               </div>
-              <p className="whitespace-pre-wrap text-[13px] leading-6">{m.content}</p>
+              <p className="whitespace-pre-wrap">{m.content}</p>
             </div>
           ))}
         </div>
       </ScrollArea>
 
-      <div className="border-t border-white/10 p-4">
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground/80">Quick prompts</p>
-        <div className="mb-3 flex flex-wrap gap-1.5">
+      <div className="shrink-0 border-t border-white/10 px-5 py-4">
+        <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-[#94A3B8]">Quick Prompts</p>
+        <div className="mb-4 space-y-2">
           {QUICK_PROMPTS.map((p) => (
             <button
               key={p}
               type="button"
               title={p}
               onClick={() => setDraft(p)}
-              className={cn(
-                'rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-left text-[10px] text-muted-foreground',
-                'transition-colors hover:border-primary/25 hover:bg-primary/5 hover:text-foreground',
-              )}
+              className="w-full truncate rounded-lg border border-white/10 px-3 py-2 text-left text-xs text-[#94A3B8] transition-colors hover:border-[#F7931A]/30 hover:text-white"
             >
-              {p.length > 42 ? `${p.slice(0, 40)}…` : p}
+              {p.length > 48 ? `${p.slice(0, 46)}…` : p}
             </button>
           ))}
         </div>
         <label className="sr-only" htmlFor={`${headingId}-input`}>
           Message
         </label>
-        <textarea
+        <input
           id={`${headingId}-input`}
+          type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter') {
               e.preventDefault()
               sendDraft()
             }
           }}
-          placeholder="Ask anything — stays on this device…"
-          rows={3}
-          className={cn(
-            'mb-2 w-full resize-none rounded-xl border border-white/12 bg-black/25 px-3 py-2.5 text-sm text-foreground',
-            'placeholder:text-muted-foreground/50 focus-visible:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20',
-          )}
+          placeholder="Ask anything — stays on this device..."
+          className="mb-3 w-full rounded-xl border border-white/10 bg-[#0F1115] px-4 py-3 text-sm text-white placeholder:text-[#64748B] transition-colors focus:border-[#F7931A]/50 focus:outline-none"
         />
         <Button
           type="button"
-          className="h-9 w-full gap-2 rounded-xl bg-gradient-to-r from-[#F7931A] to-[#E88A10] font-medium text-primary-foreground shadow-[0_0_24px_-8px_rgba(247,147,26,0.55)] hover:from-[#FFA033] hover:to-[#F7931A]"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#EA580C] to-[#F7931A] text-sm font-semibold text-white shadow-[0_0_20px_-5px_rgba(234,88,12,0.5)] transition-all hover:shadow-[0_0_30px_-5px_rgba(247,147,26,0.6)]"
           onClick={sendDraft}
         >
           <Icon name="send" size={16} />
-          Send (local draft)
+          Send (Local Draft)
         </Button>
       </div>
     </aside>

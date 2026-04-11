@@ -1,9 +1,5 @@
 import { useMemo } from 'react'
 
-import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatClock, formatSessionDate, formatDuration } from '../lib/formatters'
 import { mergeTranscriptSegments } from '../lib/transcriptMerge'
@@ -51,101 +47,92 @@ export function HistoryView() {
   )
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-transparent">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#030304]">
       {selectedSession ? (
         <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col p-6 pr-4">
-            <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/70 bg-card/90 shadow-xl shadow-black/20 backdrop-blur">
-              <CardHeader className="border-b border-border/70 pb-5">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="min-w-0 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge className="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.22em]">
-                        {selectedProfileLabel}
-                      </Badge>
-                      <Badge variant="secondary" className="rounded-full px-3 py-1 text-[10px]">
-                        {formatDuration(selectedSession.durationMs)}
-                      </Badge>
-                      <Badge variant="secondary" className="rounded-full px-3 py-1 text-[10px]">
-                        {selectedSession.wordCount} words
-                      </Badge>
-                    </div>
-
-                    <div className="min-w-0">
-                      <CardTitle className="truncate text-2xl">{selectedSession.label}</CardTitle>
-                      <CardDescription className="mt-2 text-sm">
-                        {formatSessionDate(selectedSession.startTime)} • Saved locally and ready to export
-                      </CardDescription>
-                    </div>
-
-                    {historyExportStatus?.stage === 'exported' && (
-                      <div className="inline-flex max-w-full items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm">
-                        <span className="rounded-full bg-emerald-400 p-1 text-emerald-950">
-                          <Icon name="check" size={12} />
-                        </span>
-                        <span className="truncate text-emerald-200">{historyExportStatus.detail}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 gap-2 rounded-xl px-4"
-                      onClick={exportSessionTxt}
-                      disabled={segments.length === 0}
-                    >
-                      <Icon name="description" size={14} />
-                      TXT
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 gap-2 rounded-xl px-4"
-                      onClick={exportSessionSrt}
-                      disabled={segments.length === 0}
-                    >
-                      <Icon name="subtitles" size={14} />
-                      SRT
-                    </Button>
-                  </div>
+          {/* Center — transcript (ref/history-view center panel) */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="shrink-0 border-b border-white/5 px-8 pb-6 pt-8">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                  {selectedProfileLabel === 'Meeting' ? (
+                    <span className="rounded bg-[#F7931A] px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-black">
+                      Meeting
+                    </span>
+                  ) : (
+                    <span className="rounded border border-[#FFD600]/40 bg-[#FFD600]/10 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-[#FFD600]">
+                      Live
+                    </span>
+                  )}
+                  <span className="rounded-full border border-white/20 px-3 py-1 font-mono text-[11px] text-[#94A3B8]">
+                    {formatDuration(selectedSession.durationMs)}
+                  </span>
+                  <span className="rounded-full border border-white/20 px-3 py-1 font-mono text-[11px] text-[#94A3B8]">
+                    {selectedSession.wordCount} words
+                  </span>
                 </div>
-              </CardHeader>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm text-white transition-colors hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={exportSessionTxt}
+                    disabled={segments.length === 0}
+                  >
+                    <Icon name="description" size={16} />
+                    TXT
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm text-white transition-colors hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={exportSessionSrt}
+                    disabled={segments.length === 0}
+                  >
+                    <Icon name="subtitles" size={16} />
+                    SRT
+                  </button>
+                </div>
+              </div>
 
-              <CardContent className="min-h-0 flex-1 p-0">
-                <ScrollArea className="h-full">
+              <h1 className="font-heading mt-4 truncate text-2xl font-bold text-white">{selectedSession.label}</h1>
+              <p className="mt-1 text-sm text-[#64748B]">
+                {formatSessionDate(selectedSession.startTime)} • Saved locally and ready to export
+              </p>
+
+              {historyExportStatus?.stage === 'exported' && (
+                <div className="mt-4 inline-flex max-w-full items-center gap-3 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm">
+                  <span className="rounded-full bg-emerald-400 p-1 text-emerald-950">
+                    <Icon name="check" size={12} />
+                  </span>
+                  <span className="truncate text-emerald-200">{historyExportStatus.detail}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <ScrollArea className="h-full">
+                <div className="px-8 py-6">
                   {segments.length === 0 ? (
-                    <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 px-8 text-center text-muted-foreground/50">
-                      <div className="rounded-2xl border border-dashed border-primary/10 bg-primary/5 p-4 text-primary/70">
-                        <Icon name="edit_off" size={36} />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-foreground/80">No transcript content</p>
-                        <p className="text-sm">This session was saved without transcript segments.</p>
-                      </div>
+                    <div className="flex min-h-[280px] flex-col items-center justify-center text-center text-[#64748B]">
+                      <p>No transcript available</p>
+                      <p className="mt-2 max-w-sm text-sm">
+                        This session was saved without transcript segments.
+                      </p>
                     </div>
                   ) : (
-                    <article className="mx-auto flex w-full max-w-4xl flex-col gap-3 p-6">
+                    <div className="mx-auto max-w-4xl space-y-6">
                       {segments.map((seg) => (
-                        <div
-                          key={seg.id}
-                          className={cn(
-                            'grid grid-cols-[56px_1fr] gap-4 rounded-2xl border border-border/60 bg-background/40 px-4 py-3',
-                            'transition-colors hover:bg-background/70',
-                          )}
-                        >
-                          <div className="pt-0.5 text-[11px] font-mono text-primary/70">
+                        <div key={seg.id} className="flex gap-6">
+                          <span className="w-12 shrink-0 pt-0.5 font-mono text-sm text-[#F7931A]">
                             {formatClock(seg.startMs)}
-                          </div>
-                          <p className="text-sm leading-7 text-foreground/90">{seg.text}</p>
+                          </span>
+                          <p className="flex-1 text-sm leading-relaxed text-[#CBD5E1]">{seg.text}</p>
                         </div>
                       ))}
-                    </article>
+                    </div>
                   )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
+                </div>
+              </ScrollArea>
+            </div>
           </div>
 
           <HistorySessionAssistant
@@ -157,20 +144,16 @@ export function HistoryView() {
           />
         </div>
       ) : (
-        <div className="flex h-full min-h-0 flex-1 items-center justify-center p-8">
-          <Card className="w-full max-w-xl border-border/70 bg-card/88 shadow-xl shadow-black/20 backdrop-blur">
-            <CardHeader className="items-center text-center">
-              <div className="mb-2 rounded-2xl border border-primary/15 bg-primary/10 p-3 text-primary/90">
-                <Icon name="article" filled size={24} />
-              </div>
-              <CardTitle>Select a session</CardTitle>
-              <CardDescription>
-                Use the <span className="font-medium text-foreground/90">History</span> section in the sidebar: open{' '}
-                <span className="text-foreground/80">Meetings</span> or <span className="text-foreground/80">Live</span>{' '}
-                and choose a saved run. Transcript opens here; the assistant stays on the right.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+        <div className="flex flex-1 items-center justify-center p-8">
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#F7931A]/30 bg-[#F7931A]/10 text-[#F7931A]">
+              <Icon name="article" filled size={32} />
+            </div>
+            <h2 className="font-heading mb-2 text-xl font-semibold text-white">Select a session</h2>
+            <p className="mx-auto max-w-xs text-sm text-[#94A3B8]">
+              Pick any saved transcript from the left to review, export, or clean up.
+            </p>
+          </div>
         </div>
       )}
     </div>

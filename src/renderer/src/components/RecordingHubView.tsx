@@ -40,6 +40,22 @@ function Icon({ name, filled = false, size = 20 }: { name: string; filled?: bool
   )
 }
 
+/** Static three-bar mark — meeting idle hero only (ref screenshot). */
+function MeetingIdleBarsIcon() {
+  const bars = [
+    { id: 'l', h: 14 },
+    { id: 'c', h: 22 },
+    { id: 'r', h: 14 },
+  ] as const
+  return (
+    <div className="mb-1 flex h-11 items-end justify-center gap-[5px]" aria-hidden>
+      {bars.map(({ id, h }) => (
+        <div key={id} className="w-1 rounded-[2px] bg-[#64748B]/70" style={{ height: h }} />
+      ))}
+    </div>
+  )
+}
+
 // ── Waveform ───────────────────────────────────────────────────────────────
 
 const WAVE_HEIGHTS = [8, 14, 20, 12, 28, 36, 30, 44, 48, 40, 36, 46, 52, 44, 56, 48, 40, 32, 44, 28, 14, 20, 36, 52, 44, 28, 36, 42, 52, 44, 32, 20, 12, 8, 14, 10]
@@ -78,11 +94,11 @@ function DeviceSelect({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="font-mono text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
         {label}
       </span>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-10 gap-2 text-sm">
+        <SelectTrigger className="h-10 min-w-[160px] gap-2 text-sm">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
@@ -107,7 +123,7 @@ function ModelAndRefresh() {
   return (
     <div className="flex items-end gap-2">
       <div className="flex flex-col gap-1.5">
-        <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="font-mono text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
           Model
         </span>
         {downloadedModels.length > 0 ? (
@@ -135,12 +151,12 @@ function ModelAndRefresh() {
       <Button
         variant="ghost"
         size="sm"
-        className="h-9 w-9 p-0 text-muted-foreground"
+        className="h-10 w-10 shrink-0 rounded-xl border border-white/10 bg-transparent p-0 text-[#94A3B8] hover:border-[#F7931A]/50 hover:bg-transparent hover:text-[#F7931A]"
         onClick={() => void refreshSources()}
         disabled={isBusy}
         title="Refresh audio sources"
       >
-        <Icon name="refresh" size={15} />
+        <Icon name="refresh" size={16} />
       </Button>
     </div>
   )
@@ -162,7 +178,7 @@ function SourceControls() {
 
   if (subView === 'live') {
     return (
-      <div className="flex flex-col gap-3 border-b border-white/10 bg-black/25 px-6 py-4 backdrop-blur-sm">
+      <div className="mb-6 flex flex-col gap-3 border-b border-white/10 bg-transparent px-8 pb-6 pt-0">
         <div className="flex flex-wrap items-end gap-4">
           <div className="min-w-40 flex-1">
             <DeviceSelect
@@ -192,14 +208,14 @@ function SourceControls() {
   ]
 
   return (
-    <div className="flex flex-col gap-3 border-b border-white/10 bg-black/25 px-6 py-4 backdrop-blur-sm">
-      <div className="flex flex-wrap items-end gap-4">
+    <div className="mb-6 flex flex-col gap-3 border-b border-white/10 bg-transparent px-8 pb-6 pt-0">
+      <div className="flex flex-wrap items-end gap-6">
         {/* Mode selector */}
-        <div className="flex flex-col gap-1.5">
-          <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <div className="flex flex-col gap-2">
+          <span className="font-mono text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
             Audio Input
           </span>
-          <div className="inline-flex gap-0.5 rounded-xl border border-white/10 bg-black/40 p-0.5 backdrop-blur-sm">
+          <div className="inline-flex gap-0.5 rounded-xl border border-white/10 bg-[#0F1115] p-1">
             {sourceModes.map(({ id, icon, label }) => (
               <button
                 key={id}
@@ -301,21 +317,32 @@ function RecordingView() {
 
   const sessionName = `Session_${new Date().toISOString().slice(0, 10).replace(/-/g, '_')}`
   const liveCaptionHint = getLiveCaptionHint(selectedModel)
+  const meetingIdleSubline = 'Live captions typically appear every 3-5 seconds.'
 
   if (!isMeetingCapturing && segments.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-6 text-muted-foreground/50 px-8">
-        <Icon name="graphic_eq" filled size={48} />
-        <div className="text-center flex flex-col gap-2">
-          <p className="text-base font-medium text-foreground/70">Ready to record a meeting</p>
-          <p className="text-sm">{liveCaptionHint}</p>
+      <div className="flex h-full flex-col items-center justify-center gap-8 px-8 py-12">
+        <MeetingIdleBarsIcon />
+        <div className="flex max-w-md flex-col items-center gap-2 text-center">
+          <p className="text-base font-medium text-white">Ready to record a meeting</p>
+          <p className="text-sm leading-relaxed text-[#94A3B8]">{meetingIdleSubline}</p>
         </div>
-        <Button size="lg" className="gap-2 px-10" onClick={() => void startCapture('meeting')} disabled={!canStart}>
-          <Icon name="play_arrow" filled size={18} />
-          Start Recording
-        </Button>
+        <button
+          type="button"
+          onClick={() => void startCapture('meeting')}
+          disabled={!canStart}
+          className={cn(
+            'flex h-14 items-center gap-3 rounded-full px-10 text-sm font-bold uppercase tracking-[0.14em] text-white transition-all duration-300',
+            'bg-gradient-to-r from-[#EA580C] to-[#F7931A] shadow-[0_0_30px_-5px_rgba(247,147,26,0.5)]',
+            'hover:scale-[1.02] hover:shadow-[0_0_40px_-5px_rgba(247,147,26,0.65)]',
+            'disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none disabled:hover:scale-100',
+          )}
+        >
+          <Icon name="play_arrow" filled size={20} />
+          Start recording
+        </button>
         {!canStart && (
-          <p className="text-xs text-muted-foreground/50">
+          <p className="max-w-xs text-center text-xs text-[#64748B]">
             {selectedModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
           </p>
         )}
@@ -462,120 +489,123 @@ function LiveTranscriptionView() {
   }
 
   return (
-    <div className="min-h-full bg-transparent">
-      <div className="mx-auto flex min-h-full max-w-3xl flex-col px-6 py-8">
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 py-6 sm:gap-5 sm:py-8">
-          <div className="text-center">
-            <p className="font-mono text-xs uppercase tracking-[0.28em] text-[#F7931A]/80">
-              {isLiveCapturing ? 'Listening now' : 'Ready'}
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              {isLiveCapturing
-                ? 'Speech is transcribed with the low-latency live profile.'
-                : 'Tap the mic to start instant live transcription.'}
-            </p>
-            {!isLiveCapturing && !canStartLive && (
-              <p className="text-xs text-destructive/70 mt-1">
-                {selectedModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
-              </p>
-            )}
-          </div>
-
-          <div
+    <div className="relative min-h-full flex-1 overflow-hidden bg-transparent">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.035]"
+        style={{
+          backgroundImage: `
+            linear-gradient(to right, #F7931A 1px, transparent 1px),
+            linear-gradient(to bottom, #F7931A 1px, transparent 1px)
+          `,
+          backgroundSize: '40px 40px',
+        }}
+        aria-hidden
+      />
+      <div className="relative mx-auto flex min-h-full max-w-3xl flex-col items-center justify-center px-8 pb-10 pt-6">
+        <div className="mb-4">
+          <span
             className={cn(
-              'flex items-end justify-center gap-2',
-              isLiveCapturing ? 'min-h-24' : 'min-h-10',
+              'font-mono text-xs uppercase tracking-[0.2em]',
+              isLiveCapturing ? 'animate-pulse text-red-400' : 'text-[#F7931A]',
             )}
           >
-            {[0, 1, 2, 3].map((index) => (
-              <div
-                key={index}
-                className={cn(
-                  'rounded-full transition-all duration-200',
-                  isLiveCapturing
-                    ? 'animate-pulse bg-gradient-to-t from-[#EA580C] to-[#FFD600] shadow-glow-orange'
-                    : 'bg-white/12',
-                )}
-                style={{
-                  width: index === 1 || index === 2 ? 28 : 22,
-                  height: isLiveCapturing ? [34, 46, 46, 34][index] : [34, 42, 42, 34][index],
-                  animationDelay: `${index * 0.08}s`,
-                }}
-              />
-            ))}
-          </div>
+            {isLiveCapturing ? 'Listening' : 'Ready'}
+          </span>
+        </div>
+        <p className="mb-6 max-w-md text-center text-sm text-[#94A3B8]">
+          {isLiveCapturing
+            ? 'Speaking… your words appear below in real-time.'
+            : 'Tap the mic to start instant live transcription.'}
+        </p>
+        {!isLiveCapturing && !canStartLive && (
+          <p className="mb-4 max-w-md text-center text-xs text-red-400/80">
+            {selectedModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
+          </p>
+        )}
 
-          <div className="w-full max-w-md">
-            <div className="relative rounded-2xl border border-white/10 bg-black/40 shadow-glow-card backdrop-blur-md">
-              <textarea
-                value={text}
-                readOnly
-                placeholder="Your words will appear here..."
-                className={cn(
-                  'min-h-[132px] w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14',
-                  'text-sm leading-relaxed text-foreground focus:outline-none',
-                  'placeholder:text-muted-foreground/40',
-                )}
-              />
-              <button
-                type="button"
-                className={cn(
-                  'absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/50',
-                  'text-muted-foreground transition-all hover:border-[#F7931A]/40 hover:text-[#F7931A] hover:shadow-glow-orange',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  !text.trim() && 'cursor-not-allowed opacity-40 hover:border-white/15 hover:shadow-none',
-                )}
-                onClick={() => void handleCopy()}
-                disabled={!text.trim()}
-                title={copied ? 'Copied' : 'Copy text'}
-              >
-                <Icon name={copied ? 'check' : 'content_copy'} size={16} />
-              </button>
-            </div>
+        <div className="mb-8 w-full max-w-2xl">
+          <div className="relative min-h-[140px] rounded-2xl border border-white/10 bg-[#0F1115]/80 p-5 backdrop-blur-sm">
+            <textarea
+              value={text}
+              readOnly
+              placeholder="Your words will appear here..."
+              className={cn(
+                'min-h-[120px] w-full resize-none rounded-xl bg-transparent pr-12 text-base leading-relaxed text-white/90',
+                'placeholder:text-[#64748B] focus:outline-none',
+              )}
+            />
+            <button
+              type="button"
+              className={cn(
+                'absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg transition-all',
+                copied ? 'bg-emerald-500/20 text-emerald-400' : 'text-[#64748B] hover:bg-white/5 hover:text-[#F7931A]',
+                !text.trim() && 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-[#64748B]',
+              )}
+              onClick={() => void handleCopy()}
+              disabled={!text.trim()}
+              title={copied ? 'Copied' : 'Copy text'}
+            >
+              <Icon name={copied ? 'check' : 'content_copy'} size={16} />
+            </button>
+            {isLiveCapturing && (
+              <div className="absolute bottom-4 left-5 flex items-center gap-1" aria-hidden>
+                {[0, 150, 300].map((delay) => (
+                  <div
+                    key={delay}
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#F7931A]"
+                    style={{ animationDelay: `${delay}ms` }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 pt-4">
+        <div className="flex w-full max-w-2xl items-center justify-center gap-8">
           <button
             type="button"
             className={cn(
-              'flex h-14 w-14 items-center justify-center rounded-full border transition-all duration-300',
-              isLiveCapturing &&
-                'border-[#F7931A]/50 bg-gradient-to-br from-[#EA580C]/30 to-[#F7931A]/20 text-white shadow-glow-orange',
-              !isLiveCapturing &&
-                canStartLive &&
-                'border-transparent bg-gradient-to-r from-[#EA580C] to-[#F7931A] text-white shadow-glow-orange hover:brightness-110',
-              !isLiveCapturing &&
-                !canStartLive &&
-                'border-white/15 bg-black/40 text-muted-foreground opacity-60',
+              'relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full transition-all duration-300',
+              isLiveCapturing
+                ? 'bg-red-500 text-white shadow-[0_0_40px_-5px_rgba(239,68,68,0.55)]'
+                : canStartLive
+                  ? 'bg-gradient-to-br from-[#EA580C] to-[#F7931A] text-white shadow-[0_0_40px_-5px_rgba(247,147,26,0.45)] hover:scale-105 hover:shadow-[0_0_50px_-5px_rgba(247,147,26,0.55)]'
+                  : 'border border-white/10 bg-[#1E293B] text-[#94A3B8] opacity-60',
             )}
             onClick={isLiveCapturing ? () => void stopCapture() : () => void startCapture('live')}
             disabled={isLiveCapturing ? isBusy : !canStartLive}
             title={isLiveCapturing ? 'Stop live transcription' : 'Start live transcription'}
           >
-            <Icon name="mic" filled size={20} />
+            <Icon name={isLiveCapturing ? 'stop' : 'mic'} filled size={26} />
+            {isLiveCapturing && (
+              <>
+                <span className="absolute inset-0 rounded-full border-2 border-red-400/40 opacity-20 animate-ping" />
+                <span className="absolute inset-[-8px] rounded-full border border-red-400/25 animate-pulse" />
+              </>
+            )}
           </button>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Badge variant={isLiveCapturing ? 'default' : 'secondary'} className="gap-1.5">
-              {isLiveCapturing && (
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FFD600] opacity-50" />
-                  <span className="relative h-2 w-2 rounded-full bg-[#FFD600]" />
-                </span>
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <span
+              className={cn(
+                'rounded border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider',
+                isLiveCapturing
+                  ? 'border-red-500/30 bg-red-500/20 text-red-400'
+                  : 'border-[#F7931A]/30 bg-[#F7931A]/10 text-[#F7931A]',
               )}
+            >
               {status.stage}
-            </Badge>
-            <span className="font-mono">{isLiveCapturing ? 'Low delay mode' : 'Tap mic to begin'}</span>
+            </span>
+            <span className="font-mono text-sm text-[#64748B]">
+              {isLiveCapturing ? 'Tap to stop' : 'Tap mic to begin'}
+            </span>
           </div>
 
           <button
             type="button"
             className={cn(
-              'flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300',
-              isLiveCapturing
-                ? 'border border-red-500/40 bg-red-600 text-white shadow-[0_0_22px_-6px_rgba(220,38,38,0.55)] hover:bg-red-500'
-                : 'border border-white/10 bg-white/5 text-muted-foreground',
+              'flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#1E293B] text-[#94A3B8] transition-all',
+              isLiveCapturing && 'hover:border-white/20 hover:text-white',
             )}
             onClick={() => void stopCapture()}
             disabled={!isLiveCapturing || isBusy}
@@ -604,38 +634,26 @@ export default function RecordingHubView() {
       : 'Convert speech into live local text with the fastest response profile.'
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="relative shrink-0 overflow-hidden border-b border-white/10 px-8 py-8">
-        <div className="pointer-events-none absolute inset-0 bg-grid-void opacity-40" aria-hidden />
-        <div
-          className="pointer-events-none absolute -right-16 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-[#F7931A]/[0.12] blur-[100px]"
-          aria-hidden
-        />
-        <div className="relative">
-          <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-[#F7931A]/85">
-            {pageEyebrow}
-          </p>
-          {subView === 'meetings' ? (
-            <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-              <span className="text-foreground">Meeting </span>
-              <span className="bg-gradient-to-r from-[#F7931A] to-[#FFD600] bg-clip-text text-transparent">
-                Recording
-              </span>
-            </h2>
-          ) : (
-            <h2 className="font-heading text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-              <span className="text-foreground">Live </span>
-              <span className="bg-gradient-to-r from-[#F7931A] to-[#FFD600] bg-clip-text text-transparent">
-                Transcription
-              </span>
-            </h2>
-          )}
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{pageDescription}</p>
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="shrink-0 px-8 pb-6 pt-8">
+        <div className="mb-2 flex items-center gap-2 font-mono text-xs text-[#64748B]">
+          <span>LocalTranscribe</span>
+          <span aria-hidden className="text-white/20">
+            |
+          </span>
+          <span>{subView === 'meetings' ? 'Meeting Recording' : 'Live Transcription'}</span>
         </div>
+        <p className="mb-2 font-mono text-xs font-medium uppercase tracking-[0.28em] text-[#F7931A]">
+          {pageEyebrow}
+        </p>
+        <h2 className="font-heading mb-2 text-4xl font-bold tracking-tight text-white">
+          {subView === 'meetings' ? 'Meeting Recording' : 'Live Transcription'}
+        </h2>
+        <p className="max-w-xl text-sm leading-relaxed text-[#94A3B8]">{pageDescription}</p>
       </div>
 
-      <div className="shrink-0 border-b border-white/10 bg-background/60 px-8 py-3 backdrop-blur-md">
-        <div className="inline-flex rounded-2xl border border-white/10 bg-black/35 p-1 shadow-glow-card backdrop-blur-sm">
+      <div className="shrink-0 px-8 pb-6">
+        <div className="inline-flex rounded-full border border-white/10 bg-[#0F1115] p-1">
           {[
             { id: 'meetings' as RecordingSubView, label: 'Meeting Recording' },
             { id: 'live' as RecordingSubView, label: 'Live Transcription' },
@@ -644,10 +662,10 @@ export default function RecordingHubView() {
               key={item.id}
               type="button"
               className={cn(
-                'rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300',
+                'rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-200',
                 subView === item.id
-                  ? 'bg-gradient-to-r from-[#EA580C] to-[#F7931A] text-white shadow-glow-orange'
-                  : 'text-muted-foreground hover:text-foreground',
+                  ? 'bg-gradient-to-r from-[#EA580C] to-[#F7931A] text-white shadow-[0_0_20px_-5px_rgba(234,88,12,0.45)]'
+                  : 'text-[#94A3B8] hover:text-white',
               )}
               onClick={() => setRecordingSubView(item.id)}
             >
@@ -657,10 +675,9 @@ export default function RecordingHubView() {
         </div>
       </div>
 
-      {/* Inline source controls — hidden while capturing */}
       {!isCapturing && <SourceControls />}
 
-      <div className="flex-1 min-h-0">
+      <div className="min-h-0 flex-1">
         {subView === 'meetings' ? <RecordingView /> : <LiveTranscriptionView />}
       </div>
     </div>

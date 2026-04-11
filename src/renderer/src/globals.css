@@ -61,6 +61,14 @@
   .font-heading {
     font-family: theme('fontFamily.heading');
   }
+
+  /* Ref / models-view gradient word */
+  .text-gradient {
+    background: linear-gradient(to right, #f7931a, #ffd600);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }
 
 /* Void grid — blockchain network motif */

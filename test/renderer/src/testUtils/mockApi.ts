@@ -40,6 +40,7 @@ export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): Loca
     selectModel: vi.fn().mockResolvedValue(undefined),
     downloadModel: vi.fn().mockResolvedValue(undefined),
     cancelDownload: vi.fn().mockResolvedValue(undefined),
+    removeModel: vi.fn().mockResolvedValue(undefined),
     onModelDownloadProgress: vi.fn().mockReturnValue(() => undefined),
     listHistory: vi.fn().mockResolvedValue(defaultHistory),
     getHistorySession: vi.fn().mockResolvedValue(null as HistorySession | null),

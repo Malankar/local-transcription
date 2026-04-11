@@ -134,6 +134,7 @@ export interface LocalTranscribeApi {
   selectModel: (modelId: string) => Promise<void>
   downloadModel: (modelId: string) => Promise<void>
   cancelDownload: (modelId: string) => Promise<void>
+  removeModel: (modelId: string) => Promise<void>
   onModelDownloadProgress: (listener: (progress: ModelDownloadProgress) => void) => () => void
   listHistory: () => Promise<HistorySessionMeta[]>
   getHistorySession: (id: string) => Promise<HistorySession | null>

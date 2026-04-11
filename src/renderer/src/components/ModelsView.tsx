@@ -35,6 +35,7 @@ export function ModelsView() {
     selectModel: onSelectModel,
     downloadModel: onDownload,
     cancelDownload: onCancelDownload,
+    removeModel: onRemoveModel,
   } = useModelsContext()
   const { isCapturing } = useRecordingContext()
 
@@ -118,12 +119,30 @@ export function ModelsView() {
                 </div>
               </div>
 
-              <div className="mt-auto flex items-center justify-end border-t border-white/5 pt-3">
+              <div className="mt-auto flex items-center justify-end gap-2 border-t border-white/5 pt-3">
                 {model.isDownloaded ? (
-                  <span className="flex items-center gap-1.5 text-sm text-emerald-500">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                    Ready
-                  </span>
+                  <>
+                    <span className="flex items-center gap-1.5 text-sm text-emerald-500">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                      Ready
+                    </span>
+                    {model.downloadManaged && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 gap-1 border-white/15 px-2 text-[11px] text-[#94A3B8] hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void onRemoveModel(model.id)
+                        }}
+                        disabled={isCapturing}
+                        title={isCapturing ? 'Stop capture before removing a model' : 'Delete downloaded weights from disk'}
+                      >
+                        <Icon name="delete_forever" size={11} />
+                        Remove
+                      </Button>
+                    )}
+                  </>
                 ) : isDownloading ? (
                   <Button
                     variant="outline"

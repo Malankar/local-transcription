@@ -675,7 +675,7 @@ export default function RecordingHubView() {
         </div>
       </div>
 
-      {!isCapturing && <SourceControls />}
+      {(!isCapturing || recordingSubView === 'live') && <SourceControls />}
 
       <div className="min-h-0 flex-1">
         {subView === 'meetings' ? <RecordingView /> : <LiveTranscriptionView />}

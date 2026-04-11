@@ -153,6 +153,17 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     logger.info('Model download canceled', { modelId })
   })
 
+  ipcMain.handle('models:remove', async (_event, modelId: string) => {
+    if (audioCapture.isRunning()) {
+      throw new Error('Cannot remove a model while audio capture is running.')
+    }
+    if (whisperEngine.getConfiguredModelId() === modelId) {
+      whisperEngine.dispose()
+    }
+    await modelManager.removeDownloadedModel(modelId)
+    logger.info('Model removed from disk', { modelId })
+  })
+
   ipcMain.handle('history:list', async () => {
     return historyManager.listSessions()
   })

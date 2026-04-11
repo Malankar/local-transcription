@@ -26,6 +26,7 @@ const api: LocalTranscribeApi = {
   selectModel: (modelId: string) => ipcRenderer.invoke('models:select', modelId),
   downloadModel: (modelId: string) => ipcRenderer.invoke('models:download', modelId),
   cancelDownload: (modelId: string) => ipcRenderer.invoke('models:cancelDownload', modelId),
+  removeModel: (modelId: string) => ipcRenderer.invoke('models:remove', modelId),
   onModelDownloadProgress: (listener: (progress: ModelDownloadProgress) => void) =>
     subscribe('models:downloadProgress', listener),
   listHistory: () => ipcRenderer.invoke('history:list'),

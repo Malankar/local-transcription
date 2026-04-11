@@ -13,6 +13,7 @@ interface ModelsContextValue {
   selectModel: (id: string) => Promise<void>
   downloadModel: (id: string) => Promise<void>
   cancelDownload: () => Promise<void>
+  removeModel: (id: string) => Promise<void>
   refreshModels: () => Promise<void>
 }
 
@@ -69,6 +70,16 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     setDownloadProgress(null)
   }
 
+  async function removeModel(id: string): Promise<void> {
+    setDownloadError('')
+    try {
+      await window.api.removeModel(id)
+      await refreshModels()
+    } catch (error) {
+      setDownloadError(toMessage(error))
+    }
+  }
+
   // Initialize on mount
   useEffect(() => {
     void refreshModels()
@@ -96,6 +107,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     selectModel,
     downloadModel,
     cancelDownload,
+    removeModel,
     refreshModels,
   }
 

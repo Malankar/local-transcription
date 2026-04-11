@@ -211,6 +211,68 @@ export class ModelManager {
     this.activeDownloads.delete(modelId)
   }
 
+  /**
+   * Deletes a managed model's weights file from disk and clears persisted selection if needed.
+   */
+  async removeDownloadedModel(modelId: string): Promise<void> {
+    const entry = MODEL_CATALOG.find((m) => m.id === modelId)
+    if (!entry) {
+      throw new Error(`Unknown model: ${modelId}`)
+    }
+    if (!entry.downloadManaged) {
+      throw new Error(
+        `${entry.name} is prepared by ${entry.runtime} on first use and is not removed from this screen.`
+      )
+    }
+
+    this.cancelDownload(modelId)
+
+    if (!this.isDownloaded(modelId)) {
+      throw new Error(`Model ${modelId} is not installed.`)
+    }
+
+    const destPath = this.modelFilePath(modelId)
+    const tmpPath = `${destPath}.part`
+
+    try {
+      unlinkSync(destPath)
+    } catch (error) {
+      throw error instanceof Error ? error : new Error(String(error))
+    }
+
+    try {
+      if (existsSync(tmpPath)) unlinkSync(tmpPath)
+    } catch {
+      /* ignore */
+    }
+
+    await this.reconcileSettingsAfterRemove(modelId)
+  }
+
+  private async reconcileSettingsAfterRemove(removedId: string): Promise<void> {
+    let settings: Record<string, unknown> = {}
+    try {
+      const text = await readFile(this.settingsPath, 'utf-8')
+      settings = JSON.parse(text) as Record<string, unknown>
+    } catch {
+      return
+    }
+
+    if (settings.selectedModel !== removedId) return
+
+    const nextId = MODEL_CATALOG.find((m) =>
+      m.downloadManaged ? this.isDownloaded(m.id) : true
+    )?.id
+
+    if (nextId) {
+      settings.selectedModel = nextId
+    } else {
+      delete settings.selectedModel
+    }
+
+    await writeFile(this.settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
+  }
+
   downloadModel(modelId: string): Promise<void> {
     const model = this.getModel(modelId)
     if (!model) {

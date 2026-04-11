@@ -34,6 +34,11 @@ export class WhisperEngine {
     this.currentModel = model
   }
 
+  /** Model id currently configured for the worker, if any (may not be initialized yet). */
+  getConfiguredModelId(): string | null {
+    return this.currentModel?.id ?? null
+  }
+
   async initialize(): Promise<void> {
     if (!this.currentModel) {
       throw new Error('No model configured. Select and download a model first.')

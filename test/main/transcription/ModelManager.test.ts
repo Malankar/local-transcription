@@ -37,7 +37,7 @@ vi.mock('nodejs-whisper/dist/constants', () => ({
 // Import units under test after mock registration.
 // ──────────────────────────────────────────────────────────────────────────────
 import { ModelManager, MODEL_CATALOG } from '../../../src/main/transcription/ModelManager'
-import { existsSync } from 'node:fs'
+import { existsSync, unlinkSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -320,6 +320,53 @@ describe('ModelManager', () => {
       expect(abort).toHaveBeenCalledOnce()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((manager as any).activeDownloads.has('tiny.en')).toBe(false)
+    })
+  })
+
+  // ── removeDownloadedModel ───────────────────────────────────────────────
+
+  describe('removeDownloadedModel', () => {
+    it('throws for an unknown model id', async () => {
+      await expect(manager.removeDownloadedModel('ghost-model')).rejects.toThrow('Unknown model')
+    })
+
+    it('throws for a model whose download is not app-managed', async () => {
+      const unmanagedId = MODEL_CATALOG.find((m) => !m.downloadManaged)?.id
+      if (!unmanagedId) return
+
+      await expect(manager.removeDownloadedModel(unmanagedId)).rejects.toThrow()
+    })
+
+    it('throws when the managed model file is not present', async () => {
+      const managedId = MODEL_CATALOG.find((m) => m.downloadManaged)!.id
+      vi.mocked(existsSync).mockReturnValue(false)
+
+      await expect(manager.removeDownloadedModel(managedId)).rejects.toThrow('not installed')
+    })
+
+    it('unlinks the ggml file and updates settings when removing the selected model', async () => {
+      const managedId = MODEL_CATALOG.find((m) => m.downloadManaged)!.id
+      let filePresent = true
+      vi.mocked(existsSync).mockImplementation((p) => {
+        if (String(p).includes(`ggml-${managedId}.bin`) && !String(p).endsWith('.part')) {
+          return filePresent
+        }
+        return false
+      })
+      vi.mocked(unlinkSync).mockImplementation(() => {
+        filePresent = false
+      })
+
+      vi.mocked(readFile).mockResolvedValue(JSON.stringify({ selectedModel: managedId }))
+
+      await manager.removeDownloadedModel(managedId)
+
+      expect(unlinkSync).toHaveBeenCalled()
+      const unlinkedPath = vi.mocked(unlinkSync).mock.calls[0][0] as string
+      expect(unlinkedPath).toContain(`ggml-${managedId}.bin`)
+      expect(writeFile).toHaveBeenCalled()
+      const written = JSON.parse(vi.mocked(writeFile).mock.calls[0][1] as string)
+      expect(written.selectedModel).not.toBe(managedId)
     })
   })
 

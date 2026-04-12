@@ -8,6 +8,7 @@ import type {
   HistorySessionMeta,
   LocalTranscribeApi,
   ModelDownloadProgress,
+  ModelSelection,
   TranscriptSegment,
 } from '../shared/types'
 
@@ -23,7 +24,10 @@ const api: LocalTranscribeApi = {
   onError: (listener: (message: string) => void) => subscribe('capture:error', listener),
   getModels: () => ipcRenderer.invoke('models:list'),
   getSelectedModel: () => ipcRenderer.invoke('models:getSelected'),
+  getModelSelection: (): Promise<ModelSelection> => ipcRenderer.invoke('models:getSelection'),
   selectModel: (modelId: string) => ipcRenderer.invoke('models:select', modelId),
+  selectModelForProfile: (profile: 'meeting' | 'live', modelId: string) =>
+    ipcRenderer.invoke('models:selectForProfile', profile, modelId),
   downloadModel: (modelId: string) => ipcRenderer.invoke('models:download', modelId),
   cancelDownload: (modelId: string) => ipcRenderer.invoke('models:cancelDownload', modelId),
   removeModel: (modelId: string) => ipcRenderer.invoke('models:remove', modelId),

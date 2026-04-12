@@ -3,6 +3,13 @@ import { formatSize } from '../lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useModelsContext } from '../contexts/ModelsContext'
 import { useRecordingContext } from '../contexts/RecordingContext'
 
@@ -28,11 +35,14 @@ function Icon({ name, filled = false, size = 20 }: { name: string; filled?: bool
 export function ModelsView() {
   const {
     models,
-    selectedModelId,
+    meetingModelId,
+    liveModelId,
+    downloadedModels,
     downloadingId,
     downloadProgress,
     downloadError,
-    selectModel: onSelectModel,
+    selectMeetingModel,
+    selectLiveModel,
     downloadModel: onDownload,
     cancelDownload: onCancelDownload,
     removeModel: onRemoveModel,
@@ -55,22 +65,71 @@ export function ModelsView() {
         <p className="text-sm text-[#94A3B8]">Select and manage local transcription engines.</p>
       </div>
 
+      <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-[#0F1115] p-6">
+        <p className="text-xs text-[#94A3B8]">
+          Pick which weights to use for meeting recordings versus the live tab. You can use a smaller model for live to reduce queue lag while keeping a larger model for meetings.
+        </p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <span className="font-mono text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
+              Meeting recording
+            </span>
+            <Select
+              value={meetingModelId ?? ''}
+              onValueChange={(v) => void selectMeetingModel(v)}
+              disabled={isCapturing || downloadedModels.length === 0}
+            >
+              <SelectTrigger className="h-10 border-[#030304] bg-[#030304] text-sm text-white">
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                {downloadedModels.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="font-mono text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
+              Live transcription
+            </span>
+            <Select
+              value={liveModelId ?? ''}
+              onValueChange={(v) => void selectLiveModel(v)}
+              disabled={isCapturing || downloadedModels.length === 0}
+            >
+              <SelectTrigger className="h-10 border-[#030304] bg-[#030304] text-sm text-white">
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                {downloadedModels.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {models.map((model) => {
-          const isSelected = model.id === selectedModelId
+          const usedForMeeting = model.id === meetingModelId
+          const usedForLive = model.id === liveModelId
+          const isHighlighted = usedForMeeting || usedForLive
           const isDownloading = model.id === downloadingId
 
           return (
             <div
               key={model.id}
-              onClick={() => !isCapturing && !downloadingId && onSelectModel(model.id)}
-              role="button"
               className={cn(
                 'group relative flex flex-col gap-2.5 rounded-2xl border p-6 transition-all duration-300',
-                isSelected
+                isHighlighted
                   ? 'border-[#F7931A]/50 bg-[#0F1115] shadow-[0_0_40px_-10px_rgba(247,147,26,0.15)]'
                   : 'border-white/10 bg-[#0F1115] hover:-translate-y-0.5 hover:border-[#F7931A]/30 hover:shadow-[0_0_30px_-10px_rgba(247,147,26,0.1)]',
-                (isCapturing || !!downloadingId) ? 'cursor-default' : 'cursor-pointer',
               )}
             >
               <div className="flex items-start justify-between gap-2">
@@ -79,6 +138,18 @@ export function ModelsView() {
                   <h3 className="font-heading mt-1 text-lg font-semibold text-white">{model.name}</h3>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-1">
+                    {usedForMeeting && (
+                      <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary">
+                        Meeting
+                      </span>
+                    )}
+                    {usedForLive && (
+                      <span className="rounded-full border border-[#FFD600]/35 bg-[#FFD600]/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#FDE047]">
+                        Live
+                      </span>
+                    )}
+                  </div>
                   {model.recommended && (
                     <span className="flex items-center gap-1 rounded-full border border-[#F7931A]/30 bg-[#F7931A]/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[#F7931A]">
                       Recommended
@@ -99,7 +170,7 @@ export function ModelsView() {
                       style={{ width: `${(model.accuracy / 5) * 100}%` }}
                     />
                   </div>
-                  <span className={cn('text-xs tabular-nums', isSelected ? 'text-[#FFD600]' : 'text-[#94A3B8]')}>
+                  <span className={cn('text-xs tabular-nums', isHighlighted ? 'text-[#FFD600]' : 'text-[#94A3B8]')}>
                     {'★'.repeat(model.accuracy)}
                     <span className="text-white/15">{'☆'.repeat(5 - model.accuracy)}</span>
                   </span>

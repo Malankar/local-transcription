@@ -41,7 +41,8 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     runtime: 'whisper.cpp',
     runtimeModelName: 'tiny.en',
     downloadManaged: true,
-    supportsGpuAcceleration: false,
+    supportsGpuAcceleration: true,
+    gpuAccelerationLabel: 'NVIDIA CUDA (whisper.cpp)',
   },
   {
     id: 'base.en',
@@ -56,7 +57,8 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     runtime: 'whisper.cpp',
     runtimeModelName: 'base.en',
     downloadManaged: true,
-    supportsGpuAcceleration: false,
+    supportsGpuAcceleration: true,
+    gpuAccelerationLabel: 'NVIDIA CUDA (whisper.cpp)',
   },
   {
     id: 'small.en',
@@ -71,7 +73,8 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     runtime: 'whisper.cpp',
     runtimeModelName: 'small.en',
     downloadManaged: true,
-    supportsGpuAcceleration: false,
+    supportsGpuAcceleration: true,
+    gpuAccelerationLabel: 'NVIDIA CUDA (whisper.cpp)',
   },
   {
     id: 'medium.en',
@@ -86,7 +89,8 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     runtime: 'whisper.cpp',
     runtimeModelName: 'medium.en',
     downloadManaged: true,
-    supportsGpuAcceleration: false,
+    supportsGpuAcceleration: true,
+    gpuAccelerationLabel: 'NVIDIA CUDA (whisper.cpp)',
   },
   {
     id: 'large-v3-turbo',
@@ -101,7 +105,8 @@ export const MODEL_CATALOG: CatalogEntry[] = [
     runtime: 'whisper.cpp',
     runtimeModelName: 'large-v3-turbo',
     downloadManaged: true,
-    supportsGpuAcceleration: false,
+    supportsGpuAcceleration: true,
+    gpuAccelerationLabel: 'NVIDIA CUDA (whisper.cpp)',
   },
   {
     id: 'parakeetv3',
@@ -175,19 +180,56 @@ export class ModelManager {
     return join(this.modelsDir, `ggml-${modelId}.bin`)
   }
 
-  async getSelectedModel(): Promise<string | null> {
+  private async readModelSettingsFile(): Promise<Record<string, unknown>> {
     try {
       const text = await readFile(this.settingsPath, 'utf-8')
-      const settings = JSON.parse(text) as { selectedModel?: string }
-      if (settings.selectedModel && this.isDownloaded(settings.selectedModel)) {
-        return settings.selectedModel
-      }
+      return JSON.parse(text) as Record<string, unknown>
     } catch {
-      // no settings file yet
+      return {}
     }
-    // Fall back to first downloaded model in catalog order
+  }
+
+  private isModelUsable(modelId: string): boolean {
+    const entry = MODEL_CATALOG.find((m) => m.id === modelId)
+    if (!entry) return false
+    if (!entry.downloadManaged) return true
+    return this.isDownloaded(modelId)
+  }
+
+  private firstCatalogFallback(): string | null {
     const fallback = MODEL_CATALOG.find((m) => (m.downloadManaged ? this.isDownloaded(m.id) : true))
     return fallback?.id ?? null
+  }
+
+  private resolvePreferredModelId(preferred: string | undefined): string | null {
+    if (preferred && this.isModelUsable(preferred)) {
+      return preferred
+    }
+    return this.firstCatalogFallback()
+  }
+
+  /** Legacy: same as meeting profile selection. */
+  async getSelectedModel(): Promise<string | null> {
+    return this.getSelectedModelForProfile('meeting')
+  }
+
+  async getModelSelection(): Promise<{ meeting: string | null; live: string | null }> {
+    const [meeting, live] = await Promise.all([
+      this.getSelectedModelForProfile('meeting'),
+      this.getSelectedModelForProfile('live'),
+    ])
+    return { meeting, live }
+  }
+
+  async getSelectedModelForProfile(profile: 'meeting' | 'live'): Promise<string | null> {
+    const settings = await this.readModelSettingsFile()
+    const legacy = typeof settings.selectedModel === 'string' ? settings.selectedModel : undefined
+    const meetingPreferred =
+      typeof settings.meetingModelId === 'string' ? settings.meetingModelId : legacy
+    const livePreferred = typeof settings.liveModelId === 'string' ? settings.liveModelId : legacy
+
+    const raw = profile === 'meeting' ? meetingPreferred : livePreferred
+    return this.resolvePreferredModelId(raw)
   }
 
   async selectModel(modelId: string): Promise<void> {
@@ -195,14 +237,25 @@ export class ModelManager {
       throw new Error(`Unknown model: ${modelId}`)
     }
 
-    let settings: Record<string, unknown> = {}
-    try {
-      const text = await readFile(this.settingsPath, 'utf-8')
-      settings = JSON.parse(text) as Record<string, unknown>
-    } catch {
-      // no file yet
-    }
+    const settings = await this.readModelSettingsFile()
     settings.selectedModel = modelId
+    settings.meetingModelId = modelId
+    settings.liveModelId = modelId
+    await writeFile(this.settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
+  }
+
+  async selectModelForProfile(profile: 'meeting' | 'live', modelId: string): Promise<void> {
+    if (!this.getModel(modelId)) {
+      throw new Error(`Unknown model: ${modelId}`)
+    }
+
+    const settings = await this.readModelSettingsFile()
+    if (profile === 'meeting') {
+      settings.meetingModelId = modelId
+      settings.selectedModel = modelId
+    } else {
+      settings.liveModelId = modelId
+    }
     await writeFile(this.settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
   }
 
@@ -250,25 +303,29 @@ export class ModelManager {
   }
 
   private async reconcileSettingsAfterRemove(removedId: string): Promise<void> {
-    let settings: Record<string, unknown> = {}
-    try {
-      const text = await readFile(this.settingsPath, 'utf-8')
-      settings = JSON.parse(text) as Record<string, unknown>
-    } catch {
+    const settings = await this.readModelSettingsFile()
+    if (!settings || Object.keys(settings).length === 0) {
       return
     }
 
-    if (settings.selectedModel !== removedId) return
-
-    const nextId = MODEL_CATALOG.find((m) =>
-      m.downloadManaged ? this.isDownloaded(m.id) : true
+    const nextId = MODEL_CATALOG.find(
+      (m) => m.id !== removedId && (m.downloadManaged ? this.isDownloaded(m.id) : true),
     )?.id
 
-    if (nextId) {
-      settings.selectedModel = nextId
-    } else {
-      delete settings.selectedModel
+    const keys = ['selectedModel', 'meetingModelId', 'liveModelId'] as const
+    let changed = false
+    for (const key of keys) {
+      if (settings[key] === removedId) {
+        changed = true
+        if (nextId) {
+          settings[key] = nextId
+        } else {
+          delete settings[key]
+        }
+      }
     }
+
+    if (!changed) return
 
     await writeFile(this.settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
   }

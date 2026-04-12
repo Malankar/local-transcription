@@ -38,6 +38,8 @@ describe('RecordingHubView', () => {
         },
       ]),
       getSelectedModel: vi.fn().mockResolvedValue('base'),
+      getModelSelection: vi.fn().mockResolvedValue({ meeting: 'base', live: 'base' }),
+      selectModelForProfile: vi.fn().mockResolvedValue(undefined),
     })
 
     const { container } = await renderRendererApp(<RecordingHubView />)
@@ -100,6 +102,8 @@ describe('RecordingHubView', () => {
         },
       ]),
       getSelectedModel: vi.fn().mockResolvedValue('base'),
+      getModelSelection: vi.fn().mockResolvedValue({ meeting: 'base', live: 'base' }),
+      selectModelForProfile: vi.fn().mockResolvedValue(undefined),
     })
 
     const { container } = await renderRendererApp(<RecordingHubView />)

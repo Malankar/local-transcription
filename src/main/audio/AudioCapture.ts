@@ -31,12 +31,12 @@ const CHUNKING_PROFILES: Record<'meeting' | 'live', ChunkingProfile> = {
     overlapMs: 350,
   },
   live: {
-    minChunkMs: 1_200,
-    targetChunkMs: 2_000,
-    maxChunkMs: 3_500,
-    minSilenceMs: 250,
-    speechPadMs: 100,
-    overlapMs: 200,
+    minChunkMs: 1_400,
+    targetChunkMs: 2_600,
+    maxChunkMs: 4_000,
+    minSilenceMs: 280,
+    speechPadMs: 120,
+    overlapMs: 220,
   },
 }
 

@@ -110,6 +110,8 @@ export interface AppSettings {
   unloadModelAfterMinutes: number  // 0 = never, default 5
   voiceToTextShortcut: string      // Electron accelerator string
   muteWhileRecording: boolean
+  /** When true, use GPU acceleration for engines that support it (whisper.cpp CUDA, Parakeet CUDA). */
+  preferGpuAcceleration: boolean
   // History
   historyLimit: number             // max sessions to keep, 0 = unlimited, default 5
   autoDeleteRecordings: HistoryAutoDelete
@@ -118,6 +120,11 @@ export interface AppSettings {
 
 export interface HistorySession extends HistorySessionMeta {
   segments: TranscriptSegment[]
+}
+
+export interface ModelSelection {
+  meeting: string | null
+  live: string | null
 }
 
 export interface LocalTranscribeApi {
@@ -130,8 +137,11 @@ export interface LocalTranscribeApi {
   onStatus: (listener: (status: AppStatus) => void) => () => void
   onError: (listener: (message: string) => void) => () => void
   getModels: () => Promise<TranscriptionModel[]>
+  /** Resolved meeting-profile model id (legacy single-selection semantics). */
   getSelectedModel: () => Promise<string | null>
   selectModel: (modelId: string) => Promise<void>
+  getModelSelection: () => Promise<ModelSelection>
+  selectModelForProfile: (profile: 'meeting' | 'live', modelId: string) => Promise<void>
   downloadModel: (modelId: string) => Promise<void>
   cancelDownload: (modelId: string) => Promise<void>
   removeModel: (modelId: string) => Promise<void>

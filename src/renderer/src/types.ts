@@ -8,6 +8,7 @@ export type {
   HistorySession,
   HistorySessionMeta,
   ModelDownloadProgress,
+  ModelSelection,
   TranscriptionModel,
   TranscriptSegment,
   WhisperModel,

@@ -244,6 +244,17 @@ export function SettingsView() {
               disabled={settingsSaving}
             />
           </SettingRow>
+
+          <SettingRow
+            label="Prefer GPU acceleration"
+            description="Use NVIDIA CUDA for whisper.cpp and Parakeet when supported. Automatically falls back to CPU if CUDA fails."
+          >
+            <Switch
+              checked={settings.preferGpuAcceleration}
+              onCheckedChange={(v) => updateSettings({ preferGpuAcceleration: v })}
+              disabled={settingsSaving}
+            />
+          </SettingRow>
         </div>
       </section>
 

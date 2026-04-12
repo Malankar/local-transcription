@@ -60,7 +60,7 @@ describe('AudioCapture', () => {
       const chunks: any[] = []
       audioCapture.on('chunk', (c) => chunks.push(c))
 
-      // Generate 4 seconds of "noise" (non-silent PCM) to exceed maxChunkMs (3.5s)
+      // Generate 4 seconds of "noise" (non-silent PCM) to exceed live maxChunkMs (~4s target)
       const data = Buffer.alloc(16000 * 2 * 4)
       for (let i = 0; i < data.length; i += 2) {
         data.writeInt16LE(15000, i) // Consistent non-silent value

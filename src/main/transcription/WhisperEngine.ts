@@ -16,11 +16,22 @@ export class WhisperEngine {
     }
   >()
   private currentModel: TranscriptionModel | null = null
+  private preferGpuAcceleration = false
 
   constructor(
     private readonly onStatus: (detail: string) => void,
     private readonly onLog: (message: string, context?: unknown) => void
   ) {}
+
+  setPreferGpuAcceleration(prefer: boolean): void {
+    if (this.preferGpuAcceleration === prefer) {
+      return
+    }
+    this.preferGpuAcceleration = prefer
+    if (this.child?.connected) {
+      this.dispose()
+    }
+  }
 
   setModel(model: TranscriptionModel): void {
     if (
@@ -60,7 +71,7 @@ export class WhisperEngine {
         modelId: model.id,
         engine: model.engine,
         runtimeModelName: model.runtimeModelName,
-        useGpuAcceleration: model.supportsGpuAcceleration,
+        useGpuAcceleration: this.preferGpuAcceleration && model.supportsGpuAcceleration,
       })
     })()
 

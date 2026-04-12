@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { ModelsView } from '../../../../src/renderer/src/components/ModelsView'
 import { installMockApi } from '../testUtils/mockApi'
-import { flushMicrotasks, renderIntoDocument } from '../testUtils/render'
+import { flushMicrotasks } from '../testUtils/render'
 import { renderRendererApp } from '../testUtils/renderRenderer'
 
 describe('ModelsView', () => {
-  it('selects models and shows the download state', async () => {
+  it('downloads a model from the library card', async () => {
     let models = [
       {
         id: 'base',
@@ -49,7 +49,7 @@ describe('ModelsView', () => {
 
     installMockApi({
       getModels: vi.fn().mockImplementation(async () => models),
-      getSelectedModel: vi.fn().mockResolvedValue(null),
+      getModelSelection: vi.fn().mockResolvedValue({ meeting: 'base', live: 'base' }),
       selectModel,
       downloadModel,
     })
@@ -60,8 +60,11 @@ describe('ModelsView', () => {
     expect(container.textContent).toContain('Base')
     expect(container.textContent).toContain('Recommended')
 
-    const cards = container.querySelectorAll('[role="button"]')
-    cards[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    const downloadBtn = [...container.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('Download'),
+    )
+    expect(downloadBtn).toBeDefined()
+    downloadBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await flushMicrotasks()
 
     expect(selectModel).toHaveBeenCalledWith('small')

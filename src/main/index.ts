@@ -76,10 +76,15 @@ const whisperEngine = new WhisperEngine(
   }
 )
 
-const chunkQueue = new ChunkQueue(async (chunk) => {
-  sendStatus({ stage: 'processing', detail: 'Transcribing queued audio...' })
-  return whisperEngine.transcribe(chunk)
-})
+const chunkQueue = new ChunkQueue(
+  async (chunk) => {
+    sendStatus({ stage: 'processing', detail: 'Transcribing queued audio...' })
+    return whisperEngine.transcribe(chunk)
+  },
+  (metric) => {
+    logger.info('Transcription pipeline metric', metric)
+  },
+)
 
 const audioCapture = new AudioCapture()
 const sourceDiscovery = new SourceDiscovery()
@@ -297,6 +302,7 @@ function applySettings(settings: AppSettings): void {
   app.setLoginItemSettings({ openAtLogin: settings.launchOnStartup })
   applyVoiceShortcut(settings.voiceToTextShortcut)
   syncTrayVisibility(settings.showTrayIcon)
+  whisperEngine.setPreferGpuAcceleration(settings.preferGpuAcceleration)
   // Reset unload timer using current setting (only when not capturing)
   if (!audioCapture.isRunning()) {
     scheduleModelUnload(settings.unloadModelAfterMinutes)

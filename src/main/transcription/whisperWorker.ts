@@ -166,8 +166,6 @@ except Exception as exc:
 
 let currentModel: ModelConfig | null = null
 let initialized = false
-/** After a CUDA failure, stay on CPU for the remainder of this worker process. */
-let whisperForceCpu = false
 let parakeetServer: ChildProcessWithoutNullStreams | null = null
 let parakeetRequestSeq = 0
 const pendingParakeetRequests = new Map<string, PendingParakeetRequest>()
@@ -264,34 +262,17 @@ async function transcribeWithWhisper(
       modelName,
     })
 
-    const whisperOpts = {
-      outputInJson: true,
-      outputInText: false,
-      outputInSrt: false,
-      outputInCsv: false,
-    } as const
-
-    const runNodewhisper = async (withCuda: boolean): Promise<void> => {
-      await nodewhisper(wavPath, {
-        modelName,
-        removeWavFileAfterTranscription: false,
-        withCuda,
-        whisperOptions: whisperOpts,
-      })
-    }
-
-    if (currentModel?.useGpuAcceleration && !whisperForceCpu) {
-      try {
-        await runNodewhisper(true)
-      } catch (error) {
-        log('Whisper CUDA path failed; falling back to CPU for this session', normalizeError(error))
-        whisperForceCpu = true
-        cleanupFiles(jsonPath)
-        await runNodewhisper(false)
-      }
-    } else {
-      await runNodewhisper(false)
-    }
+    await nodewhisper(wavPath, {
+      modelName,
+      removeWavFileAfterTranscription: false,
+      withCuda: false,
+      whisperOptions: {
+        outputInJson: true,
+        outputInText: false,
+        outputInSrt: false,
+        outputInCsv: false,
+      },
+    })
 
     if (!existsSync(jsonPath)) {
       log('Whisper produced no JSON output', { baseName })

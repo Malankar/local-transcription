@@ -99,7 +99,6 @@ const mainMocks = vi.hoisted(() => {
 
   const whisperEngine = {
     setModel: vi.fn(),
-    setPreferGpuAcceleration: vi.fn(),
     transcribe: vi.fn(),
     dispose: vi.fn(),
   }
@@ -131,7 +130,6 @@ const mainMocks = vi.hoisted(() => {
       unloadModelAfterMinutes: 0,
       voiceToTextShortcut: '',
       muteWhileRecording: false,
-      preferGpuAcceleration: false,
       historyLimit: 5,
       autoDeleteRecordings: 'never',
       keepStarredUntilDeleted: true,
@@ -258,7 +256,6 @@ describe('main bootstrap', () => {
     await importMain()
 
     expect(mainMocks.app.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: false })
-    expect(mainMocks.whisperEngine.setPreferGpuAcceleration).toHaveBeenCalledWith(false)
     expect(mainMocks.registerIpcHandlers).toHaveBeenCalledTimes(1)
     expect(mainMocks.BrowserWindow).toHaveBeenCalledTimes(1)
 

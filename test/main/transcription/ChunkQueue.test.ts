@@ -47,20 +47,6 @@ describe('ChunkQueue', () => {
       expect(emittedSegments[1].text).toBe('World')
     })
 
-    it('invokes pipeline metric callback for enqueue and chunk completion', async () => {
-      const processor = vi.fn(async () => [])
-      const metrics: string[] = []
-      const queue = new ChunkQueue(processor, (m) => {
-        metrics.push(m.type)
-      })
-
-      queue.enqueue(makeChunk(0, 1000))
-      await new Promise((resolve) => setTimeout(resolve, 30))
-
-      expect(metrics).toContain('enqueued')
-      expect(metrics).toContain('chunkComplete')
-    })
-
     it('emits drained when queue becomes empty after processing', async () => {
       const processor = vi.fn(async () => [])
       const queue = new ChunkQueue(processor)

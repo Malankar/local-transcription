@@ -4,18 +4,13 @@ import { toMessage } from '../lib/formatters'
 
 interface ModelsContextValue {
   models: TranscriptionModel[]
-  meetingModelId: string | null
-  liveModelId: string | null
-  meetingModel: TranscriptionModel | null
-  liveModel: TranscriptionModel | null
-  /** @deprecated Use meetingModelId / liveModelId; kept for narrow compatibility. */
   selectedModelId: string | null
   downloadingId: string | null
   downloadProgress: ModelDownloadProgress | null
   downloadError: string
+  selectedModel: TranscriptionModel | null
   downloadedModels: TranscriptionModel[]
-  selectMeetingModel: (id: string) => Promise<void>
-  selectLiveModel: (id: string) => Promise<void>
+  selectModel: (id: string) => Promise<void>
   downloadModel: (id: string) => Promise<void>
   cancelDownload: () => Promise<void>
   removeModel: (id: string) => Promise<void>
@@ -26,50 +21,34 @@ const ModelsContext = createContext<ModelsContextValue | undefined>(undefined)
 
 export function ModelsProvider({ children }: { children: ReactNode }) {
   const [models, setModels] = useState<TranscriptionModel[]>([])
-  const [meetingModelId, setMeetingModelId] = useState<string | null>(null)
-  const [liveModelId, setLiveModelId] = useState<string | null>(null)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<ModelDownloadProgress | null>(null)
   const [downloadError, setDownloadError] = useState<string>('')
 
-  const meetingModel = useMemo(
-    () => models.find((m) => m.id === meetingModelId) ?? null,
-    [models, meetingModelId],
-  )
-  const liveModel = useMemo(
-    () => models.find((m) => m.id === liveModelId) ?? null,
-    [models, liveModelId],
+  const selectedModel = useMemo(
+    () => models.find((m) => m.id === selectedModelId) ?? null,
+    [models, selectedModelId]
   )
 
   const downloadedModels = useMemo(() => models.filter((m) => m.isDownloaded), [models])
 
   async function refreshModels(): Promise<void> {
     const list = await window.api.getModels()
-    const selection = await window.api.getModelSelection()
+    const current = await window.api.getSelectedModel()
     setModels(list)
-    const fallback =
-      selection.meeting ??
-      selection.live ??
-      list.find((m) => m.recommended)?.id ??
-      list[0]?.id ??
-      null
-    setMeetingModelId(selection.meeting ?? fallback)
-    setLiveModelId(selection.live ?? fallback)
+    setSelectedModelId(current ?? list.find((m) => m.recommended)?.id ?? list[0]?.id ?? null)
   }
 
-  async function selectMeetingModel(id: string): Promise<void> {
-    setMeetingModelId(id)
-    await window.api.selectModelForProfile('meeting', id)
-  }
-
-  async function selectLiveModel(id: string): Promise<void> {
-    setLiveModelId(id)
-    await window.api.selectModelForProfile('live', id)
+  async function selectModel(id: string): Promise<void> {
+    setSelectedModelId(id)
+    await window.api.selectModel(id)
   }
 
   async function downloadModel(id: string): Promise<void> {
     setDownloadError('')
     setDownloadingId(id)
+    setSelectedModelId(id)
     setDownloadProgress(null)
     try {
       await window.api.selectModel(id)
@@ -101,10 +80,12 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Initialize on mount
   useEffect(() => {
     void refreshModels()
   }, [])
 
+  // Subscribe to download progress events
   useEffect(() => {
     const unsubscribe = window.api.onModelDownloadProgress((progress) => {
       setDownloadProgress(progress)
@@ -117,17 +98,13 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
 
   const value: ModelsContextValue = {
     models,
-    meetingModelId,
-    liveModelId,
-    meetingModel,
-    liveModel,
-    selectedModelId: meetingModelId,
+    selectedModelId,
     downloadingId,
     downloadProgress,
     downloadError,
+    selectedModel,
     downloadedModels,
-    selectMeetingModel,
-    selectLiveModel,
+    selectModel,
     downloadModel,
     cancelDownload,
     removeModel,

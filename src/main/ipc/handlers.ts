@@ -75,11 +75,7 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
 
   ipcMain.handle('capture:start', async (_event, captureOptions: CaptureStartOptions) => {
     try {
-      const appSettings = await settingsManager.getSettings()
-      whisperEngine.setPreferGpuAcceleration(appSettings.preferGpuAcceleration)
-
-      const profile = captureOptions.profile ?? 'meeting'
-      const selectedModelId = await modelManager.getSelectedModelForProfile(profile)
+      const selectedModelId = await modelManager.getSelectedModel()
       if (!selectedModelId) {
         throw new Error('No model selected. Download or configure a transcription model before capturing.')
       }
@@ -91,7 +87,6 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
 
       logger.info('Received capture:start request', {
         ...captureOptions,
-        profile,
         modelId: selectedModel.id,
         engine: selectedModel.engine,
       })
@@ -137,18 +132,9 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     return modelManager.getSelectedModel()
   })
 
-  ipcMain.handle('models:getSelection', async () => {
-    return modelManager.getModelSelection()
-  })
-
   ipcMain.handle('models:select', async (_event, modelId: string) => {
     await modelManager.selectModel(modelId)
     logger.info('Model selected', { modelId })
-  })
-
-  ipcMain.handle('models:selectForProfile', async (_event, profile: 'meeting' | 'live', modelId: string) => {
-    await modelManager.selectModelForProfile(profile, modelId)
-    logger.info('Model selected for profile', { profile, modelId })
   })
 
   ipcMain.handle('models:download', async (_event, modelId: string) => {

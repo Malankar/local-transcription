@@ -10,7 +10,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   unloadModelAfterMinutes: 5,
   voiceToTextShortcut: process.platform === 'darwin' ? 'Command+Control+V' : 'Meta+V',
   muteWhileRecording: false,
-  preferGpuAcceleration: false,
   historyLimit: 5,
   autoDeleteRecordings: 'never',
   keepStarredUntilDeleted: true,

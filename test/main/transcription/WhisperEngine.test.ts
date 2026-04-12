@@ -41,7 +41,7 @@ describe('WhisperEngine', () => {
     runtime: 'node',
     runtimeModelName: 'base.en',
     downloadManaged: true,
-    supportsGpuAcceleration: true,
+    supportsGpuAcceleration: false,
     isDownloaded: true,
   }
 
@@ -67,35 +67,15 @@ describe('WhisperEngine', () => {
       // Wait for engine to send initialize request
       await new Promise(resolve => setTimeout(resolve, 0))
       expect(fork).toHaveBeenCalled()
-      expect(mockChild.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'initialize',
-          modelId: 'base',
-          useGpuAcceleration: false,
-        }),
-      )
+      expect(mockChild.send).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'initialize',
+        modelId: 'base',
+      }))
 
       // Simulate ready response
       const requestId = mockChild.send.mock.calls[0][0].requestId
       mockChild.emit('message', { type: 'ready', requestId })
 
-      await initPromise
-    })
-
-    it('passes useGpuAcceleration when prefer GPU is enabled and the model supports it', async () => {
-      engine.setPreferGpuAcceleration(true)
-      engine.setModel(mockModel)
-      const initPromise = engine.initialize()
-      mockChild.emit('spawn')
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(mockChild.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'initialize',
-          useGpuAcceleration: true,
-        }),
-      )
-      const requestId = mockChild.send.mock.calls[0][0].requestId
-      mockChild.emit('message', { type: 'ready', requestId })
       await initPromise
     })
 

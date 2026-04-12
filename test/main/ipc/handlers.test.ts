@@ -29,11 +29,9 @@ function makeOptions() {
     audioCapture: { start: vi.fn(), stop: vi.fn() } as any,
     chunkQueue: { setMode: vi.fn(), clear: vi.fn() } as any,
     sourceDiscovery: { getSources: vi.fn(() => [{ id: 'mic-1', label: 'Mic', isMonitor: false }]) } as any,
-    whisperEngine: { setModel: vi.fn(), setPreferGpuAcceleration: vi.fn() } as any,
+    whisperEngine: { setModel: vi.fn() } as any,
     modelManager: {
       getSelectedModel: vi.fn().mockResolvedValue('base.en'),
-      getSelectedModelForProfile: vi.fn().mockResolvedValue('base.en'),
-      getModelSelection: vi.fn().mockResolvedValue({ meeting: 'base.en', live: 'base.en' }),
       getModel: vi.fn(() => ({ id: 'base.en', engine: 'whisper' })),
       getModels: vi.fn(() => []),
       selectModel: vi.fn().mockResolvedValue(undefined),
@@ -49,25 +47,11 @@ function makeOptions() {
     } as any,
     settingsManager: {
       getSettings: vi.fn().mockResolvedValue({
-        startHidden: false,
-        launchOnStartup: false,
-        showTrayIcon: true,
-        unloadModelAfterMinutes: 5,
-        voiceToTextShortcut: '',
-        muteWhileRecording: false,
-        preferGpuAcceleration: false,
         historyLimit: 5,
         autoDeleteRecordings: 'never',
         keepStarredUntilDeleted: true,
       }),
       updateSettings: vi.fn().mockResolvedValue({
-        startHidden: false,
-        launchOnStartup: false,
-        showTrayIcon: true,
-        unloadModelAfterMinutes: 5,
-        voiceToTextShortcut: '',
-        muteWhileRecording: false,
-        preferGpuAcceleration: false,
         historyLimit: 25,
         autoDeleteRecordings: 'never',
         keepStarredUntilDeleted: true,
@@ -106,8 +90,6 @@ describe('registerIpcHandlers', () => {
     const startCapture = getHandler('capture:start')
     await startCapture({}, { mode: 'mixed', systemSourceId: 'sys', micSourceId: 'mic', profile: 'live' })
 
-    expect(options.whisperEngine.setPreferGpuAcceleration).toHaveBeenCalledWith(false)
-    expect(options.modelManager.getSelectedModelForProfile).toHaveBeenCalledWith('live')
     expect(options.whisperEngine.setModel).toHaveBeenCalledWith({ id: 'base.en', engine: 'whisper' })
     expect(options.chunkQueue.setMode).toHaveBeenCalledWith('realtime')
     expect(options.audioCapture.start).toHaveBeenCalledWith({

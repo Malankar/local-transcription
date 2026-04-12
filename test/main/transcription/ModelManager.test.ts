@@ -247,8 +247,6 @@ describe('ModelManager', () => {
       expect(writeFile).toHaveBeenCalledOnce()
       const written = JSON.parse(vi.mocked(writeFile).mock.calls[0][1] as string)
       expect(written.selectedModel).toBe('tiny.en')
-      expect(written.meetingModelId).toBe('tiny.en')
-      expect(written.liveModelId).toBe('tiny.en')
     })
 
     it('merges into existing settings without clobbering unrelated keys', async () => {
@@ -260,8 +258,6 @@ describe('ModelManager', () => {
 
       const written = JSON.parse(vi.mocked(writeFile).mock.calls[0][1] as string)
       expect(written.selectedModel).toBe('base.en')
-      expect(written.meetingModelId).toBe('base.en')
-      expect(written.liveModelId).toBe('base.en')
       expect(written.someOtherKey).toBe('value')
     })
 
@@ -272,73 +268,6 @@ describe('ModelManager', () => {
 
       const expectedPath = join('/fake/user-data', 'settings.json')
       expect(writeFile).toHaveBeenCalledWith(expectedPath, expect.any(String), 'utf-8')
-    })
-  })
-
-  describe('getSelectedModelForProfile', () => {
-    it('uses meetingModelId and liveModelId when present', async () => {
-      vi.mocked(readFile).mockResolvedValue(
-        JSON.stringify({ meetingModelId: 'tiny.en', liveModelId: 'base.en' }),
-      )
-      vi.mocked(existsSync).mockImplementation((p) => {
-        const s = String(p)
-        return s.includes('ggml-tiny.en.bin') || s.includes('ggml-base.en.bin')
-      })
-
-      expect(await manager.getSelectedModelForProfile('meeting')).toBe('tiny.en')
-      expect(await manager.getSelectedModelForProfile('live')).toBe('base.en')
-    })
-
-    it('falls back to legacy selectedModel when profile ids are absent', async () => {
-      vi.mocked(readFile).mockResolvedValue(JSON.stringify({ selectedModel: 'small.en' }))
-      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('ggml-small.en.bin'))
-
-      expect(await manager.getSelectedModelForProfile('meeting')).toBe('small.en')
-      expect(await manager.getSelectedModelForProfile('live')).toBe('small.en')
-    })
-  })
-
-  describe('getModelSelection', () => {
-    it('returns meeting and live ids', async () => {
-      vi.mocked(readFile).mockResolvedValue(
-        JSON.stringify({ meetingModelId: 'tiny.en', liveModelId: 'base.en' }),
-      )
-      vi.mocked(existsSync).mockImplementation((p) => {
-        const s = String(p)
-        return s.includes('ggml-tiny.en.bin') || s.includes('ggml-base.en.bin')
-      })
-
-      expect(await manager.getModelSelection()).toEqual({
-        meeting: 'tiny.en',
-        live: 'base.en',
-      })
-    })
-  })
-
-  describe('selectModelForProfile', () => {
-    it('writes only liveModelId when choosing live model', async () => {
-      vi.mocked(readFile).mockResolvedValue(
-        JSON.stringify({ meetingModelId: 'small.en', liveModelId: 'tiny.en', selectedModel: 'small.en' }),
-      )
-
-      await manager.selectModelForProfile('live', 'base.en')
-
-      const written = JSON.parse(vi.mocked(writeFile).mock.calls[0][1] as string)
-      expect(written.meetingModelId).toBe('small.en')
-      expect(written.liveModelId).toBe('base.en')
-      expect(written.selectedModel).toBe('small.en')
-    })
-
-    it('updates meeting and selectedModel when choosing meeting model', async () => {
-      vi.mocked(readFile).mockResolvedValue(JSON.stringify({ liveModelId: 'tiny.en' }))
-
-      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('ggml-base.en.bin'))
-
-      await manager.selectModelForProfile('meeting', 'base.en')
-
-      const written = JSON.parse(vi.mocked(writeFile).mock.calls[0][1] as string)
-      expect(written.meetingModelId).toBe('base.en')
-      expect(written.selectedModel).toBe('base.en')
     })
   })
 

@@ -116,25 +116,18 @@ function DeviceSelect({
 // ── ModelAndRefresh ────────────────────────────────────────────────────────
 
 function ModelAndRefresh() {
-  const { downloadedModels, meetingModelId, liveModelId, selectMeetingModel, selectLiveModel } =
-    useModelsContext()
+  const { downloadedModels, selectedModelId, selectModel } = useModelsContext()
   const { isBusy, refreshSources } = useRecordingContext()
-  const { navigateTo, recordingSubView } = useNavigationContext()
-
-  const activeModelId = recordingSubView === 'live' ? liveModelId : meetingModelId
-  const onModelChange =
-    recordingSubView === 'live'
-      ? (id: string) => void selectLiveModel(id)
-      : (id: string) => void selectMeetingModel(id)
+  const { navigateTo } = useNavigationContext()
 
   return (
     <div className="flex items-end gap-2">
       <div className="flex flex-col gap-1.5">
         <span className="font-mono text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
-          {recordingSubView === 'live' ? 'Live model' : 'Meeting model'}
+          Model
         </span>
         {downloadedModels.length > 0 ? (
-          <Select value={activeModelId ?? ''} onValueChange={onModelChange} disabled={isBusy}>
+          <Select value={selectedModelId ?? ''} onValueChange={selectModel} disabled={isBusy}>
             <SelectTrigger className="h-10 gap-2 text-sm">
               <SelectValue placeholder="Select model" />
             </SelectTrigger>
@@ -284,7 +277,7 @@ function SourceControls() {
 function RecordingView() {
   const { mergedMeetingSegments } = useTranscriptContext()
   const { isCapturing, captureProfile, isBusy, status, startCapture, stopCapture, mode, systemSourceId, micSourceId } = useRecordingContext()
-  const { meetingModel } = useModelsContext()
+  const { selectedModel } = useModelsContext()
 
   const transcriptRef = useRef<HTMLDivElement>(null)
 
@@ -297,7 +290,7 @@ function RecordingView() {
   const canStart =
     !isBusy &&
     !isCapturing &&
-    meetingModel?.isDownloaded === true &&
+    selectedModel?.isDownloaded === true &&
     ((mode === 'system' && !!systemSourceId) ||
       (mode === 'mic' && !!micSourceId) ||
       (mode === 'mixed' && !!systemSourceId && !!micSourceId))
@@ -323,7 +316,7 @@ function RecordingView() {
   }, [segments])
 
   const sessionName = `Session_${new Date().toISOString().slice(0, 10).replace(/-/g, '_')}`
-  const liveCaptionHint = getLiveCaptionHint(meetingModel)
+  const liveCaptionHint = getLiveCaptionHint(selectedModel)
   const meetingIdleSubline = 'Live captions typically appear every 3-5 seconds.'
 
   if (!isMeetingCapturing && segments.length === 0) {
@@ -350,7 +343,7 @@ function RecordingView() {
         </button>
         {!canStart && (
           <p className="max-w-xs text-center text-xs text-[#64748B]">
-            {meetingModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
+            {selectedModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
           </p>
         )}
       </div>
@@ -366,7 +359,7 @@ function RecordingView() {
           <div className="flex items-center gap-3 mt-1.5">
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Icon name="memory" size={13} />
-              {meetingModel?.name ?? 'Whisper'}
+              {selectedModel?.name ?? 'Whisper'}
             </span>
             <span className="w-1 h-1 rounded-full bg-border" />
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
@@ -471,7 +464,7 @@ function RecordingView() {
 function LiveTranscriptionView() {
   const { liveTranscriptText, mergedLiveSegments } = useTranscriptContext()
   const { isCapturing, captureProfile, isBusy, status, startCapture, stopCapture, micSourceId } = useRecordingContext()
-  const { liveModel } = useModelsContext()
+  const { selectedModel } = useModelsContext()
 
   const text = liveTranscriptText
   const isLiveCapturing = isCapturing && captureProfile === 'live'
@@ -487,7 +480,7 @@ function LiveTranscriptionView() {
   const canStartLive =
     !isBusy &&
     !isCapturing &&
-    liveModel?.isDownloaded === true &&
+    selectedModel?.isDownloaded === true &&
     !!micSourceId
 
   const [copied, setCopied] = useState(false)
@@ -534,7 +527,7 @@ function LiveTranscriptionView() {
         </p>
         {!isLiveCapturing && !canStartLive && (
           <p className="mb-4 max-w-md text-center text-xs text-red-400/80">
-            {liveModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
+            {selectedModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
           </p>
         )}
 

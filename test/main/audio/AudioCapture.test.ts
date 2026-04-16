@@ -55,13 +55,13 @@ describe('AudioCapture', () => {
 
   describe('chunking', () => {
     it('emits chunk event when enough data is received', async () => {
-      audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
+      audioCapture.start({ mode: 'mic', micSourceId: 'default' })
       
       const chunks: any[] = []
       audioCapture.on('chunk', (c) => chunks.push(c))
 
-      // Generate 4 seconds of "noise" (non-silent PCM) to exceed maxChunkMs (3.5s)
-      const data = Buffer.alloc(16000 * 2 * 4)
+      // Generate 7 seconds of "noise" (non-silent PCM) to exceed maxChunkMs (6s).
+      const data = Buffer.alloc(16000 * 2 * 7)
       for (let i = 0; i < data.length; i += 2) {
         data.writeInt16LE(15000, i) // Consistent non-silent value
       }
@@ -75,13 +75,13 @@ describe('AudioCapture', () => {
     })
 
     it('retains a small overlap between consecutive forced chunks', async () => {
-      audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
+      audioCapture.start({ mode: 'mic', micSourceId: 'default' })
 
       const chunks: any[] = []
       audioCapture.on('chunk', (c) => chunks.push(c))
 
-      // Generate 8 seconds of non-silent PCM so the chunker must force multiple windows.
-      const data = Buffer.alloc(16000 * 2 * 8)
+      // Generate 14 seconds of non-silent PCM so the chunker must force multiple windows.
+      const data = Buffer.alloc(16000 * 2 * 14)
       for (let i = 0; i < data.length; i += 2) {
         data.writeInt16LE(15000, i)
       }

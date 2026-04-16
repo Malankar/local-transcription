@@ -241,6 +241,14 @@ async function importMain(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve))
 }
 
+function getRegisteredListener(
+  onMock: ReturnType<typeof vi.fn>,
+  eventName: string,
+): ((...args: any[]) => void) | undefined {
+  const call = onMock.mock.calls.find(([name]) => name === eventName)
+  return call?.[1]
+}
+
 describe('main bootstrap', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -304,5 +312,76 @@ describe('main bootstrap', () => {
     expect(mainMocks.audioCapture.stop).toHaveBeenCalledOnce()
     expect(mainMocks.whisperEngine.dispose).toHaveBeenCalledOnce()
     expect(mainMocks.app.quit).toHaveBeenCalledOnce()
+  })
+
+  it('emits time_to_output KPI when first transcript segment arrives after input acceptance', async () => {
+    await importMain()
+
+    const handlersOptions = mainMocks.registerIpcHandlers.mock.calls[0][0]
+    handlersOptions.onInputAccepted({
+      source: 'record',
+      acceptedAtIso: new Date(Date.now() - 1_500).toISOString(),
+    })
+
+    const onChunkSegment = getRegisteredListener(mainMocks.chunkQueue.on, 'segment')
+    expect(onChunkSegment).toBeTypeOf('function')
+    onChunkSegment?.({
+      id: 'seg-1',
+      startMs: 0,
+      endMs: 900,
+      text: 'Speaker 1: kickoff update',
+      timestamp: new Date().toISOString(),
+    })
+
+    expect(mainMocks.logger.info).toHaveBeenCalledWith(
+      'KPI time_to_output',
+      expect.objectContaining({
+        metric: 'time_to_output_ms',
+        inputSource: 'record',
+        timeToOutputMs: expect.any(Number),
+      }),
+    )
+  })
+
+  it('emits meeting-output completeness KPI after drained queue saves a session', async () => {
+    await importMain()
+
+    const handlersOptions = mainMocks.registerIpcHandlers.mock.calls[0][0]
+    handlersOptions.onInputAccepted({
+      source: 'upload',
+      acceptedAtIso: new Date(Date.now() - 2_000).toISOString(),
+    })
+
+    const onChunkSegment = getRegisteredListener(mainMocks.chunkQueue.on, 'segment')
+    onChunkSegment?.({
+      id: 'seg-1',
+      startMs: 0,
+      endMs: 800,
+      text: 'Speaker 1: project summary and next actions',
+      timestamp: new Date().toISOString(),
+    })
+
+    mainMocks.historyManager.saveSession.mockResolvedValue({
+      id: 'session-1',
+      label: 'Project Summary',
+    })
+    mainMocks.audioCapture.isRunning.mockReturnValue(false)
+
+    const onDrained = getRegisteredListener(mainMocks.chunkQueue.on, 'drained')
+    expect(onDrained).toBeTypeOf('function')
+    onDrained?.()
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(mainMocks.historyManager.saveSession).toHaveBeenCalled()
+    expect(mainMocks.logger.info).toHaveBeenCalledWith(
+      'KPI meeting_output_completeness',
+      expect.objectContaining({
+        metric: 'meeting_output_completeness',
+        transcriptAvailable: true,
+        speakerLabelsAvailable: true,
+        summaryVisible: true,
+        actionsVisible: true,
+      }),
+    )
   })
 })

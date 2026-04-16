@@ -3,11 +3,19 @@ import { join } from 'node:path'
 
 import type { AppSettings, AppStatus, ModelDownloadProgress, TranscriptSegment } from '../shared/types'
 import { AudioCapture } from './audio/AudioCapture'
+import { chunkMeetingFile } from './audio/MeetingFileChunker'
 import { SourceDiscovery } from './audio/SourceDiscovery'
 import { HistoryManager } from './history/HistoryManager'
+import { GoogleWorkspaceConnector } from './integrations/googleWorkspace/GoogleWorkspaceConnector'
+import { isGoogleWorkspaceImportEnabled, MeetingImportService } from './integrations/googleWorkspace/MeetingImportService'
 import { registerIpcHandlers } from './ipc/handlers'
 import { AppLogger } from './logging/AppLogger'
 import { SettingsManager } from './settings/SettingsManager'
+import {
+  buildMeetingOutputCompleteness,
+  type MeetingInputKpiState,
+  toMeetingInputKpiState,
+} from './telemetry/meetingKpis'
 import { ChunkQueue } from './transcription/ChunkQueue'
 import { ModelManager } from './transcription/ModelManager'
 import { WhisperEngine } from './transcription/WhisperEngine'
@@ -20,7 +28,7 @@ const transcriptSegments: TranscriptSegment[] = []
 const logger = new AppLogger()
 
 let captureStartTime: string | null = null
-let currentCaptureProfile: 'meeting' | 'live' = 'meeting'
+let pendingMeetingInputKpi: MeetingInputKpiState | null = null
 let modelUnloadTimer: ReturnType<typeof setTimeout> | null = null
 let registeredShortcut: string | null = null
 let lastAppliedTrayVisibility: boolean | null = null
@@ -83,6 +91,10 @@ const chunkQueue = new ChunkQueue(async (chunk) => {
 
 const audioCapture = new AudioCapture()
 const sourceDiscovery = new SourceDiscovery()
+const meetingImportService = new MeetingImportService({
+  googleWorkspaceEnabled: isGoogleWorkspaceImportEnabled(),
+  connectors: [new GoogleWorkspaceConnector()],
+})
 
 audioCapture.on('chunk', (chunk) => {
   cancelModelUnload()
@@ -117,6 +129,17 @@ chunkQueue.on('segment', (segment) => {
     textLength: segment.text.length,
   })
   transcriptSegments.push(segment)
+  if (pendingMeetingInputKpi) {
+    const timeToOutputMs = Math.max(0, Date.now() - pendingMeetingInputKpi.acceptedAtMs)
+    logger.info('KPI time_to_output', {
+      metric: 'time_to_output_ms',
+      inputSource: pendingMeetingInputKpi.source,
+      timeToOutputMs,
+      segmentId: segment.id,
+      segmentEndMs: segment.endMs,
+    })
+    pendingMeetingInputKpi = null
+  }
   mainWindow?.webContents.send('transcript:segment', segment)
 })
 
@@ -138,23 +161,29 @@ chunkQueue.on('drained', () => {
 
     if (transcriptSegments.length > 0 && captureStartTime !== null) {
       const segmentsToSave = [...transcriptSegments]
-      const profile = currentCaptureProfile
       const startTime = captureStartTime
       captureStartTime = null
       void (async () => {
         try {
           const settings = await settingsManager.getSettings()
-          // History stores meeting transcriptions only; live captions stay in-session until copied/exported.
-          if (profile === 'meeting') {
-            const meta = await historyManager.saveSession(segmentsToSave, profile, startTime)
-            logger.info('Session saved to history', { id: meta.id, label: meta.label })
-            mainWindow?.webContents.send('history:saved', meta)
-            await historyManager.pruneHistory({
-              historyLimit: settings.historyLimit,
-              autoDeleteRecordings: settings.autoDeleteRecordings,
-              keepStarredUntilDeleted: settings.keepStarredUntilDeleted,
-            })
-          }
+          const meta = await historyManager.saveSession(segmentsToSave, 'meeting', startTime)
+          const completeness = buildMeetingOutputCompleteness(segmentsToSave, {
+            // Session assistant quick prompts are always visible for saved meetings.
+            summaryVisible: true,
+            actionsVisible: true,
+          })
+          logger.info('KPI meeting_output_completeness', {
+            metric: 'meeting_output_completeness',
+            sessionId: meta.id,
+            ...completeness,
+          })
+          logger.info('Session saved to history', { id: meta.id, label: meta.label })
+          mainWindow?.webContents.send('history:saved', meta)
+          await historyManager.pruneHistory({
+            historyLimit: settings.historyLimit,
+            autoDeleteRecordings: settings.autoDeleteRecordings,
+            keepStarredUntilDeleted: settings.keepStarredUntilDeleted,
+          })
           scheduleModelUnload(settings.unloadModelAfterMinutes)
         } catch (error) {
           logger.error('Failed to save session to history', error)
@@ -200,7 +229,7 @@ function applyVoiceShortcut(shortcut: string): void {
       audioCapture.stop()
       sendStatus({ stage: 'stopped', detail: 'Capture stopped via shortcut' })
     } else {
-      // Trigger start with last-used profile via renderer (or default to meeting)
+      // Trigger start via renderer.
       mainWindow?.webContents.send('shortcut:voice-to-text')
     }
   })
@@ -382,15 +411,17 @@ app.whenReady().then(() => {
       resetTranscriptSegments: () => {
         transcriptSegments.length = 0
       },
-      onCaptureStarted: (profile, startTime) => {
-        currentCaptureProfile = profile
-        captureStartTime = startTime
+      onInputAccepted: (event) => {
+        captureStartTime = event.acceptedAtIso
+        pendingMeetingInputKpi = toMeetingInputKpiState(event)
       },
       onSettingsChanged: (updated) => {
         applySettings(updated)
       },
       sendStatus,
       sendError,
+      chunkMeetingFile,
+      meetingImportService,
     })
 
     createWindow(settings.startHidden)

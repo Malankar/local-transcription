@@ -7,6 +7,8 @@ import type {
   ExportResult,
   HistorySessionMeta,
   LocalTranscribeApi,
+  MeetingImportConnectorId,
+  MeetingImportRequest,
   ModelDownloadProgress,
   TranscriptSegment,
 } from '../shared/types'
@@ -15,6 +17,12 @@ const api: LocalTranscribeApi = {
   getSources: () => ipcRenderer.invoke('sources:get'),
   startCapture: (options: CaptureStartOptions) => ipcRenderer.invoke('capture:start', options),
   stopCapture: () => ipcRenderer.invoke('capture:stop'),
+  transcribeMeetingFile: (filePath?: string) => ipcRenderer.invoke('meeting:transcribeFile', filePath),
+  listMeetingImportConnectors: () => ipcRenderer.invoke('meetingImport:listConnectors'),
+  discoverMeetingImports: (connectorId: MeetingImportConnectorId) =>
+    ipcRenderer.invoke('meetingImport:discover', connectorId),
+  importMeetingFromIntegration: (request: MeetingImportRequest) =>
+    ipcRenderer.invoke('meetingImport:import', request),
   exportTxt: (): Promise<ExportResult> => ipcRenderer.invoke('export:txt'),
   exportSrt: (): Promise<ExportResult> => ipcRenderer.invoke('export:srt'),
   onTranscriptSegment: (listener: (segment: TranscriptSegment) => void) =>

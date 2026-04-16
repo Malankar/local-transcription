@@ -9,10 +9,10 @@ import {
   type MutableRefObject,
 } from 'react'
 import type { AudioSource, AudioSourceMode, AppStatus } from '../types'
-import { type CaptureProfile, toMessage } from '../lib/formatters'
+import { toMessage } from '../lib/formatters'
 import { useNavigationContext } from './NavigationContext'
 
-export type { CaptureProfile }
+export type CaptureProfile = 'meeting'
 
 interface RecordingContextValue {
   sources: AudioSource[]
@@ -22,6 +22,7 @@ interface RecordingContextValue {
   status: AppStatus
   errorMessage: string
   isBusy: boolean
+  isUploadingMeetingFile: boolean
   isCapturing: boolean
   captureProfile: CaptureProfile
   captureProfileRef: MutableRefObject<CaptureProfile>
@@ -31,8 +32,9 @@ interface RecordingContextValue {
   micSources: AudioSource[]
 
   // Actions
-  startCapture: (profile: CaptureProfile) => Promise<void>
+  startCapture: () => Promise<void>
   stopCapture: () => Promise<void>
+  transcribeMeetingFile: () => Promise<void>
   refreshSources: () => Promise<void>
   setMode: (mode: AudioSourceMode) => void
   setSystemSourceId: (id: string) => void
@@ -42,7 +44,7 @@ interface RecordingContextValue {
 const RecordingContext = createContext<RecordingContextValue | null>(null)
 
 export function RecordingProvider({ children }: { children: ReactNode }) {
-  const { navigateTo, setRecordingSubView } = useNavigationContext()
+  const { navigateTo } = useNavigationContext()
 
   const [sources, setSources] = useState<AudioSource[]>([])
   const [mode, setMode] = useState<AudioSourceMode>('mixed')
@@ -51,27 +53,31 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AppStatus>({ stage: 'idle', detail: 'Load sources to begin' })
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [isBusy, setIsBusy] = useState<boolean>(false)
+  const [isUploadingMeetingFile, setIsUploadingMeetingFile] = useState<boolean>(false)
   const [isCapturing, setIsCapturing] = useState<boolean>(false)
   const [captureProfile, setCaptureProfile] = useState<CaptureProfile>('meeting')
 
   const captureProfileRef = useRef<CaptureProfile>('meeting')
+  const isUploadingMeetingFileRef = useRef(false)
 
   useEffect(() => {
     captureProfileRef.current = captureProfile
   }, [captureProfile])
 
+  useEffect(() => {
+    isUploadingMeetingFileRef.current = isUploadingMeetingFile
+  }, [isUploadingMeetingFile])
+
   const systemSources = useMemo(() => sources.filter((s) => s.isMonitor), [sources])
   const micSources = useMemo(() => sources.filter((s) => !s.isMonitor), [sources])
 
-  async function startCapture(profile: CaptureProfile = 'meeting'): Promise<void> {
+  async function startCapture(): Promise<void> {
     setErrorMessage('')
-    setCaptureProfile(profile)
-    setRecordingSubView(profile === 'live' ? 'live' : 'meetings')
+    setCaptureProfile('meeting')
     navigateTo('recording')
     setIsBusy(true)
     try {
-      const effectiveMode = profile === 'live' ? 'mic' : mode
-      await window.api.startCapture({ mode: effectiveMode, systemSourceId, micSourceId, profile })
+      await window.api.startCapture({ mode, systemSourceId, micSourceId })
     } catch (error) {
       setErrorMessage(toMessage(error))
       setIsCapturing(false)
@@ -88,6 +94,23 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       setErrorMessage(toMessage(error))
     } finally {
       setIsBusy(false)
+    }
+  }
+
+  async function transcribeMeetingFile(): Promise<void> {
+    setErrorMessage('')
+    setCaptureProfile('meeting')
+    navigateTo('recording')
+    isUploadingMeetingFileRef.current = true
+    setIsUploadingMeetingFile(true)
+    setIsBusy(true)
+    try {
+      await window.api.transcribeMeetingFile()
+    } catch (error) {
+      setErrorMessage(toMessage(error))
+      setIsCapturing(false)
+      isUploadingMeetingFileRef.current = false
+      setIsUploadingMeetingFile(false)
     }
   }
 
@@ -115,17 +138,28 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubStatus = window.api.onStatus((nextStatus) => {
       setStatus(nextStatus)
-      setIsBusy(
-        nextStatus.stage === 'discovering' || nextStatus.stage === 'initializing-model',
-      )
+      const isDiscoveringOrInitializing =
+        nextStatus.stage === 'discovering' || nextStatus.stage === 'initializing-model'
+      setIsBusy(isDiscoveringOrInitializing)
       if (nextStatus.stage === 'capturing') setIsCapturing(true)
       if (['stopped', 'ready', 'error'].includes(nextStatus.stage)) setIsCapturing(false)
+      const isUploadTerminalStatus = ['ready', 'error'].includes(nextStatus.stage)
+      if (isUploadingMeetingFileRef.current && isUploadTerminalStatus) {
+        isUploadingMeetingFileRef.current = false
+        setIsUploadingMeetingFile(false)
+        setIsBusy(false)
+      }
+      if (!isDiscoveringOrInitializing && !isUploadingMeetingFileRef.current) {
+        setIsBusy(false)
+      }
     })
 
     const unsubError = window.api.onError((message) => {
       setErrorMessage(message)
       setIsBusy(false)
       setIsCapturing(false)
+      isUploadingMeetingFileRef.current = false
+      setIsUploadingMeetingFile(false)
     })
 
     return () => {
@@ -142,6 +176,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     status,
     errorMessage,
     isBusy,
+    isUploadingMeetingFile,
     isCapturing,
     captureProfile,
     captureProfileRef,
@@ -149,6 +184,7 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     micSources,
     startCapture,
     stopCapture,
+    transcribeMeetingFile,
     refreshSources,
     setMode,
     setSystemSourceId,

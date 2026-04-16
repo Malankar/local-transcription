@@ -42,20 +42,20 @@ const navItems = [
 // ── AppShell ─────────────────────────────────────────────────────────────────
 
 export default function AppShell() {
-  const { activeView, recordingSubView, navigateTo } = useNavigationContext()
-  const { isCapturing, status, captureProfile } = useRecordingContext()
+  const { activeView, navigateTo } = useNavigationContext()
+  const { isCapturing, status } = useRecordingContext()
   const { meetingSegments } = useTranscriptContext()
 
   useEffect(() => {
     if (isCapturing) { navigateTo('recording'); return }
     if (!isCapturing && (status.stage === 'stopped' || status.stage === 'error')
-        && meetingSegments.length > 0 && captureProfile === 'meeting') {
+        && meetingSegments.length > 0) {
       navigateTo('history')
     }
-  }, [isCapturing, status.stage, meetingSegments.length, captureProfile])
+  }, [isCapturing, status.stage, meetingSegments.length])
 
   const topBarSectionLabel: Record<View, string> = {
-    recording: recordingSubView === 'live' ? 'Live Transcription' : 'Meeting Recording',
+    recording: 'Meeting Recording',
     models: 'Model Library',
     history: 'Session History',
     settings: 'Settings',

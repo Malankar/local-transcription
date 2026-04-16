@@ -24,7 +24,6 @@ export interface CaptureStartOptions {
   mode: AudioSourceMode
   systemSourceId?: string
   micSourceId?: string
-  profile?: 'meeting' | 'live'
 }
 
 export type AppStatusStage =
@@ -88,7 +87,7 @@ export interface HistorySessionMeta {
   wordCount: number
   segmentCount: number
   preview: string     // first ~160 chars of transcript
-  profile: 'meeting' | 'live'
+  profile: 'meeting'
   starred?: boolean
 }
 
@@ -116,6 +115,30 @@ export interface AppSettings {
   keepStarredUntilDeleted: boolean
 }
 
+export type MeetingImportConnectorId = 'google-workspace'
+
+export interface MeetingImportConnectorDescriptor {
+  id: MeetingImportConnectorId
+  label: string
+  enabled: boolean
+  reason?: string
+}
+
+export interface MeetingImportCandidate {
+  id: string
+  connectorId: MeetingImportConnectorId
+  title: string
+  when: string
+  sourceHint: string
+}
+
+export interface MeetingImportRequest {
+  connectorId: MeetingImportConnectorId
+  meetingId: string
+}
+
+export type MeetingInputSource = 'record' | 'upload' | 'integration'
+
 export interface HistorySession extends HistorySessionMeta {
   segments: TranscriptSegment[]
 }
@@ -124,6 +147,10 @@ export interface LocalTranscribeApi {
   getSources: () => Promise<AudioSource[]>
   startCapture: (options: CaptureStartOptions) => Promise<void>
   stopCapture: () => Promise<void>
+  transcribeMeetingFile: (filePath?: string) => Promise<void>
+  listMeetingImportConnectors: () => Promise<MeetingImportConnectorDescriptor[]>
+  discoverMeetingImports: (connectorId: MeetingImportConnectorId) => Promise<MeetingImportCandidate[]>
+  importMeetingFromIntegration: (request: MeetingImportRequest) => Promise<void>
   exportTxt: () => Promise<ExportResult>
   exportSrt: () => Promise<ExportResult>
   onTranscriptSegment: (listener: (segment: TranscriptSegment) => void) => () => void

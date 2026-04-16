@@ -5,7 +5,6 @@ import {
   formatDuration,
   formatElapsed,
   getLiveCaptionHint,
-  getCaptureProfileAppearance,
   formatSessionDate,
 } from '../../../../src/renderer/src/lib/formatters'
 import type { TranscriptionModel } from '../../../../src/renderer/src/types'
@@ -153,41 +152,6 @@ describe('getLiveCaptionHint', () => {
   it('returns slower-interval hint for low-speed models (speed < 3)', () => {
     const hint = getLiveCaptionHint(makeModel({ speed: 1 }))
     expect(hint).toContain('4-7 seconds')
-  })
-})
-
-// ──────────────────────────────────────────────────────────────────────────────
-
-describe('getCaptureProfileAppearance', () => {
-  it('returns "live" appearance for the live profile', () => {
-    const appearance = getCaptureProfileAppearance('live')
-    expect(appearance.label).toBe('Live Transcription')
-    expect(appearance.accentDotClass).toContain('FFD600')
-    expect(appearance.cardClass).toContain('bg-card/95')
-    expect(appearance.cardClass).toContain('hover:bg-card')
-    expect(appearance.cardSelectedClass).toContain('FFD600')
-    expect(appearance.cardSelectedClass).toContain('shadow-[')
-  })
-
-  it('returns "meeting" appearance for the meeting profile', () => {
-    const appearance = getCaptureProfileAppearance('meeting')
-    expect(appearance.label).toBe('Meeting Recording')
-    expect(appearance.cardClass).toContain('bg-card/95')
-    expect(appearance.cardClass).toContain('hover:bg-card')
-    expect(appearance.cardSelectedClass).toContain('bg-primary/12')
-    expect(appearance.cardSelectedClass).toContain('shadow-[')
-  })
-
-  it('every appearance object has the expected shape', () => {
-    for (const profile of ['live', 'meeting'] as const) {
-      const a = getCaptureProfileAppearance(profile)
-      expect(a).toHaveProperty('label')
-      expect(a).toHaveProperty('icon')
-      expect(a).toHaveProperty('accentDotClass')
-      expect(a).toHaveProperty('iconWrapClass')
-      expect(a).toHaveProperty('cardClass')
-      expect(a).toHaveProperty('cardSelectedClass')
-    }
   })
 })
 

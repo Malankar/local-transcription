@@ -10,7 +10,7 @@ interface ChunkQueueEvents {
 }
 
 type Processor = (chunk: AudioChunk) => Promise<TranscriptSegment[]>
-type QueueMode = 'default' | 'realtime'
+type QueueMode = 'default'
 
 export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
   private queue: AudioChunk[] = []
@@ -28,6 +28,10 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
   enqueue(chunk: AudioChunk): void {
     this.queue.push(chunk)
     void this.processNext()
+  }
+
+  isIdle(): boolean {
+    return !this.processing && this.queue.length === 0
   }
 
   clear(): void {
@@ -55,9 +59,7 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
     this.processing = true
     this.emit(
       'status',
-      this.mode === 'realtime'
-        ? 'Transcribing live audio (queued windows are preserved)...'
-        : 'Transcribing the latest natural audio window...',
+      'Transcribing the latest natural audio window...',
     )
 
     try {

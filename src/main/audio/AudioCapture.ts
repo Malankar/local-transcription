@@ -21,23 +21,13 @@ interface ChunkingProfile {
   overlapMs: number
 }
 
-const CHUNKING_PROFILES: Record<'meeting' | 'live', ChunkingProfile> = {
-  meeting: {
-    minChunkMs: 2_500,
-    targetChunkMs: 4_000,
-    maxChunkMs: 6_000,
-    minSilenceMs: 400,
-    speechPadMs: 200,
-    overlapMs: 350,
-  },
-  live: {
-    minChunkMs: 1_200,
-    targetChunkMs: 2_000,
-    maxChunkMs: 3_500,
-    minSilenceMs: 250,
-    speechPadMs: 100,
-    overlapMs: 200,
-  },
+const CHUNKING_PROFILE: ChunkingProfile = {
+  minChunkMs: 2_500,
+  targetChunkMs: 4_000,
+  maxChunkMs: 6_000,
+  minSilenceMs: 400,
+  speechPadMs: 200,
+  overlapMs: 350,
 }
 
 interface AudioCaptureEvents {
@@ -51,14 +41,14 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
   private process: ChildProcessByStdio<null, Readable, Readable> | null = null
   private buffer = Buffer.alloc(0)
   private bufferStartMs = 0
-  private chunkingProfile: ChunkingProfile = CHUNKING_PROFILES.meeting
+  private chunkingProfile: ChunkingProfile = CHUNKING_PROFILE
 
   start(options: CaptureStartOptions): void {
     if (this.process) {
       throw new Error('Capture is already running')
     }
 
-    this.chunkingProfile = CHUNKING_PROFILES[options.profile ?? 'meeting']
+    this.chunkingProfile = CHUNKING_PROFILE
     const args = buildFfmpegArgs(options)
     this.buffer = Buffer.alloc(0)
     this.bufferStartMs = 0

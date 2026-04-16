@@ -244,22 +244,6 @@ describe('HistoryManager', () => {
       expect(sessions[0].id).toBe('good')
     })
 
-    it('omits live-caption sessions from the library list', async () => {
-      vi.mocked(fs.readdir).mockResolvedValue(['m.json', 'l.json'] as any)
-      vi.mocked(fs.readFile)
-        .mockResolvedValueOnce(JSON.stringify({
-          id: 'm', startTime: '2023-01-10T00:00:00Z', segments: [],
-          label: 'M', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'meeting',
-        }))
-        .mockResolvedValueOnce(JSON.stringify({
-          id: 'l', startTime: '2023-01-11T00:00:00Z', segments: [],
-          label: 'L', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'live',
-        }))
-
-      const sessions = await historyManager.listSessions()
-      expect(sessions).toHaveLength(1)
-      expect(sessions[0].id).toBe('m')
-    })
   })
 
   describe('getSession', () => {

@@ -1,20 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { TranscriptSegment } from '../types'
 import { mergeTranscriptSegments } from '../lib/transcriptMerge'
-import { useRecordingContext } from './RecordingContext'
 
 interface TranscriptContextValue {
   meetingSegments: TranscriptSegment[]
-  liveSegments: TranscriptSegment[]
 
   // Derived
   mergedMeetingSegments: TranscriptSegment[]
-  mergedLiveSegments: TranscriptSegment[]
-  liveTranscriptText: string
 
   // Actions
   clearMeeting: () => void
-  clearLive: () => void
   exportTxt: () => Promise<void>
   exportSrt: () => Promise<void>
 }
@@ -22,44 +17,22 @@ interface TranscriptContextValue {
 const TranscriptContext = createContext<TranscriptContextValue | null>(null)
 
 export function TranscriptProvider({ children }: { children: ReactNode }) {
-  const { captureProfileRef } = useRecordingContext()
-
   const [meetingSegments, setMeetingSegments] = useState<TranscriptSegment[]>([])
-  const [liveSegments, setLiveSegments] = useState<TranscriptSegment[]>([])
 
   const mergedMeetingSegments = useMemo(
     () => mergeTranscriptSegments(meetingSegments),
     [meetingSegments],
   )
 
-  const mergedLiveSegments = useMemo(() => mergeTranscriptSegments(liveSegments), [liveSegments])
-
-  const liveTranscriptText = useMemo(
-    () =>
-      mergedLiveSegments
-        .map((s) => s.text)
-        .join(' ')
-        .trim(),
-    [mergedLiveSegments],
-  )
-
   useEffect(() => {
     const unsub = window.api.onTranscriptSegment((segment) => {
-      if (captureProfileRef.current === 'live') {
-        setLiveSegments((prev) => [...prev, segment])
-        return
-      }
       setMeetingSegments((prev) => [...prev, segment])
     })
     return unsub
-  }, [captureProfileRef])
+  }, [])
 
   function clearMeeting(): void {
     setMeetingSegments([])
-  }
-
-  function clearLive(): void {
-    setLiveSegments([])
   }
 
   async function exportTxt(): Promise<void> {
@@ -72,12 +45,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
 
   const value: TranscriptContextValue = {
     meetingSegments,
-    liveSegments,
     mergedMeetingSegments,
-    mergedLiveSegments,
-    liveTranscriptText,
     clearMeeting,
-    clearLive,
     exportTxt,
     exportSrt,
   }

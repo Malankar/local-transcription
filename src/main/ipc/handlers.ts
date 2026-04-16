@@ -5,10 +5,14 @@ import type {
   AppStatus,
   CaptureStartOptions,
   ExportResult,
+  MeetingInputSource,
+  MeetingImportConnectorId,
+  MeetingImportRequest,
   TranscriptSegment,
 } from '../../shared/types'
 import { AudioCapture } from '../audio/AudioCapture'
 import { SourceDiscovery } from '../audio/SourceDiscovery'
+import { MeetingImportService } from '../integrations/googleWorkspace/MeetingImportService'
 import { ChunkQueue } from '../transcription/ChunkQueue'
 import { WhisperEngine } from '../transcription/WhisperEngine'
 import { ModelManager } from '../transcription/ModelManager'
@@ -29,10 +33,12 @@ interface RegisterHandlersOptions {
   getMainWindow: () => BrowserWindow | null
   getTranscriptSegments: () => TranscriptSegment[]
   resetTranscriptSegments: () => void
-  onCaptureStarted: (profile: 'meeting' | 'live', startTime: string) => void
+  onInputAccepted: (event: { source: MeetingInputSource; acceptedAtIso: string }) => void
   onSettingsChanged: (settings: import('../../shared/types').AppSettings) => void
   sendStatus: (status: AppStatus) => void
   sendError: (message: string) => void
+  chunkMeetingFile: (filePath: string) => AsyncIterable<import('../../shared/types').AudioChunk>
+  meetingImportService: MeetingImportService
 }
 
 export function registerIpcHandlers(options: RegisterHandlersOptions): void {
@@ -48,10 +54,12 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     getMainWindow,
     getTranscriptSegments,
     resetTranscriptSegments,
-    onCaptureStarted,
+    onInputAccepted,
     onSettingsChanged,
     sendStatus,
     sendError,
+    chunkMeetingFile,
+    meetingImportService,
   } = options
 
   ipcMain.handle('sources:get', async () => {
@@ -92,9 +100,9 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
       })
       whisperEngine.setModel(selectedModel)
       resetTranscriptSegments()
-      chunkQueue.setMode(captureOptions.profile === 'live' ? 'realtime' : 'default')
+      chunkQueue.setMode('default')
       chunkQueue.clear()
-      onCaptureStarted(captureOptions.profile ?? 'meeting', new Date().toISOString())
+      onInputAccepted({ source: 'record', acceptedAtIso: new Date().toISOString() })
       sendStatus({ stage: 'initializing-model', detail: 'Preparing transcription engine...' })
       audioCapture.start(captureOptions)
       sendStatus({ stage: 'capturing', detail: 'Capturing audio until a natural pause is detected...' })
@@ -110,6 +118,66 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     logger.info('Received capture:stop request')
     audioCapture.stop()
     sendStatus({ stage: 'stopped', detail: 'Capture stopped' })
+  })
+
+  ipcMain.handle('meeting:transcribeFile', async (_event, requestedPath?: string) => {
+    try {
+      const filePath = requestedPath ?? (await selectMeetingFile(getMainWindow()))
+      if (!filePath) {
+        sendStatus({ stage: 'ready', detail: 'Meeting file import canceled.' })
+        return
+      }
+      await queueMeetingFileForTranscription({
+        filePath,
+        inputSource: 'upload',
+        audioCapture,
+        chunkQueue,
+        modelManager,
+        whisperEngine,
+        resetTranscriptSegments,
+        onInputAccepted,
+        sendStatus,
+        chunkMeetingFile,
+        logger,
+      })
+    } catch (error) {
+      const message = toMessage(error)
+      logger.error('Failed to transcribe uploaded meeting file', error)
+      sendError(message)
+      throw error
+    }
+  })
+
+  ipcMain.handle('meetingImport:listConnectors', async () => {
+    return meetingImportService.listConnectors()
+  })
+
+  ipcMain.handle('meetingImport:discover', async (_event, connectorId: MeetingImportConnectorId) => {
+    return meetingImportService.discoverCandidates(connectorId)
+  })
+
+  ipcMain.handle('meetingImport:import', async (_event, request: MeetingImportRequest) => {
+    try {
+      const resolvedPath = await meetingImportService.resolveImportFilePath(request)
+      await queueMeetingFileForTranscription({
+        filePath: resolvedPath,
+        inputSource: 'integration',
+        audioCapture,
+        chunkQueue,
+        modelManager,
+        whisperEngine,
+        resetTranscriptSegments,
+        onInputAccepted,
+        sendStatus,
+        chunkMeetingFile,
+        logger,
+      })
+    } catch (error) {
+      const message = toMessage(error)
+      logger.error('Failed to import meeting from integration', error)
+      sendError(message)
+      throw error
+    }
   })
 
   ipcMain.handle('export:txt', async () => {
@@ -222,6 +290,100 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   })
 }
 
+async function selectMeetingFile(mainWindow: BrowserWindow | null): Promise<string | null> {
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+          { name: 'Audio/Video files', extensions: ['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg', 'mp4', 'mov', 'mkv', 'webm'] },
+        ],
+      })
+    : await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+          { name: 'Audio/Video files', extensions: ['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg', 'mp4', 'mov', 'mkv', 'webm'] },
+        ],
+      })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null
+  }
+
+  return result.filePaths[0]
+}
+
+interface QueueMeetingFileForTranscriptionOptions {
+  filePath: string
+  inputSource: MeetingInputSource
+  audioCapture: AudioCapture
+  chunkQueue: ChunkQueue
+  modelManager: ModelManager
+  whisperEngine: WhisperEngine
+  resetTranscriptSegments: () => void
+  onInputAccepted: (event: { source: MeetingInputSource; acceptedAtIso: string }) => void
+  sendStatus: (status: AppStatus) => void
+  chunkMeetingFile: (filePath: string) => AsyncIterable<import('../../shared/types').AudioChunk>
+  logger: AppLogger
+}
+
+async function queueMeetingFileForTranscription(options: QueueMeetingFileForTranscriptionOptions): Promise<void> {
+  const {
+    filePath,
+    inputSource,
+    audioCapture,
+    chunkQueue,
+    modelManager,
+    whisperEngine,
+    resetTranscriptSegments,
+    onInputAccepted,
+    sendStatus,
+    chunkMeetingFile,
+    logger,
+  } = options
+
+  if (audioCapture.isRunning()) {
+    throw new Error('Stop the current capture before importing a meeting file.')
+  }
+  if (!chunkQueue.isIdle()) {
+    throw new Error('Please wait for current transcription processing to finish before importing a file.')
+  }
+
+  const selectedModelId = await modelManager.getSelectedModel()
+  if (!selectedModelId) {
+    throw new Error('No model selected. Download or configure a transcription model before importing files.')
+  }
+
+  const selectedModel = modelManager.getModel(selectedModelId)
+  if (!selectedModel) {
+    throw new Error(`Selected model "${selectedModelId}" is not available.`)
+  }
+
+  sendStatus({ stage: 'initializing-model', detail: 'Preparing transcription engine...' })
+  whisperEngine.setModel(selectedModel)
+  resetTranscriptSegments()
+  chunkQueue.setMode('default')
+  chunkQueue.clear()
+  onInputAccepted({ source: inputSource, acceptedAtIso: new Date().toISOString() })
+
+  let queuedChunks = 0
+
+  logger.info('Queueing uploaded meeting file for transcription', {
+    filePath,
+    modelId: selectedModel.id,
+  })
+  sendStatus({ stage: 'processing', detail: 'Transcribing uploaded meeting audio...' })
+  for await (const chunk of chunkMeetingFile(filePath)) {
+    chunkQueue.enqueue(chunk)
+    queuedChunks += 1
+  }
+
+  if (queuedChunks === 0) {
+    throw new Error('The selected file does not contain decodable audio.')
+  }
+
+  logger.info('Uploaded meeting file queued', { filePath, chunkCount: queuedChunks, modelId: selectedModel.id })
+}
+
 async function exportTranscript(
   mainWindow: BrowserWindow | null,
   segments: TranscriptSegment[],
@@ -268,5 +430,20 @@ async function exportTranscript(
 
 
 function toMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  if (error instanceof Error) {
+    return error.message
+  }
+  if (typeof error === 'string') {
+    return error
+  }
+  if (typeof error === 'number' || typeof error === 'boolean') {
+    return JSON.stringify(error)
+  }
+  if (error && typeof error === 'object') {
+    return JSON.stringify(error)
+  }
+  if (typeof error === 'undefined') {
+    return 'Unknown error'
+  }
+  return 'Unknown error'
 }

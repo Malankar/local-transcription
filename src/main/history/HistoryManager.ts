@@ -35,7 +35,7 @@ export class HistoryManager {
 
   async saveSession(
     segments: TranscriptSegment[],
-    profile: 'meeting' | 'live',
+    profile: 'meeting',
     captureStartTime: string,
   ): Promise<HistorySessionMeta> {
     await this.ensureDir()
@@ -67,7 +67,7 @@ export class HistoryManager {
   }
 
   /**
-   * All session metas on disk (any profile), newest first. Used for pruning; tests may stub this.
+   * All session metas on disk, newest first. Used for pruning; tests may stub this.
    */
   async readAllMetasSorted(): Promise<HistorySessionMeta[]> {
     await this.ensureDir()
@@ -96,10 +96,8 @@ export class HistoryManager {
     return metas.sort((a, b) => b.startTime.localeCompare(a.startTime))
   }
 
-  /** Library list: meeting transcriptions only (no live-caption archive in History). */
   async listSessions(): Promise<HistorySessionMeta[]> {
-    const metas = await this.readAllMetasSorted()
-    return metas.filter((m) => m.profile === 'meeting')
+    return this.readAllMetasSorted()
   }
 
   async getSession(id: string): Promise<HistorySession | null> {

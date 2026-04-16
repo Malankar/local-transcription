@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import RecordingHubView from '../../../../src/renderer/src/components/RecordingHubView'
 import { installMockApi } from '../testUtils/mockApi'
-import { flushMicrotasks, renderIntoDocument } from '../testUtils/render'
+import { flushMicrotasks } from '../testUtils/render'
 import { renderRendererApp } from '../testUtils/renderRenderer'
 
 describe('RecordingHubView', () => {
@@ -50,12 +50,12 @@ describe('RecordingHubView', () => {
     expect(viewport).not.toBeNull()
 
     const scrollTopSpy = vi.fn()
-    Object.defineProperty(viewport!, 'scrollTop', {
+    Object.defineProperty(viewport, 'scrollTop', {
       configurable: true,
       get: () => 0,
       set: scrollTopSpy,
     })
-    Object.defineProperty(viewport!, 'scrollHeight', {
+    Object.defineProperty(viewport, 'scrollHeight', {
       configurable: true,
       value: 1234,
     })
@@ -72,7 +72,7 @@ describe('RecordingHubView', () => {
     expect(scrollTopSpy).toHaveBeenCalledWith(1234)
   })
 
-  it('starts live capture from the live workspace', async () => {
+  it('starts meeting capture from the default workspace', async () => {
     const startCapture = vi.fn().mockResolvedValue(undefined)
 
     installMockApi({
@@ -105,16 +105,101 @@ describe('RecordingHubView', () => {
     const { container } = await renderRendererApp(<RecordingHubView />)
     await flushMicrotasks()
 
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Live Transcription'))?.click()
-    await flushMicrotasks()
-    Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('title') === 'Start live transcription')?.click()
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Start recording'))?.click()
     await flushMicrotasks()
 
     expect(startCapture).toHaveBeenCalledWith({
-      mode: 'mic',
+      mode: 'mixed',
       systemSourceId: 'system-1',
       micSourceId: 'mic-1',
-      profile: 'live',
     })
+  })
+
+  it('starts uploaded meeting transcription from workspace controls', async () => {
+    const transcribeMeetingFile = vi.fn().mockResolvedValue(undefined)
+
+    installMockApi({
+      transcribeMeetingFile,
+      getSources: vi.fn().mockResolvedValue([
+        { id: 'system-1', label: 'System Audio', isMonitor: true },
+        { id: 'mic-1', label: 'Microphone', isMonitor: false },
+      ]),
+      getModels: vi.fn().mockResolvedValue([
+        {
+          id: 'base',
+          name: 'Base',
+          description: 'Downloaded model',
+          sizeMb: 120,
+          languages: 'en',
+          accuracy: 4,
+          speed: 4,
+          recommended: true,
+          engine: 'whisper' as const,
+          runtime: 'node',
+          runtimeModelName: 'base',
+          downloadManaged: true,
+          supportsGpuAcceleration: false,
+          isDownloaded: true,
+        },
+      ]),
+      getSelectedModel: vi.fn().mockResolvedValue('base'),
+    })
+
+    const { container } = await renderRendererApp(<RecordingHubView />)
+    await flushMicrotasks()
+
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Upload meeting file'))?.click()
+    await flushMicrotasks()
+
+    expect(transcribeMeetingFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders diarized speaker labels in transcript output', async () => {
+    let transcriptListener: ((segment: { id: string; startMs: number; endMs: number; text: string; timestamp: string }) => void) | undefined
+    let statusListener: ((status: { stage: string; detail: string }) => void) | undefined
+
+    installMockApi({
+      onStatus: vi.fn().mockImplementation((listener) => {
+        statusListener = listener
+        return () => undefined
+      }),
+      onTranscriptSegment: vi.fn().mockImplementation((listener) => {
+        transcriptListener = listener
+        return () => undefined
+      }),
+      getModels: vi.fn().mockResolvedValue([
+        {
+          id: 'base',
+          name: 'Base',
+          description: 'Downloaded model',
+          sizeMb: 120,
+          languages: 'en',
+          accuracy: 4,
+          speed: 4,
+          recommended: true,
+          engine: 'whisper' as const,
+          runtime: 'node',
+          runtimeModelName: 'base',
+          downloadManaged: true,
+          supportsGpuAcceleration: false,
+          isDownloaded: true,
+        },
+      ]),
+      getSelectedModel: vi.fn().mockResolvedValue('base'),
+    })
+
+    const { container } = await renderRendererApp(<RecordingHubView />)
+    await flushMicrotasks()
+    statusListener?.({ stage: 'capturing', detail: 'Recording' })
+    transcriptListener?.({
+      id: 'seg-speaker',
+      startMs: 0,
+      endMs: 1200,
+      text: 'Speaker 2: follow up on risks.',
+      timestamp: '2026-04-10T10:00:00Z',
+    })
+    await flushMicrotasks()
+
+    expect(container.textContent).toContain('Speaker 2: follow up on risks.')
   })
 })

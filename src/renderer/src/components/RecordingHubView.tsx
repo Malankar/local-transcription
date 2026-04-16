@@ -15,8 +15,8 @@ import {
 import { cn } from '@/lib/utils'
 import { formatElapsed, getLiveCaptionHint } from '../lib/formatters'
 import { useModelsContext } from '../contexts/ModelsContext'
+import { useNavigationContext } from '../contexts/NavigationContext'
 import { useRecordingContext } from '../contexts/RecordingContext'
-import { useNavigationContext, type RecordingSubView } from '../contexts/NavigationContext'
 import { useTranscriptContext } from '../contexts/TranscriptContext'
 
 // ── Icon ───────────────────────────────────────────────────────────────────
@@ -171,35 +171,10 @@ function SourceControls() {
     systemSourceId, setSystemSourceId,
     micSourceId, setMicSourceId,
     errorMessage,
+    transcribeMeetingFile,
+    isUploadingMeetingFile,
+    isBusy,
   } = useRecordingContext()
-  const { recordingSubView } = useNavigationContext()
-
-  const subView = recordingSubView
-
-  if (subView === 'live') {
-    return (
-      <div className="mb-6 flex flex-col gap-3 border-b border-white/10 bg-transparent px-8 pb-6 pt-0">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="min-w-40 flex-1">
-            <DeviceSelect
-              label="Microphone"
-              value={micSourceId}
-              onChange={setMicSourceId}
-              sources={micSources}
-              placeholder="Select microphone"
-            />
-          </div>
-          <ModelAndRefresh />
-        </div>
-        {errorMessage && (
-          <Alert variant="destructive" className="py-2">
-            <Icon name="error" filled size={13} />
-            <AlertDescription className="text-xs">{errorMessage}</AlertDescription>
-          </Alert>
-        )}
-      </div>
-    )
-  }
 
   const sourceModes: { id: AudioSourceMode; icon: string; label: string }[] = [
     { id: 'system', icon: 'computer', label: 'System' },
@@ -260,6 +235,16 @@ function SourceControls() {
         )}
 
         <ModelAndRefresh />
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-10 gap-1.5"
+          onClick={() => void transcribeMeetingFile()}
+          disabled={isBusy || isUploadingMeetingFile}
+        >
+          <Icon name="upload_file" size={15} />
+          {isUploadingMeetingFile ? 'Uploading...' : 'Upload meeting file'}
+        </Button>
       </div>
 
       {errorMessage && (
@@ -276,7 +261,19 @@ function SourceControls() {
 
 function RecordingView() {
   const { mergedMeetingSegments } = useTranscriptContext()
-  const { isCapturing, captureProfile, isBusy, status, startCapture, stopCapture, mode, systemSourceId, micSourceId } = useRecordingContext()
+  const {
+    isCapturing,
+    captureProfile,
+    isBusy,
+    status,
+    startCapture,
+    stopCapture,
+    transcribeMeetingFile,
+    mode,
+    systemSourceId,
+    micSourceId,
+    isUploadingMeetingFile,
+  } = useRecordingContext()
   const { selectedModel } = useModelsContext()
 
   const transcriptRef = useRef<HTMLDivElement>(null)
@@ -329,7 +326,7 @@ function RecordingView() {
         </div>
         <button
           type="button"
-          onClick={() => void startCapture('meeting')}
+          onClick={() => void startCapture()}
           disabled={!canStart}
           className={cn(
             'flex h-14 items-center gap-3 rounded-full px-10 text-sm font-bold uppercase tracking-[0.14em] text-white transition-all duration-300',
@@ -341,6 +338,16 @@ function RecordingView() {
           <Icon name="play_arrow" filled size={20} />
           Start recording
         </button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-10 px-5"
+          onClick={() => void transcribeMeetingFile()}
+          disabled={isBusy || isUploadingMeetingFile}
+        >
+          <Icon name="upload_file" size={15} />
+          {isUploadingMeetingFile ? 'Uploading...' : 'Upload meeting file'}
+        </Button>
         {!canStart && (
           <p className="max-w-xs text-center text-xs text-[#64748B]">
             {selectedModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
@@ -459,203 +466,12 @@ function RecordingView() {
   )
 }
 
-// ── Live Transcription View ────────────────────────────────────────────────
-
-function LiveTranscriptionView() {
-  const { liveTranscriptText, mergedLiveSegments } = useTranscriptContext()
-  const { isCapturing, captureProfile, isBusy, status, startCapture, stopCapture, micSourceId } = useRecordingContext()
-  const { selectedModel } = useModelsContext()
-
-  const text = liveTranscriptText
-  const isLiveCapturing = isCapturing && captureProfile === 'live'
-  const showProvisionalTail =
-    isLiveCapturing && status.stage === 'processing' && mergedLiveSegments.length > 0
-  const finalizedSegments = showProvisionalTail ? mergedLiveSegments.slice(0, -1) : mergedLiveSegments
-  const provisionalSegment = showProvisionalTail ? mergedLiveSegments.at(-1) : undefined
-  const finalizedText = finalizedSegments
-    .map((s) => s.text)
-    .join(' ')
-    .trim()
-
-  const canStartLive =
-    !isBusy &&
-    !isCapturing &&
-    selectedModel?.isDownloaded === true &&
-    !!micSourceId
-
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (!copied) return undefined
-    const timeout = window.setTimeout(() => setCopied(false), 1500)
-    return () => window.clearTimeout(timeout)
-  }, [copied])
-
-  async function handleCopy(): Promise<void> {
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-  }
-
-  return (
-    <div className="relative min-h-full flex-1 overflow-hidden bg-transparent">
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.035]"
-        style={{
-          backgroundImage: `
-            linear-gradient(to right, #F7931A 1px, transparent 1px),
-            linear-gradient(to bottom, #F7931A 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px',
-        }}
-        aria-hidden
-      />
-      <div className="relative mx-auto flex min-h-full max-w-3xl flex-col items-center justify-center px-8 pb-10 pt-6">
-        <div className="mb-4">
-          <span
-            className={cn(
-              'font-mono text-xs uppercase tracking-[0.2em]',
-              isLiveCapturing ? 'animate-pulse text-red-400' : 'text-[#F7931A]',
-            )}
-          >
-            {isLiveCapturing ? 'Listening' : 'Ready'}
-          </span>
-        </div>
-        <p className="mb-6 max-w-md text-center text-sm text-[#94A3B8]">
-          {isLiveCapturing
-            ? 'Speaking… short windows show up quickly; the faded tail may shift slightly as the next chunk finalizes. Nothing is dropped from the queue.'
-            : 'Tap the mic to start instant live transcription.'}
-        </p>
-        {!isLiveCapturing && !canStartLive && (
-          <p className="mb-4 max-w-md text-center text-xs text-red-400/80">
-            {selectedModel?.isDownloaded ? 'Select an audio source above.' : 'Download a model first (Models tab).'}
-          </p>
-        )}
-
-        <div className="mb-8 w-full max-w-2xl">
-          <div className="relative min-h-[140px] rounded-2xl border border-white/10 bg-[#0F1115]/80 p-5 backdrop-blur-sm">
-            <div
-              role="log"
-              aria-live="polite"
-              aria-busy={isLiveCapturing && status.stage === 'processing'}
-              className={cn(
-                'min-h-[120px] w-full resize-none rounded-xl bg-transparent pr-12 text-base leading-relaxed text-white/90',
-                'whitespace-pre-wrap break-words',
-              )}
-            >
-              {!text.trim() ? (
-                <span className="text-[#64748B]">Your words will appear here...</span>
-              ) : showProvisionalTail ? (
-                <>
-                  {finalizedText ? <span>{finalizedText}</span> : null}
-                  {finalizedText && provisionalSegment ? ' ' : null}
-                  {provisionalSegment ? (
-                    <span className="text-white/55 italic transition-[color,font-style] duration-300">
-                      {provisionalSegment.text}
-                    </span>
-                  ) : null}
-                </>
-              ) : (
-                <span>{text}</span>
-              )}
-            </div>
-            <button
-              type="button"
-              className={cn(
-                'absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-lg transition-all',
-                copied ? 'bg-emerald-500/20 text-emerald-400' : 'text-[#64748B] hover:bg-white/5 hover:text-[#F7931A]',
-                !text.trim() && 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-[#64748B]',
-              )}
-              onClick={() => void handleCopy()}
-              disabled={!text.trim()}
-              title={copied ? 'Copied' : 'Copy text'}
-            >
-              <Icon name={copied ? 'check' : 'content_copy'} size={16} />
-            </button>
-            {isLiveCapturing && (
-              <div className="absolute bottom-4 left-5 flex items-center gap-1" aria-hidden>
-                {[0, 150, 300].map((delay) => (
-                  <div
-                    key={delay}
-                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#F7931A]"
-                    style={{ animationDelay: `${delay}ms` }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex w-full max-w-2xl items-center justify-center gap-8">
-          <button
-            type="button"
-            className={cn(
-              'relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full transition-all duration-300',
-              isLiveCapturing
-                ? 'bg-red-500 text-white shadow-[0_0_40px_-5px_rgba(239,68,68,0.55)]'
-                : canStartLive
-                  ? 'bg-gradient-to-br from-[#EA580C] to-[#F7931A] text-white shadow-[0_0_40px_-5px_rgba(247,147,26,0.45)] hover:scale-105 hover:shadow-[0_0_50px_-5px_rgba(247,147,26,0.55)]'
-                  : 'border border-white/10 bg-[#1E293B] text-[#94A3B8] opacity-60',
-            )}
-            onClick={isLiveCapturing ? () => void stopCapture() : () => void startCapture('live')}
-            disabled={isLiveCapturing ? isBusy : !canStartLive}
-            title={isLiveCapturing ? 'Stop live transcription' : 'Start live transcription'}
-          >
-            <Icon name={isLiveCapturing ? 'stop' : 'mic'} filled size={26} />
-            {isLiveCapturing && (
-              <>
-                <span className="absolute inset-0 rounded-full border-2 border-red-400/40 opacity-20 animate-ping" />
-                <span className="absolute inset-[-8px] rounded-full border border-red-400/25 animate-pulse" />
-              </>
-            )}
-          </button>
-
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <span
-              className={cn(
-                'rounded border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider',
-                isLiveCapturing
-                  ? 'border-red-500/30 bg-red-500/20 text-red-400'
-                  : 'border-[#F7931A]/30 bg-[#F7931A]/10 text-[#F7931A]',
-              )}
-            >
-              {status.stage}
-            </span>
-            <span className="font-mono text-sm text-[#64748B]">
-              {isLiveCapturing ? 'Tap to stop' : 'Tap mic to begin'}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            className={cn(
-              'flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#1E293B] text-[#94A3B8] transition-all',
-              isLiveCapturing && 'hover:border-white/20 hover:text-white',
-            )}
-            onClick={() => void stopCapture()}
-            disabled={!isLiveCapturing || isBusy}
-            title="Stop"
-          >
-            <Icon name="close" size={22} />
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── RecordingHubView ───────────────────────────────────────────────────────
 
 export default function RecordingHubView() {
-  const { recordingSubView, setRecordingSubView } = useNavigationContext()
   const { isCapturing } = useRecordingContext()
-
-  const subView = recordingSubView
-
-  const pageEyebrow = subView === 'meetings' ? 'Transcription Workspace' : 'Low-Latency Capture'
-  const pageDescription =
-    subView === 'meetings'
-      ? 'Capture longer sessions locally with saved transcripts, exports, and post-processing.'
-      : 'Convert speech into live local text with the fastest response profile.'
+  const pageEyebrow = 'Transcription Workspace'
+  const pageDescription = 'Capture longer sessions locally with saved transcripts, exports, and post-processing.'
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -665,44 +481,21 @@ export default function RecordingHubView() {
           <span aria-hidden className="text-white/20">
             |
           </span>
-          <span>{subView === 'meetings' ? 'Meeting Recording' : 'Live Transcription'}</span>
+          <span>Meeting Recording</span>
         </div>
         <p className="mb-2 font-mono text-xs font-medium uppercase tracking-[0.28em] text-[#F7931A]">
           {pageEyebrow}
         </p>
         <h2 className="font-heading mb-2 text-4xl font-bold tracking-tight text-white">
-          {subView === 'meetings' ? 'Meeting Recording' : 'Live Transcription'}
+          Meeting Recording
         </h2>
         <p className="max-w-xl text-sm leading-relaxed text-[#94A3B8]">{pageDescription}</p>
       </div>
 
-      <div className="shrink-0 px-8 pb-6">
-        <div className="inline-flex rounded-full border border-white/10 bg-[#0F1115] p-1">
-          {[
-            { id: 'meetings' as RecordingSubView, label: 'Meeting Recording' },
-            { id: 'live' as RecordingSubView, label: 'Live Transcription' },
-          ].map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={cn(
-                'rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-200',
-                subView === item.id
-                  ? 'bg-gradient-to-r from-[#EA580C] to-[#F7931A] text-white shadow-[0_0_20px_-5px_rgba(234,88,12,0.45)]'
-                  : 'text-[#94A3B8] hover:text-white',
-              )}
-              onClick={() => setRecordingSubView(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {(!isCapturing || recordingSubView === 'live') && <SourceControls />}
+      {!isCapturing && <SourceControls />}
 
       <div className="min-h-0 flex-1">
-        {subView === 'meetings' ? <RecordingView /> : <LiveTranscriptionView />}
+        <RecordingView />
       </div>
     </div>
   )

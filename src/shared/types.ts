@@ -102,6 +102,22 @@ export type HistoryAutoDelete =
   | 'older-than-30d'
   | 'older-than-90d'
 
+export type AssistantProviderId =
+  | 'local'
+  | 'openai-gpt4'
+  | 'openai-gpt4mini'
+  | 'anthropic-sonnet'
+  | 'anthropic-opus'
+  | 'gemini-pro'
+  | 'gemini-flash'
+
+/** UI-only flags (ref settings modal); assistant IPC not wired yet. */
+export interface UiFeatureFlags {
+  enableExternalAssistant: boolean
+  enableIntegrations: boolean
+  assistantProvider: AssistantProviderId
+}
+
 export interface AppSettings {
   // General
   startHidden: boolean
@@ -114,6 +130,7 @@ export interface AppSettings {
   historyLimit: number             // max sessions to keep, 0 = unlimited, default 5
   autoDeleteRecordings: HistoryAutoDelete
   keepStarredUntilDeleted: boolean
+  uiFeatures: UiFeatureFlags
 }
 
 export interface HistorySession extends HistorySessionMeta {

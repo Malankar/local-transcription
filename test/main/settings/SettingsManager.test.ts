@@ -31,6 +31,8 @@ describe('SettingsManager', () => {
       const settings = await settingsManager.getSettings()
       expect(settings.historyLimit).toBe(5)
       expect(settings.startHidden).toBe(false)
+      expect(settings.uiFeatures.assistantProvider).toBe('local')
+      expect(settings.uiFeatures.enableExternalAssistant).toBe(false)
     })
 
     it('loads settings from file', async () => {
@@ -73,6 +75,17 @@ describe('SettingsManager', () => {
       expect(settings.showTrayIcon).toBe(true)
       expect(settings.muteWhileRecording).toBe(false)
     })
+
+    it('merges partial uiFeatures with defaults', async () => {
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({ uiFeatures: { enableExternalAssistant: true } }),
+      )
+
+      const settings = await settingsManager.getSettings()
+      expect(settings.uiFeatures.enableExternalAssistant).toBe(true)
+      expect(settings.uiFeatures.enableIntegrations).toBe(false)
+      expect(settings.uiFeatures.assistantProvider).toBe('local')
+    })
   })
 
   describe('updateSettings', () => {
@@ -102,6 +115,20 @@ describe('SettingsManager', () => {
 
       expect(updated.historyLimit).toBe(7)  // preserved from previous update
       expect(updated.startHidden).toBe(true) // newly updated
+    })
+
+    it('merges nested uiFeatures on update', async () => {
+      vi.mocked(readFile).mockRejectedValue(new Error('ENOENT'))
+
+      await settingsManager.updateSettings({
+        uiFeatures: { enableExternalAssistant: true },
+      })
+      const updated = await settingsManager.updateSettings({
+        uiFeatures: { assistantProvider: 'openai-gpt4' },
+      })
+
+      expect(updated.uiFeatures.enableExternalAssistant).toBe(true)
+      expect(updated.uiFeatures.assistantProvider).toBe('openai-gpt4')
     })
 
     it('multiple sequential updates accumulate correctly', async () => {

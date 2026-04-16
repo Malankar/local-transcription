@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { HistoryAutoDelete } from '../types'
+import type { AssistantProviderId, HistoryAutoDelete } from '../types'
 import { useSettingsContext } from '../contexts/SettingsContext'
 import { Switch } from './ui/switch'
 import {
@@ -77,9 +77,19 @@ const HISTORY_LIMIT_OPTIONS = [
   { value: '100', label: '100 sessions' },
 ]
 
+const ASSISTANT_PROVIDER_OPTIONS: { value: AssistantProviderId; label: string }[] = [
+  { value: 'local', label: 'Local (default)' },
+  { value: 'openai-gpt4', label: 'OpenAI GPT-4' },
+  { value: 'openai-gpt4mini', label: 'OpenAI GPT-4 Mini' },
+  { value: 'anthropic-sonnet', label: 'Anthropic Claude 3.5 Sonnet' },
+  { value: 'anthropic-opus', label: 'Anthropic Claude 3 Opus' },
+  { value: 'gemini-pro', label: 'Google Gemini Pro' },
+  { value: 'gemini-flash', label: 'Google Gemini Flash' },
+]
+
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function SettingsView() {
+export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' }) {
   const { settings, updateSettings, settingsSaving } = useSettingsContext()
   const [shortcutInput, setShortcutInput] = useState(settings?.voiceToTextShortcut ?? '')
   const [shortcutEditing, setShortcutEditing] = useState(false)
@@ -114,32 +124,46 @@ export function SettingsView() {
     }
   }
 
+  const pageShell = variant === 'page'
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto p-8">
-      <div className="mx-auto w-full max-w-3xl space-y-8">
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-widest text-[#F7931A]">Preferences</p>
-          <h1 className="font-heading mb-2 text-4xl font-bold text-white">Settings</h1>
-          <p className="text-sm text-[#94A3B8]">Configure application behaviour and history management.</p>
-        </div>
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#F7931A]/30 bg-[#F7931A]/10 text-[#F7931A]">
-          <span
-            className="material-symbols-outlined"
-            style={{
-              fontSize: 20,
-              fontVariationSettings: `'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
-              userSelect: 'none',
-              lineHeight: 1,
-              display: 'inline-flex',
-              alignItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            settings
-          </span>
-        </div>
-      </div>
+    <div
+      className={
+        pageShell
+          ? 'flex min-h-0 flex-1 flex-col overflow-auto p-8'
+          : 'flex flex-col overflow-visible p-4 pb-6'
+      }
+    >
+      <div className={pageShell ? 'mx-auto w-full max-w-3xl space-y-8' : 'w-full space-y-6'}>
+        {pageShell ? (
+          <div className="mb-8 flex items-start justify-between gap-4">
+            <div>
+              <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-widest text-[#F7931A]">
+                Preferences
+              </p>
+              <h1 className="font-heading mb-2 text-4xl font-bold text-white">Settings</h1>
+              <p className="text-sm text-[#94A3B8]">
+                Configure application behaviour and history management.
+              </p>
+            </div>
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#F7931A]/30 bg-[#F7931A]/10 text-[#F7931A]">
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  fontSize: 20,
+                  fontVariationSettings: `'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
+                  userSelect: 'none',
+                  lineHeight: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                settings
+              </span>
+            </div>
+          </div>
+        ) : null}
 
       {/* ── General ── */}
       <section>
@@ -302,6 +326,67 @@ export function SettingsView() {
             <Switch
               checked={settings.keepStarredUntilDeleted}
               onCheckedChange={(v) => updateSettings({ keepStarredUntilDeleted: v })}
+              disabled={settingsSaving}
+            />
+          </SettingRow>
+        </div>
+      </section>
+
+      <section>
+        <SectionLabel>Assistant &amp; integrations</SectionLabel>
+        <div className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-[#0F1115]">
+          <SettingRow
+            label="Assistant provider"
+            description="Reserved for a future assistant backend. Transcription stays local today."
+          >
+            <Select
+              value={settings.uiFeatures.assistantProvider}
+              onValueChange={(v) =>
+                updateSettings({
+                  uiFeatures: { ...settings.uiFeatures, assistantProvider: v as AssistantProviderId },
+                })
+              }
+              disabled={settingsSaving}
+            >
+              <SelectTrigger className="h-10 min-w-[180px] border-[#030304] bg-[#030304] text-xs text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ASSISTANT_PROVIDER_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+
+          <SettingRow
+            label="Enable external assistant"
+            description="Opt in to cloud assist when an assistant service is wired up (not available yet)."
+          >
+            <Switch
+              checked={settings.uiFeatures.enableExternalAssistant}
+              onCheckedChange={(v) =>
+                updateSettings({
+                  uiFeatures: { ...settings.uiFeatures, enableExternalAssistant: v },
+                })
+              }
+              disabled={settingsSaving}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Third-party integrations"
+            description="Reserved for exports to external services (Notion, Drive, etc.)."
+          >
+            <Switch
+              checked={settings.uiFeatures.enableIntegrations}
+              onCheckedChange={(v) =>
+                updateSettings({
+                  uiFeatures: { ...settings.uiFeatures, enableIntegrations: v },
+                })
+              }
               disabled={settingsSaving}
             />
           </SettingRow>

@@ -1,5 +1,6 @@
 export type {
   AppSettings,
+  AssistantProviderId,
   AppStatus,
   AudioSource,
   AudioSourceMode,
@@ -10,5 +11,6 @@ export type {
   ModelDownloadProgress,
   TranscriptionModel,
   TranscriptSegment,
+  UiFeatureFlags,
   WhisperModel,
 } from '../../shared/types'

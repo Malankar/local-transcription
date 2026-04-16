@@ -7,7 +7,7 @@ import { renderRendererApp } from '../testUtils/renderRenderer'
 
 describe('SettingsView', () => {
   it('updates the voice shortcut and toggles general settings', async () => {
-    const setSettings = vi.fn().mockImplementation(async (partial) => ({
+    const base = {
       startHidden: false,
       launchOnStartup: false,
       showTrayIcon: true,
@@ -15,9 +15,21 @@ describe('SettingsView', () => {
       voiceToTextShortcut: 'Control+Shift+T',
       muteWhileRecording: false,
       historyLimit: 10,
-      autoDeleteRecordings: 'never',
+      autoDeleteRecordings: 'never' as const,
       keepStarredUntilDeleted: true,
+      uiFeatures: {
+        enableExternalAssistant: false,
+        enableIntegrations: false,
+        assistantProvider: 'local' as const,
+      },
+    }
+    const setSettings = vi.fn().mockImplementation(async (partial: Record<string, unknown>) => ({
+      ...base,
       ...partial,
+      uiFeatures: {
+        ...base.uiFeatures,
+        ...(partial.uiFeatures as object),
+      },
     }))
 
     installMockApi({
@@ -31,6 +43,11 @@ describe('SettingsView', () => {
         historyLimit: 10,
         autoDeleteRecordings: 'never',
         keepStarredUntilDeleted: true,
+        uiFeatures: {
+          enableExternalAssistant: false,
+          enableIntegrations: false,
+          assistantProvider: 'local',
+        },
       }),
       setSettings,
       platform: 'darwin',

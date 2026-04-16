@@ -6,10 +6,16 @@ import type {
   LocalTranscribeApi,
   ModelDownloadProgress,
   TranscriptionModel,
+  UiFeatureFlags,
 } from '../../../../src/shared/types'
 import { vi } from 'vitest'
 
 export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): LocalTranscribeApi {
+  const defaultUiFeatures: UiFeatureFlags = {
+    enableExternalAssistant: false,
+    enableIntegrations: false,
+    assistantProvider: 'local',
+  }
   const defaultSettings: AppSettings = {
     startHidden: false,
     launchOnStartup: false,
@@ -20,6 +26,7 @@ export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): Loca
     historyLimit: 10,
     autoDeleteRecordings: 'never',
     keepStarredUntilDeleted: true,
+    uiFeatures: defaultUiFeatures,
   }
 
   const exportResult: ExportResult = { canceled: false, path: '/tmp/transcript.txt' }
@@ -50,10 +57,16 @@ export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): Loca
     exportHistorySrt: vi.fn().mockResolvedValue(exportResult),
     onHistorySaved: vi.fn().mockReturnValue(() => undefined),
     getSettings: vi.fn().mockResolvedValue(defaultSettings),
-    setSettings: vi.fn().mockImplementation(async (partial: Partial<AppSettings>) => ({
-      ...defaultSettings,
-      ...partial,
-    })),
+    setSettings: vi.fn().mockImplementation(async (partial: Partial<AppSettings>) => {
+      const next: AppSettings = {
+        ...defaultSettings,
+        ...partial,
+        uiFeatures: partial.uiFeatures
+          ? { ...defaultSettings.uiFeatures, ...partial.uiFeatures }
+          : defaultSettings.uiFeatures,
+      }
+      return next
+    }),
     platform: 'linux',
     ...overrides,
   }

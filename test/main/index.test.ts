@@ -133,6 +133,11 @@ const mainMocks = vi.hoisted(() => {
       historyLimit: 5,
       autoDeleteRecordings: 'never',
       keepStarredUntilDeleted: true,
+      uiFeatures: {
+        enableExternalAssistant: false,
+        enableIntegrations: false,
+        assistantProvider: 'local',
+      },
     }),
     updateSettings: vi.fn(),
   }

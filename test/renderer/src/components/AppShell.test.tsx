@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import AppShell from '../../../../src/renderer/src/components/AppShell'
 import { installMockApi } from '../testUtils/mockApi'
-import { flushMicrotasks, renderIntoDocument } from '../testUtils/render'
+import { flushMicrotasks } from '../testUtils/render'
 import { renderRendererApp } from '../testUtils/renderRenderer'
 
 vi.mock('../../../../src/renderer/src/components/RecordingHubView', () => ({
@@ -11,17 +11,13 @@ vi.mock('../../../../src/renderer/src/components/RecordingHubView', () => ({
 vi.mock('../../../../src/renderer/src/components/ModelsView', () => ({
   ModelsView: () => <div>Models Stub</div>,
 }))
-vi.mock('../../../../src/renderer/src/components/HistoryView', () => ({
-  HistoryView: () => <div>History Stub</div>,
-}))
-vi.mock('../../../../src/renderer/src/components/SettingsView', () => ({
-  SettingsView: () => <div>Settings Stub</div>,
-}))
 
 describe('AppShell', () => {
   it('navigates between views and responds to capture state', async () => {
     let statusListener: ((status: { stage: string; detail: string }) => void) | undefined
-    let transcriptListener: ((segment: { id: string; startMs: number; endMs: number; text: string; timestamp: string }) => void) | undefined
+    let transcriptListener:
+      | ((segment: { id: string; startMs: number; endMs: number; text: string; timestamp: string }) => void)
+      | undefined
 
     installMockApi({
       onStatus: vi.fn().mockImplementation((listener) => {
@@ -39,16 +35,14 @@ describe('AppShell', () => {
     await flushMicrotasks()
 
     expect(container.textContent).toContain('Recording Stub')
-    expect(container.textContent).toContain('Meeting Recording')
+    expect(container.textContent).toContain('LocalTranscribe')
 
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('History'))?.click()
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Library'))?.click()
     await flushMicrotasks()
-    expect(container.textContent).toContain('Session History')
-    expect(container.textContent).toContain('History Stub')
+    expect(container.textContent).toContain('Transcriptions')
 
     statusListener?.({ stage: 'capturing', detail: 'Running' })
     await flushMicrotasks()
-    expect(container.textContent).toContain('Meeting Recording')
     expect(container.textContent).toContain('Recording Stub')
 
     transcriptListener?.({
@@ -63,6 +57,6 @@ describe('AppShell', () => {
     statusListener?.({ stage: 'stopped', detail: 'Done' })
     await flushMicrotasks()
 
-    expect(container.textContent).toContain('Session History')
+    expect(container.textContent).toContain('Transcriptions')
   })
 })

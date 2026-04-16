@@ -1,0 +1,97 @@
+import { useEffect, useMemo } from 'react'
+
+import { useHistoryContext } from '../contexts/HistoryContext'
+import { useNavigationContext } from '../contexts/NavigationContext'
+import { formatClock, formatSessionDate, formatDuration } from '../lib/formatters'
+import { mergeTranscriptSegments } from '../lib/transcriptMerge'
+import { SessionTranscriptViewer } from './SessionTranscriptViewer'
+import { LibraryAssistantPanel } from './LibraryAssistantPanel'
+
+export function LibrarySurface() {
+  const { mainTab } = useNavigationContext()
+  const {
+    historySessions,
+    selectedHistoryId,
+    selectedSession,
+    selectSession,
+    deleteSession,
+    exportSessionTxt,
+    exportSessionSrt,
+  } = useHistoryContext()
+
+  useEffect(() => {
+    if (mainTab !== 'library') return
+    if (selectedHistoryId === null && historySessions.length > 0) {
+      selectSession(historySessions[0].id)
+    }
+  }, [mainTab, selectedHistoryId, historySessions, selectSession])
+
+  const segments = selectedSession ? mergeTranscriptSegments(selectedSession.segments) : []
+
+  const transcriptPlain = useMemo(
+    () =>
+      segments
+        .map((s) => s.text.trim())
+        .filter(Boolean)
+        .join('\n\n'),
+    [segments],
+  )
+
+  const summaryText = selectedSession?.preview?.trim()
+    ? selectedSession.preview
+    : 'No summary yet. Assistant summaries are not available in this build.'
+
+  return (
+    <div className="flex h-full min-h-0 bg-background">
+      <div className="w-64 shrink-0 overflow-y-auto border-r border-border bg-muted/30">
+        <div className="space-y-2 p-4">
+          <h3 className="mb-4 px-1 text-xs font-semibold uppercase text-muted-foreground">
+            Transcriptions
+          </h3>
+          {historySessions.length === 0 ? (
+            <p className="px-1 text-sm text-muted-foreground">No saved sessions yet.</p>
+          ) : (
+            historySessions.map((session) => (
+              <button
+                key={session.id}
+                type="button"
+                onClick={() => selectSession(session.id)}
+                className={`w-full rounded-lg p-3 text-left transition-colors ${
+                  selectedHistoryId === session.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-foreground hover:bg-muted'
+                }`}
+              >
+                <h3 className="truncate text-sm font-medium">{session.label}</h3>
+                <p className="mt-1 text-xs opacity-70">
+                  {formatSessionDate(session.startTime)} • {formatClock(session.durationMs)}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {selectedSession ? (
+        <>
+          <SessionTranscriptViewer
+            title={selectedSession.label}
+            dateLabel={formatSessionDate(selectedSession.startTime)}
+            durationLabel={formatDuration(selectedSession.durationMs)}
+            summaryText={summaryText}
+            segments={segments}
+            transcriptPlain={transcriptPlain}
+            onExportTxt={() => void exportSessionTxt()}
+            onExportSrt={() => void exportSessionSrt()}
+            onDelete={() => void deleteSession(selectedSession.id)}
+          />
+          <LibraryAssistantPanel />
+        </>
+      ) : (
+        <div className="flex flex-1 items-center justify-center text-muted-foreground">
+          Select a session to view transcript
+        </div>
+      )}
+    </div>
+  )
+}

@@ -72,7 +72,7 @@ describe('RecordingHubView', () => {
     expect(scrollTopSpy).toHaveBeenCalledWith(1234)
   })
 
-  it('starts live capture from the live workspace', async () => {
+  it('starts meeting capture from the record workspace', async () => {
     const startCapture = vi.fn().mockResolvedValue(undefined)
 
     installMockApi({
@@ -105,16 +105,16 @@ describe('RecordingHubView', () => {
     const { container } = await renderRendererApp(<RecordingHubView />)
     await flushMicrotasks()
 
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Live Transcription'))?.click()
-    await flushMicrotasks()
-    Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('title') === 'Start live transcription')?.click()
+    Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Start Recording'))
+      ?.click()
     await flushMicrotasks()
 
     expect(startCapture).toHaveBeenCalledWith({
-      mode: 'mic',
+      mode: 'mixed',
       systemSourceId: 'system-1',
       micSourceId: 'mic-1',
-      profile: 'live',
+      profile: 'meeting',
     })
   })
 })

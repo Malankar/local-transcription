@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AssistantProviderId, HistoryAutoDelete } from '../types'
 import { useSettingsContext } from '../contexts/SettingsContext'
+import { ModelLibrarySection } from './ModelsView'
 import { Switch } from './ui/switch'
 import {
   Select,
@@ -27,13 +28,13 @@ function SettingRow({
   return (
     <div
       className={cn(
-        'flex items-start justify-between gap-4 px-6 py-5 transition-colors hover:bg-white/[0.02]',
+        'flex items-start justify-between gap-4 px-6 py-5 transition-colors hover:bg-muted/30',
         disabled && 'opacity-50',
       )}
     >
       <div className="min-w-0 pr-4">
-        <h3 className="mb-0.5 text-sm font-medium text-white">{label}</h3>
-        {description && <p className="text-sm leading-snug text-[#94A3B8]">{description}</p>}
+        <h3 className="mb-0.5 text-sm font-medium text-foreground">{label}</h3>
+        {description && <p className="text-sm leading-snug text-muted-foreground">{description}</p>}
       </div>
       <div className="shrink-0 self-center">{children}</div>
     </div>
@@ -42,9 +43,7 @@ function SettingRow({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-4 font-mono text-xs font-semibold uppercase tracking-widest text-[#F7931A]">
-      {children}
-    </h2>
+    <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">{children}</h2>
   )
 }
 
@@ -125,6 +124,8 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
   }
 
   const pageShell = variant === 'page'
+  const surfaceCard = 'divide-y divide-border overflow-hidden rounded-lg border border-border bg-card'
+  const selectTriggerClass = 'h-10 min-w-[140px] border-input bg-background text-xs text-foreground'
 
   return (
     <div
@@ -138,15 +139,15 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
         {pageShell ? (
           <div className="mb-8 flex items-start justify-between gap-4">
             <div>
-              <p className="mb-2 font-mono text-xs font-semibold uppercase tracking-widest text-[#F7931A]">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Preferences
               </p>
-              <h1 className="font-heading mb-2 text-4xl font-bold text-white">Settings</h1>
-              <p className="text-sm text-[#94A3B8]">
+              <h1 className="font-heading mb-2 text-4xl font-bold tracking-tight text-foreground">Settings</h1>
+              <p className="text-sm text-muted-foreground">
                 Configure application behaviour and history management.
               </p>
             </div>
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#F7931A]/30 bg-[#F7931A]/10 text-[#F7931A]">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-border bg-muted text-foreground">
               <span
                 className="material-symbols-outlined"
                 style={{
@@ -168,7 +169,7 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
       {/* ── General ── */}
       <section>
         <SectionLabel>General</SectionLabel>
-        <div className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-[#0F1115]">
+        <div className={surfaceCard}>
           <SettingRow
             label="Start hidden"
             description="Launch minimised to the tray instead of showing the window."
@@ -219,7 +220,7 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
               onValueChange={(v) => updateSettings({ unloadModelAfterMinutes: Number(v) })}
               disabled={settingsSaving}
             >
-              <SelectTrigger className="h-10 min-w-[140px] border-[#030304] bg-[#030304] text-xs text-white">
+              <SelectTrigger className={cn(selectTriggerClass, 'min-w-[140px]')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -239,12 +240,12 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
             <div className="flex items-center gap-2">
               <div
                 className={cn(
-                  'flex h-10 items-center rounded-xl border border-white/10 bg-[#030304] px-4 font-mono text-sm text-white outline-none transition-colors',
-                  shortcutEditing ? 'border-[#F7931A]/50 ring-1 ring-[#F7931A]/30' : 'hover:border-white/20',
+                  'flex h-10 items-center rounded-xl border border-input bg-background px-4 font-mono text-sm text-foreground outline-none transition-colors',
+                  shortcutEditing ? 'ring-1 ring-ring' : 'hover:border-muted-foreground/30',
                 )}
               >
                 <input
-                  className="min-w-[10rem] flex-1 bg-transparent text-sm font-mono text-white outline-none"
+                  className="min-w-[10rem] flex-1 bg-transparent text-sm font-mono text-foreground outline-none"
                   readOnly
                   value={shortcutEditing ? 'Press keys…' : shortcutInput}
                   onFocus={() => setShortcutEditing(true)}
@@ -252,9 +253,7 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
                   onKeyDown={handleShortcutKeyDown}
                 />
               </div>
-              {!shortcutEditing && (
-                <span className="text-xs text-[#94A3B8]">edit</span>
-              )}
+              {!shortcutEditing && <span className="text-xs text-muted-foreground">edit</span>}
             </div>
           </SettingRow>
 
@@ -271,10 +270,26 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
         </div>
       </section>
 
+      {/* ── Transcription models ── */}
+      <section>
+        <SectionLabel>Transcription models</SectionLabel>
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
+          <div className="border-b border-border px-6 py-4">
+            <p className="text-sm leading-snug text-muted-foreground">
+              Download and select Whisper weights for local transcription. The chosen model is used the next time you
+              start recording.
+            </p>
+          </div>
+          <div className="p-4 sm:p-6">
+            <ModelLibrarySection />
+          </div>
+        </div>
+      </section>
+
       {/* ── History ── */}
       <section>
         <SectionLabel>History</SectionLabel>
-        <div className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-[#0F1115]">
+        <div className={surfaceCard}>
           <SettingRow
             label="Session limit"
             description="Maximum number of recording sessions to keep on disk."
@@ -284,7 +299,7 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
               onValueChange={(v) => updateSettings({ historyLimit: Number(v) })}
               disabled={settingsSaving}
             >
-              <SelectTrigger className="h-10 min-w-[140px] border-[#030304] bg-[#030304] text-xs text-white">
+              <SelectTrigger className={cn(selectTriggerClass, 'min-w-[140px]')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -306,7 +321,7 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
               onValueChange={(v) => updateSettings({ autoDeleteRecordings: v as HistoryAutoDelete })}
               disabled={settingsSaving}
             >
-              <SelectTrigger className="h-10 min-w-[160px] border-[#030304] bg-[#030304] text-xs text-white">
+              <SelectTrigger className={cn(selectTriggerClass, 'min-w-[160px]')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -334,7 +349,7 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
 
       <section>
         <SectionLabel>Assistant &amp; integrations</SectionLabel>
-        <div className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-[#0F1115]">
+        <div className={surfaceCard}>
           <SettingRow
             label="Assistant provider"
             description="Reserved for a future assistant backend. Transcription stays local today."
@@ -348,7 +363,7 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
               }
               disabled={settingsSaving}
             >
-              <SelectTrigger className="h-10 min-w-[180px] border-[#030304] bg-[#030304] text-xs text-white">
+              <SelectTrigger className={cn(selectTriggerClass, 'min-w-[180px]')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -393,9 +408,7 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
         </div>
       </section>
 
-      {settingsSaving && (
-        <p className="text-center text-[11px] text-[#64748B]">Saving…</p>
-      )}
+      {settingsSaving && <p className="text-center text-[11px] text-muted-foreground">Saving…</p>}
       </div>
     </div>
   )

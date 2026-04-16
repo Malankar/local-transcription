@@ -42,7 +42,7 @@ interface RecordingContextValue {
 const RecordingContext = createContext<RecordingContextValue | null>(null)
 
 export function RecordingProvider({ children }: { children: ReactNode }) {
-  const { navigateTo, setRecordingSubView } = useNavigationContext()
+  const { navigateTo } = useNavigationContext()
 
   const [sources, setSources] = useState<AudioSource[]>([])
   const [mode, setMode] = useState<AudioSourceMode>('mixed')
@@ -66,7 +66,6 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   async function startCapture(profile: CaptureProfile = 'meeting'): Promise<void> {
     setErrorMessage('')
     setCaptureProfile(profile)
-    setRecordingSubView(profile === 'live' ? 'live' : 'meetings')
     navigateTo('recording')
     setIsBusy(true)
     try {

@@ -12,6 +12,7 @@ describe('App', () => {
     await flushMicrotasks()
 
     expect(container.textContent).toContain('Transcribe')
-    expect(container.textContent).toContain('Ready to record a meeting')
+    expect(container.textContent).toContain('Start Recording')
+    expect(container.textContent).toContain('Your transcript will appear here')
   })
 })

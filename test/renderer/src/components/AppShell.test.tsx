@@ -5,11 +5,8 @@ import { installMockApi } from '../testUtils/mockApi'
 import { flushMicrotasks } from '../testUtils/render'
 import { renderRendererApp } from '../testUtils/renderRenderer'
 
-vi.mock('../../../../src/renderer/src/components/RecordingHubView', () => ({
+vi.mock('../../../../src/renderer/src/components/RecordSurface', () => ({
   default: () => <div>Recording Stub</div>,
-}))
-vi.mock('../../../../src/renderer/src/components/ModelsView', () => ({
-  ModelsView: () => <div>Models Stub</div>,
 }))
 
 describe('AppShell', () => {
@@ -35,7 +32,7 @@ describe('AppShell', () => {
     await flushMicrotasks()
 
     expect(container.textContent).toContain('Recording Stub')
-    expect(container.textContent).toContain('LocalTranscribe')
+    expect(container.textContent).toContain('Transcribe')
 
     Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Library'))?.click()
     await flushMicrotasks()

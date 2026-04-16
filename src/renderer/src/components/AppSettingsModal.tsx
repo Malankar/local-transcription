@@ -16,17 +16,25 @@ export function AppSettingsModal({ onClose }: AppSettingsModalProps) {
       aria-modal="true"
       aria-labelledby="settings-modal-title"
     >
-      <Card className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden shadow-lg">
-        <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
-          <h2 id="settings-modal-title" className="text-lg font-semibold">
+      <Card className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden p-0 shadow-lg">
+        <div className="flex shrink-0 items-center justify-between border-b border-border p-6 pb-4">
+          <h2 id="settings-modal-title" className="text-xl font-semibold">
             Settings
           </h2>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} className="shrink-0" title="Close">
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 shrink-0 p-0" title="Close">
             <X className="h-4 w-4" />
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <SettingsView variant="modal" />
+        </div>
+        <div className="flex shrink-0 gap-3 border-t border-border p-6 pt-4">
+          <Button variant="outline" onClick={onClose} className="flex-1">
+            Cancel
+          </Button>
+          <Button variant="outline" onClick={onClose} className="flex-1 border-foreground/25 font-medium">
+            Save Settings
+          </Button>
         </div>
       </Card>
     </div>

@@ -2,10 +2,10 @@ import { useEffect, useMemo } from 'react'
 
 import { useHistoryContext } from '../contexts/HistoryContext'
 import { useNavigationContext } from '../contexts/NavigationContext'
-import { formatClock, formatSessionDate, formatDuration } from '../lib/formatters'
+import { formatClock, formatSessionDate } from '../lib/formatters'
 import { mergeTranscriptSegments } from '../lib/transcriptMerge'
-import { SessionTranscriptViewer } from './SessionTranscriptViewer'
-import { LibraryAssistantPanel } from './LibraryAssistantPanel'
+import { TranscriptViewer } from './TranscriptViewer'
+import { ChatAssistant } from './ChatAssistant'
 
 export function LibrarySurface() {
   const { mainTab } = useNavigationContext()
@@ -56,10 +56,10 @@ export function LibrarySurface() {
                 key={session.id}
                 type="button"
                 onClick={() => selectSession(session.id)}
-                className={`w-full rounded-lg p-3 text-left transition-colors ${
+                className={`w-full rounded-lg border p-3 text-left transition-colors ${
                   selectedHistoryId === session.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-foreground hover:bg-muted'
+                    ? 'border-border bg-muted font-medium text-foreground shadow-sm'
+                    : 'border-transparent text-foreground hover:bg-muted/80'
                 }`}
               >
                 <h3 className="truncate text-sm font-medium">{session.label}</h3>
@@ -74,18 +74,22 @@ export function LibrarySurface() {
 
       {selectedSession ? (
         <>
-          <SessionTranscriptViewer
+          <TranscriptViewer
             title={selectedSession.label}
-            dateLabel={formatSessionDate(selectedSession.startTime)}
-            durationLabel={formatDuration(selectedSession.durationMs)}
-            summaryText={summaryText}
-            segments={segments}
-            transcriptPlain={transcriptPlain}
+            date={formatSessionDate(selectedSession.startTime)}
+            duration={formatClock(selectedSession.durationMs)}
+            summary={summaryText}
+            transcript={transcriptPlain}
+            segments={segments.map((s) => ({
+              timestamp: formatClock(s.startMs),
+              speaker: 'Transcript',
+              text: s.text.trim(),
+            }))}
             onExportTxt={() => void exportSessionTxt()}
             onExportSrt={() => void exportSessionSrt()}
             onDelete={() => void deleteSession(selectedSession.id)}
           />
-          <LibraryAssistantPanel />
+          <ChatAssistant sessionTitle={selectedSession.label} transcript={transcriptPlain} />
         </>
       ) : (
         <div className="flex flex-1 items-center justify-center text-muted-foreground">

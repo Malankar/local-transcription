@@ -2,8 +2,7 @@ import { useEffect } from 'react'
 
 import { AppSettingsModal } from './AppSettingsModal'
 import { LibrarySurface } from './LibrarySurface'
-import { ModelsView } from './ModelsView'
-import RecordingHubView from './RecordingHubView'
+import RecordSurface from './RecordSurface'
 import { TopNavigation } from './TopNavigation'
 import { useNavigationContext } from '../contexts/NavigationContext'
 import { useRecordingContext } from '../contexts/RecordingContext'
@@ -30,16 +29,12 @@ export default function AppShell() {
   }, [isCapturing, status.stage, meetingSegments.length, captureProfile, navigateTo])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen flex-col bg-background text-foreground">
       <TopNavigation />
-      <div className="relative min-h-0 flex-1">
-        <div className="pointer-events-none absolute inset-0 bg-grid-void opacity-[0.2]" aria-hidden />
-        <main className="relative z-[1] flex h-full min-h-0 flex-col">
-          {mainTab === 'record' && <RecordingHubView />}
-          {mainTab === 'library' && <LibrarySurface />}
-          {mainTab === 'models' && <ModelsView />}
-        </main>
-      </div>
+      <main className="min-h-0 flex-1 overflow-hidden">
+        {mainTab === 'record' && <RecordSurface />}
+        {mainTab === 'library' && <LibrarySurface />}
+      </main>
       {settingsOpen && <AppSettingsModal onClose={() => setSettingsOpen(false)} />}
     </div>
   )

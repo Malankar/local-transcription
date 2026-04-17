@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "pnpm build && playwright test",
+    "test:all": "pnpm test && pnpm test:e2e"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
@@ -37,6 +39,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^24.0.0",
     "@types/react": "^18.3.1",

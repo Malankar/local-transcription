@@ -41,6 +41,7 @@ const api: LocalTranscribeApi = {
   setSettings: (settings: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke('settings:set', settings),
   platform: process.platform,
+  e2eSeedHistoryMeeting: (text: string) => ipcRenderer.invoke('e2e:seedHistoryMeeting', { text }),
 }
 
 contextBridge.exposeInMainWorld('api', api)

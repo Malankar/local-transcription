@@ -1,10 +1,13 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { promises as fs } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import type {
   AppStatus,
   CaptureStartOptions,
   ExportResult,
+  HistorySessionMeta,
   TranscriptSegment,
 } from '../../shared/types'
 import { AudioCapture } from '../audio/AudioCapture'
@@ -220,6 +223,29 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
 
     return updated
   })
+
+  if (process.env.E2E_QUIT_ON_LAST_WINDOW === '1') {
+    ipcMain.handle(
+      'e2e:seedHistoryMeeting',
+      async (_event, body: { text: string }): Promise<HistorySessionMeta> => {
+        const text = body?.text?.trim() || 'E2E seeded meeting transcript.'
+        const now = new Date().toISOString()
+        const segments: TranscriptSegment[] = [
+          {
+            id: `e2e-${Date.now()}`,
+            startMs: 0,
+            endMs: 1500,
+            text,
+            timestamp: now,
+          },
+        ]
+        const meta = await historyManager.saveSession(segments, 'meeting', now)
+        getMainWindow()?.webContents.send('history:saved', meta)
+        logger.info('E2E seeded history session', { id: meta.id, label: meta.label })
+        return meta
+      },
+    )
+  }
 }
 
 async function exportTranscript(
@@ -228,6 +254,22 @@ async function exportTranscript(
   format: 'txt' | 'srt' | 'vtt',
   logger: AppLogger
 ): Promise<ExportResult> {
+  let content = ''
+  if (format === 'txt') content = TranscriptExporter.toTxt(segments)
+  else if (format === 'srt') content = TranscriptExporter.toSrt(segments)
+  else if (format === 'vtt') content = TranscriptExporter.toVtt(segments)
+
+  if (process.env.E2E_QUIT_ON_LAST_WINDOW === '1') {
+    const filePath = join(tmpdir(), `lt-e2e-export-${Date.now()}.${format}`)
+    await fs.writeFile(filePath, content, 'utf8')
+    logger.info('Transcript exported (E2E auto path)', {
+      format,
+      path: filePath,
+      segmentCount: segments.length,
+    })
+    return { canceled: false, path: filePath }
+  }
+
   const defaultPath = `transcript.${format}`
   const dialogOptions = {
     defaultPath,
@@ -246,11 +288,6 @@ async function exportTranscript(
     logger.info('Export canceled', { format })
     return { canceled: true }
   }
-
-  let content = ''
-  if (format === 'txt') content = TranscriptExporter.toTxt(segments)
-  else if (format === 'srt') content = TranscriptExporter.toSrt(segments)
-  else if (format === 'vtt') content = TranscriptExporter.toVtt(segments)
 
   await fs.writeFile(response.filePath, content, 'utf8')
   logger.info('Transcript exported', {

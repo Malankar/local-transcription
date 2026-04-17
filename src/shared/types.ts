@@ -163,4 +163,9 @@ export interface LocalTranscribeApi {
   getSettings: () => Promise<AppSettings>
   setSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>
   platform: string
+  /**
+   * E2E/dev only (requires `E2E_QUIT_ON_LAST_WINDOW` from the Playwright launcher).
+   * Persists a one-segment meeting session and emits `history:saved`.
+   */
+  e2eSeedHistoryMeeting: (text: string) => Promise<HistorySessionMeta>
 }

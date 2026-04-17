@@ -89,7 +89,11 @@ export function LibrarySurface() {
             onExportSrt={() => void exportSessionSrt()}
             onDelete={() => void deleteSession(selectedSession.id)}
           />
-          <ChatAssistant sessionTitle={selectedSession.label} transcript={transcriptPlain} />
+          <ChatAssistant
+            key={selectedSession.id}
+            sessionTitle={selectedSession.label}
+            transcript={transcriptPlain}
+          />
         </>
       ) : (
         <div className="flex flex-1 items-center justify-center text-muted-foreground">

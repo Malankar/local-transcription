@@ -413,12 +413,18 @@ process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled promise rejection', reason)
 })
 
+const quitAfterLastWindowClosed =
+  process.platform !== 'darwin' || process.env.E2E_QUIT_ON_LAST_WINDOW === '1'
+
 app.on('window-all-closed', () => {
   logger.info('All windows closed')
   audioCapture.stop()
   whisperEngine.dispose()
-  if (process.platform !== 'darwin') {
-    logger.info('Quitting application because platform is not macOS')
+  if (quitAfterLastWindowClosed) {
+    logger.info('Quitting application after last window closed', {
+      platform: process.platform,
+      e2eQuit: process.env.E2E_QUIT_ON_LAST_WINDOW === '1',
+    })
     app.quit()
   }
 })
@@ -426,4 +432,8 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   clearTrayCreateTimer()
   globalShortcut.unregisterAll()
+  if (tray) {
+    tray.destroy()
+    tray = null
+  }
 })

@@ -16,6 +16,7 @@ import {
   assistantReplyChat,
   enrichHistorySessionAfterSave,
   regenerateHistorySessionSummary,
+  regenerateHistorySessionTitle,
 } from '../assistant/enrichHistorySession'
 import { ollamaListTags, ollamaPullModel } from '../assistant/ollamaClient'
 import { AudioCapture } from '../audio/AudioCapture'
@@ -209,6 +210,17 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   ipcMain.handle('history:star', async (_event, id: string, starred: boolean) => {
     await historyManager.starSession(id, starred)
     logger.info('History session starred', { id, starred })
+  })
+
+  ipcMain.handle('history:regenerateTitle', async (_event, sessionId: string) => {
+    const id = typeof sessionId === 'string' ? sessionId.trim() : ''
+    if (!id) throw new Error('Session id required')
+    await regenerateHistorySessionTitle({
+      sessionId: id,
+      historyManager,
+      mainWindow: getMainWindow(),
+      logger,
+    })
   })
 
   ipcMain.handle('history:regenerateSummary', async (_event, sessionId: string) => {

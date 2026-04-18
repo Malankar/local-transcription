@@ -21,6 +21,8 @@ export interface TranscriptViewerProps {
   summaryRegeneration?: boolean
   transcript: string
   segments?: TranscriptViewerSegment[]
+  onRegenerateTitle?: () => void
+  regenerateTitleDisabled?: boolean
   onRegenerateSummary?: () => void
   regenerateSummaryDisabled?: boolean
   onDelete?: () => void
@@ -38,6 +40,8 @@ export function TranscriptViewer({
   summaryRegeneration = false,
   transcript,
   segments: segmentsProp,
+  onRegenerateTitle,
+  regenerateTitleDisabled = false,
   onRegenerateSummary,
   regenerateSummaryDisabled = false,
   onDelete,
@@ -67,7 +71,28 @@ export function TranscriptViewer({
             <span className="text-lg font-medium">Generating title…</span>
           </div>
         ) : (
-          <h2 className="mb-2 text-2xl font-semibold">{title || 'Untitled'}</h2>
+          <div className="mb-2 flex items-center gap-2">
+            <h2
+              className="truncate text-2xl font-semibold"
+              style={{ maxWidth: '28ch' }}
+              title={title || 'Untitled'}
+            >
+              {title || 'Untitled'}
+            </h2>
+            {onRegenerateTitle ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                disabled={regenerateTitleDisabled}
+                onClick={() => onRegenerateTitle()}
+                aria-label="Regenerate title"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden />
+              </Button>
+            ) : null}
+          </div>
         )}
         <p className="text-sm text-muted-foreground">
           {date} • {duration}

@@ -182,6 +182,7 @@ export interface LocalTranscribeApi {
   starHistorySession: (id: string, starred: boolean) => Promise<void>
   exportHistoryTxt: (id: string) => Promise<ExportResult>
   exportHistorySrt: (id: string) => Promise<ExportResult>
+  regenerateHistoryTitle: (sessionId: string) => Promise<void>
   regenerateHistorySummary: (sessionId: string) => Promise<void>
   /** Untyped IPC escape hatch; kept in sync with preload for channels not yet wrapped. */
   ipcInvoke: (channel: string, ...args: unknown[]) => Promise<unknown>

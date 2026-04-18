@@ -56,6 +56,70 @@ async function generateAiSummaryFromTranscript(
   }
 }
 
+export async function regenerateHistorySessionTitle(options: {
+  sessionId: string
+  historyManager: HistoryManager
+  mainWindow: BrowserWindow | null
+  logger: AppLogger
+  baseUrl?: string
+}): Promise<void> {
+  const { sessionId, historyManager, mainWindow, logger } = options
+  const baseUrl = options.baseUrl ?? OLLAMA_DEFAULT_BASE_URL
+
+  const broadcast = (meta: HistorySessionMeta): void => {
+    mainWindow?.webContents.send('history:sessionUpdated', meta)
+  }
+
+  const session = await historyManager.getSession(sessionId)
+  if (!session) return
+
+  const transcriptText = session.segments
+    .map((s) => s.text.trim())
+    .filter(Boolean)
+    .join('\n\n')
+
+  const fallbackTitle = historyManager.generateLabel(session.segments)
+
+  const pendingMeta = await historyManager.patchSessionMeta(sessionId, { aiTitleStatus: 'pending' })
+  if (pendingMeta) broadcast(pendingMeta)
+
+  if (stubAssistantEnabled()) {
+    const meta = await historyManager.patchSessionMeta(sessionId, {
+      label: `E2E ${fallbackTitle}`.slice(0, 80),
+      aiTitleStatus: 'ready',
+    })
+    if (meta) broadcast(meta)
+    return
+  }
+
+  let title = fallbackTitle
+  try {
+    const titleRaw = await ollamaChat(
+      baseUrl,
+      ASSISTANT_OLLAMA_MODEL_TITLE,
+      [
+        {
+          role: 'system',
+          content:
+            'You output ONLY a short meeting title: 3–8 words. No quotes. No punctuation at the end. No explanation.',
+        },
+        { role: 'user', content: `Transcript:\n\n${clip(transcriptText || 'Empty transcript.', 6000)}\n\nTitle:` },
+      ],
+      logger,
+      { temperature: 0.1 },
+    )
+    title = sanitizeTitle(titleRaw, fallbackTitle)
+  } catch (e) {
+    logger.error('Assistant title regeneration failed', e)
+  }
+
+  const doneMeta = await historyManager.patchSessionMeta(sessionId, {
+    label: title,
+    aiTitleStatus: 'ready',
+  })
+  if (doneMeta) broadcast(doneMeta)
+}
+
 export async function regenerateHistorySessionSummary(options: {
   sessionId: string
   historyManager: HistoryManager

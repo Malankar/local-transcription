@@ -4,6 +4,21 @@ import type { LocalTranscribeApi } from '../../../shared/types'
  * Summary regeneration — uses typed preload API, then ipcInvoke fallback (same preload build).
  * If both missing, preload predates this feature: fully quit Electron and restart `pnpm dev`.
  */
+export async function invokeRegenerateHistoryTitle(sessionId: string): Promise<void> {
+  const api = window.api as LocalTranscribeApi
+  if (typeof api.regenerateHistoryTitle === 'function') {
+    await api.regenerateHistoryTitle(sessionId)
+    return
+  }
+  if (typeof api.ipcInvoke === 'function') {
+    await api.ipcInvoke('history:regenerateTitle', sessionId)
+    return
+  }
+  throw new Error(
+    'Preload has no regenerateHistoryTitle/ipcInvoke. Quit the app completely and run `pnpm dev` again.',
+  )
+}
+
 export async function invokeRegenerateHistorySummary(sessionId: string): Promise<void> {
   const api = window.api as LocalTranscribeApi
   if (typeof api.regenerateHistorySummary === 'function') {

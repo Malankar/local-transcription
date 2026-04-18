@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { useHistoryContext } from '../contexts/HistoryContext'
 import { useNavigationContext } from '../contexts/NavigationContext'
 import { formatClock, formatSessionDate } from '../lib/formatters'
-import { invokeRegenerateHistorySummary } from '../lib/historyIpc'
+import { invokeRegenerateHistoryTitle, invokeRegenerateHistorySummary } from '../lib/historyIpc'
 import { mergeTranscriptSegments } from '../lib/transcriptMerge'
 import { TranscriptViewer } from './TranscriptViewer'
 import { ChatAssistant } from './ChatAssistant'
@@ -22,6 +22,7 @@ export function LibrarySurface() {
     refreshSelectedSession,
   } = useHistoryContext()
 
+  const [titleRegenOptimistic, setTitleRegenOptimistic] = useState(false)
   const [summaryRegenOptimistic, setSummaryRegenOptimistic] = useState(false)
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export function LibrarySurface() {
   }, [mainTab, selectedHistoryId, historySessions, selectSession])
 
   useEffect(() => {
+    setTitleRegenOptimistic(false)
     setSummaryRegenOptimistic(false)
   }, [selectedHistoryId])
 
@@ -52,7 +54,7 @@ export function LibrarySurface() {
       ? selectedSession.preview
       : 'No summary yet.'
 
-  const titlePending = selectedSession?.aiTitleStatus === 'pending'
+  const titlePending = selectedSession?.aiTitleStatus === 'pending' || titleRegenOptimistic
   const summaryPendingRemote = selectedSession?.aiSummaryStatus === 'pending'
   const summaryPending = summaryPendingRemote || summaryRegenOptimistic
   const summaryRegeneration =
@@ -120,6 +122,21 @@ export function LibrarySurface() {
               speaker: 'Transcript',
               text: s.text.trim(),
             }))}
+            onRegenerateTitle={() => {
+              const id = selectedSession.id
+              setTitleRegenOptimistic(true)
+              void (async () => {
+                try {
+                  await invokeRegenerateHistoryTitle(id)
+                  await refreshSelectedSession()
+                } catch (err) {
+                  console.error('[LocalTranscribe] Regenerate title failed', err)
+                } finally {
+                  setTitleRegenOptimistic(false)
+                }
+              })()
+            }}
+            regenerateTitleDisabled={transcriptPlain.trim().length === 0}
             onExportTxt={() => void exportSessionTxt()}
             onExportSrt={() => void exportSessionSrt()}
             onRegenerateSummary={() => {

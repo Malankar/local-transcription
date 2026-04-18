@@ -76,7 +76,7 @@ export function TranscriptViewer({
 
       <div className="shrink-0 px-6 pt-6">
         <Card className="border-blue-200 bg-blue-50 p-4">
-          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+          <div className="-mb-4 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-foreground">Quick summary</h3>
             {onRegenerateSummary ? (
               <Button

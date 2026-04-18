@@ -1,5 +1,7 @@
 export type {
   AppSettings,
+  AssistantChatRequest,
+  AssistantFieldStatus,
   AssistantProviderId,
   AppStatus,
   AudioSource,
@@ -8,6 +10,7 @@ export type {
   HistoryAutoDelete,
   HistorySession,
   HistorySessionMeta,
+  OllamaStatusResult,
   ModelDownloadProgress,
   TranscriptionModel,
   TranscriptSegment,

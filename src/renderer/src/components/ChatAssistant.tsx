@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, AlertCircle } from 'lucide-react'
 
+import { ASSISTANT_OLLAMA_MODEL_CHAT, ASSISTANT_OLLAMA_MODEL_TITLE } from '../../../shared/assistantModels'
 import { Button } from '@/components/ui/button'
 
 interface Message {
@@ -44,19 +45,40 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
       content: input,
     }
 
+    const convoForApi = [...messages.slice(1), userMessage].map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }))
+
     setMessages((prev) => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
 
-    window.setTimeout(() => {
+    try {
+      const { text } = await window.api.assistantChat({
+        sessionTitle,
+        transcript,
+        messages: convoForApi,
+      })
       const assistantResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: generateMockResponse(input, sessionTitle, transcript),
+        content: text,
       }
       setMessages((prev) => [...prev, assistantResponse])
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: `Something went wrong: ${msg}. Is Ollama running at 127.0.0.1:11434 with ${ASSISTANT_OLLAMA_MODEL_CHAT} pulled?`,
+        },
+      ])
+    } finally {
       setIsLoading(false)
-    }, 800)
+    }
   }
 
   return (
@@ -120,28 +142,12 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
 
         <div className="mt-3 flex gap-2 rounded bg-muted/30 p-3 text-xs text-muted-foreground">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>Uses selected model from settings</p>
+          <p>
+            Local chat uses Ollama <span className="font-mono">{ASSISTANT_OLLAMA_MODEL_CHAT}</span> (titles use{' '}
+            <span className="font-mono">{ASSISTANT_OLLAMA_MODEL_TITLE}</span>).
+          </p>
         </div>
       </div>
     </div>
   )
-}
-
-function generateMockResponse(question: string, sessionTitle: string, transcript: string): string {
-  const lowerQuestion = question.toLowerCase()
-
-  if (lowerQuestion.includes('summary')) {
-    return `Based on "${sessionTitle}", here are the key points:\n\n• Product team focused on Q2 roadmap execution\n• Performance optimization is the top priority\n• User feedback integration planned for later phase\n\nWould you like me to expand on any of these points?`
-  }
-
-  if (lowerQuestion.includes('action') || lowerQuestion.includes('todo')) {
-    return `From this session, the action items are:\n\n→ Complete design asset handoff from creative team\n→ Finalize backend API documentation\n→ Schedule follow-up design review meeting\n→ Present roadmap to stakeholders by end of week`
-  }
-
-  if (lowerQuestion.includes('decision') || lowerQuestion.includes('decided')) {
-    return `The key decisions made in this session were:\n\n1. Focus on performance optimization first\n2. User feedback integration will happen in a later phase\n3. Prioritize MVP release over additional features`
-  }
-
-  void transcript
-  return `That's a great question! Based on the transcript of "${sessionTitle}", I can help you find specific information. Could you rephrase your question to be more specific about what you're looking for?`
 }

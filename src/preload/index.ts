@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppSettings,
   AppStatus,
+  AssistantChatRequest,
   CaptureStartOptions,
   ExportResult,
   HistorySessionMeta,
@@ -37,6 +38,11 @@ const api: LocalTranscribeApi = {
   exportHistorySrt: (id: string) => ipcRenderer.invoke('history:export:srt', id),
   onHistorySaved: (listener: (meta: HistorySessionMeta) => void) =>
     subscribe('history:saved', listener),
+  onHistorySessionUpdated: (listener: (meta: HistorySessionMeta) => void) =>
+    subscribe('history:sessionUpdated', listener),
+  assistantChat: (req: AssistantChatRequest) => ipcRenderer.invoke('assistant:chat', req),
+  ollamaStatus: () => ipcRenderer.invoke('assistant:ollamaStatus'),
+  ollamaPull: (model: string) => ipcRenderer.invoke('assistant:ollamaPull', model),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
   setSettings: (settings: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke('settings:set', settings),

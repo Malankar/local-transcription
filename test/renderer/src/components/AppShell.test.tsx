@@ -54,6 +54,11 @@ describe('AppShell', () => {
     statusListener?.({ stage: 'stopped', detail: 'Done' })
     await flushMicrotasks()
 
+    // Stop no longer auto-switches to Library (navigation happens on history:saved from main).
+    expect(container.textContent).toContain('Recording Stub')
+
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Library'))?.click()
+    await flushMicrotasks()
     expect(container.textContent).toContain('Transcriptions')
   })
 })

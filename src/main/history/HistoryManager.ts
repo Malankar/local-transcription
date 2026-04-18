@@ -50,7 +50,7 @@ export class HistoryManager {
 
     const meta: HistorySessionMeta = {
       id,
-      label: this.generateLabel(stitchedSegments),
+      label: '',
       startTime: captureStartTime,
       endTime,
       durationMs: endMs - startMs,
@@ -58,6 +58,8 @@ export class HistoryManager {
       segmentCount: stitchedSegments.length,
       preview: fullText.slice(0, 160),
       profile,
+      aiTitleStatus: 'pending',
+      aiSummaryStatus: 'pending',
     }
 
     const session: HistorySession = { ...meta, segments: stitchedSegments }
@@ -85,8 +87,9 @@ export class HistoryManager {
       try {
         const raw = await fs.readFile(join(this.dir, file), 'utf8')
         const session = JSON.parse(raw) as HistorySession
+        const normalized = this.normalizeSession(session)
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { segments: _segments, ...meta } = session
+        const { segments: _segments, ...meta } = normalized
         metas.push(meta)
       } catch {
         // corrupted file — skip silently
@@ -105,10 +108,29 @@ export class HistoryManager {
   async getSession(id: string): Promise<HistorySession | null> {
     try {
       const raw = await fs.readFile(join(this.dir, `${id}.json`), 'utf8')
-      return JSON.parse(raw) as HistorySession
+      const session = JSON.parse(raw) as HistorySession
+      return this.normalizeSession(session)
     } catch {
       return null
     }
+  }
+
+  /** Merge meta fields into an on-disk session and return updated meta (no segments). */
+  async patchSessionMeta(id: string, patch: Partial<HistorySessionMeta>): Promise<HistorySessionMeta | null> {
+    const session = await this.getSession(id)
+    if (!session) return null
+    const next: HistorySession = { ...session, ...patch }
+    await fs.writeFile(join(this.dir, `${id}.json`), JSON.stringify(next, null, 2), 'utf8')
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { segments: _s, ...meta } = next
+    return meta
+  }
+
+  private normalizeSession(session: HistorySession): HistorySession {
+    if (!session.aiTitleStatus) {
+      return { ...session, aiTitleStatus: 'ready' }
+    }
+    return session
   }
 
   async deleteSession(id: string): Promise<void> {

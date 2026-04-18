@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react'
+import { Loader2 } from 'lucide-react'
 
 import { useHistoryContext } from '../contexts/HistoryContext'
 import { useNavigationContext } from '../contexts/NavigationContext'
@@ -37,9 +38,18 @@ export function LibrarySurface() {
     [segments],
   )
 
-  const summaryText = selectedSession?.preview?.trim()
-    ? selectedSession.preview
-    : 'No summary yet. Assistant summaries are not available in this build.'
+  const summaryText = selectedSession?.aiSummary?.trim()
+    ? selectedSession.aiSummary
+    : selectedSession?.preview?.trim()
+      ? selectedSession.preview
+      : 'No summary yet.'
+
+  const titlePending = selectedSession?.aiTitleStatus === 'pending'
+  const summaryPending = selectedSession?.aiSummaryStatus === 'pending'
+  const chatSessionTitle =
+    titlePending || !selectedSession?.label?.trim()
+      ? 'this recording'
+      : selectedSession.label
 
   return (
     <div className="flex h-full min-h-0 bg-background">
@@ -62,7 +72,18 @@ export function LibrarySurface() {
                     : 'border-transparent text-foreground hover:bg-muted/80'
                 }`}
               >
-                <h3 className="truncate text-sm font-medium">{session.label}</h3>
+                {session.aiTitleStatus === 'pending' ? (
+                  <div
+                    className="flex min-h-[1.25rem] items-center gap-2 text-muted-foreground"
+                    role="status"
+                    aria-label="Generating recording title"
+                  >
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                    <span className="truncate text-sm">Generating title…</span>
+                  </div>
+                ) : (
+                  <h3 className="truncate text-sm font-medium">{session.label || 'Untitled'}</h3>
+                )}
                 <p className="mt-1 text-xs opacity-70">
                   {formatSessionDate(session.startTime)} • {formatClock(session.durationMs)}
                 </p>
@@ -76,9 +97,11 @@ export function LibrarySurface() {
         <>
           <TranscriptViewer
             title={selectedSession.label}
+            titlePending={titlePending}
             date={formatSessionDate(selectedSession.startTime)}
             duration={formatClock(selectedSession.durationMs)}
             summary={summaryText}
+            summaryPending={summaryPending}
             transcript={transcriptPlain}
             segments={segments.map((s) => ({
               timestamp: formatClock(s.startMs),
@@ -91,7 +114,7 @@ export function LibrarySurface() {
           />
           <ChatAssistant
             key={selectedSession.id}
-            sessionTitle={selectedSession.label}
+            sessionTitle={chatSessionTitle}
             transcript={transcriptPlain}
           />
         </>

@@ -1,4 +1,4 @@
-import { NavigationProvider } from './contexts/NavigationContext'
+import { NavigationProvider, useNavigationContext } from './contexts/NavigationContext'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ModelsProvider } from './contexts/ModelsContext'
 import { RecordingProvider } from './contexts/RecordingContext'
@@ -9,7 +9,17 @@ import { useTranscriptContext } from './contexts/TranscriptContext'
 
 function HistoryBridge() {
   const { clearMeeting } = useTranscriptContext()
-  return <HistoryProvider onSessionSaved={clearMeeting}><AppShell /></HistoryProvider>
+  const { navigateTo } = useNavigationContext()
+  return (
+    <HistoryProvider
+      onSessionSaved={(meta) => {
+        clearMeeting()
+        if (meta.profile === 'meeting') navigateTo('history')
+      }}
+    >
+      <AppShell />
+    </HistoryProvider>
+  )
 }
 
 export function App() {

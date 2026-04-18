@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { AppSettings, AppStatus, ModelDownloadProgress, TranscriptSegment } from '../shared/types'
 import { AudioCapture } from './audio/AudioCapture'
 import { SourceDiscovery } from './audio/SourceDiscovery'
+import { enrichHistorySessionAfterSave } from './assistant/enrichHistorySession'
 import { HistoryManager } from './history/HistoryManager'
 import { registerIpcHandlers } from './ipc/handlers'
 import { AppLogger } from './logging/AppLogger'
@@ -149,6 +150,12 @@ chunkQueue.on('drained', () => {
             const meta = await historyManager.saveSession(segmentsToSave, profile, startTime)
             logger.info('Session saved to history', { id: meta.id, label: meta.label })
             mainWindow?.webContents.send('history:saved', meta)
+            void enrichHistorySessionAfterSave({
+              sessionId: meta.id,
+              historyManager,
+              mainWindow,
+              logger,
+            })
             await historyManager.pruneHistory({
               historyLimit: settings.historyLimit,
               autoDeleteRecordings: settings.autoDeleteRecordings,

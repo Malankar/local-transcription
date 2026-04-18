@@ -79,6 +79,8 @@ export interface ModelDownloadProgress {
   percent: number
 }
 
+export type AssistantFieldStatus = 'pending' | 'ready' | 'error'
+
 export interface HistorySessionMeta {
   id: string
   label: string
@@ -90,6 +92,27 @@ export interface HistorySessionMeta {
   preview: string     // first ~160 chars of transcript
   profile: 'meeting' | 'live'
   starred?: boolean
+  /** Local LLM title: pending shows loader until label is filled */
+  aiTitleStatus?: AssistantFieldStatus
+  aiSummary?: string
+  aiSummaryStatus?: AssistantFieldStatus
+}
+
+export interface OllamaStatusResult {
+  ok: boolean
+  error?: string
+  models: string[]
+}
+
+export interface AssistantChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface AssistantChatRequest {
+  sessionTitle: string
+  transcript: string
+  messages: AssistantChatMessage[]
 }
 
 export type HistoryAutoDelete =
@@ -160,6 +183,10 @@ export interface LocalTranscribeApi {
   exportHistoryTxt: (id: string) => Promise<ExportResult>
   exportHistorySrt: (id: string) => Promise<ExportResult>
   onHistorySaved: (listener: (meta: HistorySessionMeta) => void) => () => void
+  onHistorySessionUpdated: (listener: (meta: HistorySessionMeta) => void) => () => void
+  assistantChat: (req: AssistantChatRequest) => Promise<{ text: string }>
+  ollamaStatus: () => Promise<OllamaStatusResult>
+  ollamaPull: (model: string) => Promise<void>
   getSettings: () => Promise<AppSettings>
   setSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>
   platform: string

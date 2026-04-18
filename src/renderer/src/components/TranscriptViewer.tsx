@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Copy, Download, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, Loader2, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -12,9 +12,11 @@ export interface TranscriptViewerSegment {
 
 export interface TranscriptViewerProps {
   title: string
+  titlePending?: boolean
   date: string
   duration: string
   summary: string
+  summaryPending?: boolean
   transcript: string
   segments?: TranscriptViewerSegment[]
   onDelete?: () => void
@@ -24,9 +26,11 @@ export interface TranscriptViewerProps {
 
 export function TranscriptViewer({
   title,
+  titlePending = false,
   date,
   duration,
   summary,
+  summaryPending = false,
   transcript,
   segments: segmentsProp,
   onDelete,
@@ -46,7 +50,18 @@ export function TranscriptViewer({
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div className="shrink-0 px-6 pt-6">
-        <h2 className="mb-2 text-2xl font-semibold">{title}</h2>
+        {titlePending ? (
+          <div
+            className="mb-2 flex items-center gap-2 text-muted-foreground"
+            role="status"
+            aria-label="Generating recording title"
+          >
+            <Loader2 className="h-6 w-6 shrink-0 animate-spin" aria-hidden />
+            <span className="text-lg font-medium">Generating title…</span>
+          </div>
+        ) : (
+          <h2 className="mb-2 text-2xl font-semibold">{title || 'Untitled'}</h2>
+        )}
         <p className="text-sm text-muted-foreground">
           {date} • {duration}
         </p>
@@ -55,7 +70,18 @@ export function TranscriptViewer({
       <div className="shrink-0 px-6 pt-6">
         <Card className="border-blue-200 bg-blue-50 p-4">
           <h3 className="mb-3 text-sm font-semibold text-foreground">Quick Summary</h3>
-          <p className="text-sm leading-relaxed text-foreground">{summary}</p>
+          {summaryPending ? (
+            <div
+              className="flex items-center gap-2 text-muted-foreground"
+              role="status"
+              aria-label="Generating summary"
+            >
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+              <span className="text-sm">Generating summary…</span>
+            </div>
+          ) : (
+            <p className="text-sm leading-relaxed text-foreground">{summary}</p>
+          )}
         </Card>
       </div>
 

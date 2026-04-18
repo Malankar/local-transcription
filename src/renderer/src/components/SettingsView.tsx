@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { AssistantProviderId, HistoryAutoDelete } from '../types'
+import type { AssistantProviderId, HistoryAutoDelete, OllamaStatusResult } from '../types'
+import { ASSISTANT_OLLAMA_MODELS_TO_PULL } from '../../../shared/assistantModels'
 import { useSettingsContext } from '../contexts/SettingsContext'
 import { ModelLibrarySection } from './ModelsView'
+import { Button } from './ui/button'
 import { Switch } from './ui/switch'
 import {
   Select,
@@ -75,6 +77,108 @@ const HISTORY_LIMIT_OPTIONS = [
   { value: '50', label: '50 sessions' },
   { value: '100', label: '100 sessions' },
 ]
+
+function ollamaHasModel(installed: Set<string>, id: string): boolean {
+  if (installed.has(id)) return true
+  for (const n of installed) {
+    if (n === id || n.startsWith(`${id}:`)) return true
+  }
+  return false
+}
+
+function OllamaLocalAssistantCard() {
+  const [status, setStatus] = useState<OllamaStatusResult | null>(null)
+  const [pulling, setPulling] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  function refresh(): void {
+    void window.api
+      .ollamaStatus()
+      .then((s) => {
+        setStatus(s)
+        setError(null)
+      })
+      .catch((e) => {
+        setStatus({ ok: false, models: [] })
+        setError(e instanceof Error ? e.message : String(e))
+      })
+  }
+
+  useEffect(() => {
+    refresh()
+  }, [])
+
+  async function pullModel(model: string): Promise<void> {
+    setError(null)
+    setPulling(model)
+    try {
+      await window.api.ollamaPull(model)
+      refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPulling(null)
+    }
+  }
+
+  const names = new Set(status?.models ?? [])
+
+  return (
+    <div className="px-6 py-5">
+      <h3 className="mb-2 text-sm font-medium text-foreground">Ollama models (assistant)</h3>
+      <p className="mb-3 text-sm leading-snug text-muted-foreground">
+        Titles use <span className="font-mono">llama3.2:1b</span>; summaries and Library chat use{' '}
+        <span className="font-mono">qwen2.5:3b</span> (no per-task picker in the app). Install{' '}
+        <a href="https://ollama.com/download" className="font-medium underline underline-offset-2" target="_blank" rel="noreferrer">
+          Ollama
+        </a>{' '}
+        and pull weights here (default server <span className="font-mono">127.0.0.1:11434</span>).
+      </p>
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-medium text-foreground">Status:</span>
+        {status === null ? (
+          <span className="text-muted-foreground">Checking…</span>
+        ) : status.ok ? (
+          <span className="text-green-600">Reachable</span>
+        ) : (
+          <span className="text-amber-600">
+            Not reachable{status.error ? ` (${status.error})` : ''}
+          </span>
+        )}
+        <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => refresh()}>
+          Refresh
+        </Button>
+      </div>
+      {error ? <p className="mb-2 text-xs text-destructive">{error}</p> : null}
+      <ul className="space-y-2">
+        {ASSISTANT_OLLAMA_MODELS_TO_PULL.map((m) => (
+          <li
+            key={m.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2"
+          >
+            <div className="min-w-0">
+              <span className="font-mono text-xs">{m.id}</span>
+              <span className="ml-2 text-xs text-muted-foreground">{m.role}</span>
+              {ollamaHasModel(names, m.id) ? (
+                <span className="ml-2 text-xs text-green-600">on disk</span>
+              ) : null}
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-8 shrink-0 text-xs"
+              disabled={pulling !== null}
+              onClick={() => void pullModel(m.id)}
+            >
+              {pulling === m.id ? 'Pulling…' : 'Pull'}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 const ASSISTANT_PROVIDER_OPTIONS: { value: AssistantProviderId; label: string }[] = [
   { value: 'local', label: 'Local (default)' },
@@ -405,6 +509,8 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
               disabled={settingsSaving}
             />
           </SettingRow>
+
+          <OllamaLocalAssistantCard />
         </div>
       </section>
 

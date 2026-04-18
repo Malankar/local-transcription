@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  AssistantChatRequest,
   ExportResult,
   HistorySession,
   HistorySessionMeta,
@@ -56,6 +57,10 @@ export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): Loca
     exportHistoryTxt: vi.fn().mockResolvedValue(exportResult),
     exportHistorySrt: vi.fn().mockResolvedValue(exportResult),
     onHistorySaved: vi.fn().mockReturnValue(() => undefined),
+    onHistorySessionUpdated: vi.fn().mockReturnValue(() => undefined),
+    assistantChat: vi.fn().mockImplementation(async (_req: AssistantChatRequest) => ({ text: 'mock reply' })),
+    ollamaStatus: vi.fn().mockResolvedValue({ ok: false, models: [] as string[] }),
+    ollamaPull: vi.fn().mockResolvedValue(undefined),
     getSettings: vi.fn().mockResolvedValue(defaultSettings),
     setSettings: vi.fn().mockImplementation(async (partial: Partial<AppSettings>) => {
       const next: AppSettings = {
@@ -68,6 +73,7 @@ export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): Loca
       return next
     }),
     platform: 'linux',
+    e2eSeedHistoryMeeting: vi.fn().mockRejectedValue(new Error('e2eSeedHistoryMeeting not available in this test')),
     ...overrides,
   }
 }

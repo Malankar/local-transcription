@@ -6,27 +6,16 @@ import RecordSurface from './RecordSurface'
 import { TopNavigation } from './TopNavigation'
 import { useNavigationContext } from '../contexts/NavigationContext'
 import { useRecordingContext } from '../contexts/RecordingContext'
-import { useTranscriptContext } from '../contexts/TranscriptContext'
 
 export default function AppShell() {
   const { mainTab, navigateTo, settingsOpen, setSettingsOpen } = useNavigationContext()
-  const { isCapturing, status, captureProfile } = useRecordingContext()
-  const { meetingSegments } = useTranscriptContext()
+  const { isCapturing } = useRecordingContext()
 
   useEffect(() => {
     if (isCapturing) {
       navigateTo('recording')
-      return
     }
-    if (
-      !isCapturing &&
-      (status.stage === 'stopped' || status.stage === 'error') &&
-      meetingSegments.length > 0 &&
-      captureProfile === 'meeting'
-    ) {
-      navigateTo('history')
-    }
-  }, [isCapturing, mainTab, status.stage, meetingSegments.length, captureProfile, navigateTo])
+  }, [isCapturing, navigateTo])
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">

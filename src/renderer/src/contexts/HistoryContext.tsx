@@ -18,7 +18,7 @@ const HistoryContext = createContext<HistoryContextValue | null>(null)
 
 interface HistoryProviderProps {
   children: ReactNode
-  onSessionSaved?: () => void
+  onSessionSaved?: (meta: HistorySessionMeta) => void
 }
 
 export function HistoryProvider({ children, onSessionSaved }: HistoryProviderProps): JSX.Element {
@@ -49,10 +49,27 @@ export function HistoryProvider({ children, onSessionSaved }: HistoryProviderPro
     const unsubscribe = window.api.onHistorySaved((meta) => {
       setHistorySessions((prev) => [meta, ...prev.filter((s) => s.id !== meta.id)])
       setSelectedHistoryId(meta.id)
-      onSessionSaved?.()
+      onSessionSaved?.(meta)
     })
     return unsubscribe
   }, [onSessionSaved])
+
+  useEffect(() => {
+    const unsubscribe = window.api.onHistorySessionUpdated((meta) => {
+      setHistorySessions((prev) => {
+        const idx = prev.findIndex((s) => s.id === meta.id)
+        if (idx === -1) return prev
+        const next = [...prev]
+        next[idx] = { ...next[idx], ...meta }
+        return next
+      })
+      setSelectedSession((sess) => {
+        if (!sess || sess.id !== meta.id) return sess
+        return { ...sess, ...meta }
+      })
+    })
+    return unsubscribe
+  }, [])
 
   function selectSession(id: string): void {
     setSelectedHistoryId(id)

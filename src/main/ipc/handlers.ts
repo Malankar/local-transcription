@@ -5,11 +5,15 @@ import { join } from 'node:path'
 
 import type {
   AppStatus,
+  AssistantChatRequest,
   CaptureStartOptions,
   ExportResult,
   HistorySessionMeta,
   TranscriptSegment,
 } from '../../shared/types'
+import { OLLAMA_DEFAULT_BASE_URL } from '../../shared/assistantModels'
+import { assistantReplyChat, enrichHistorySessionAfterSave } from '../assistant/enrichHistorySession'
+import { ollamaListTags, ollamaPullModel } from '../assistant/ollamaClient'
 import { AudioCapture } from '../audio/AudioCapture'
 import { SourceDiscovery } from '../audio/SourceDiscovery'
 import { ChunkQueue } from '../transcription/ChunkQueue'
@@ -203,6 +207,26 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     logger.info('History session starred', { id, starred })
   })
 
+  ipcMain.handle('assistant:chat', async (_event, req: AssistantChatRequest) => {
+    const text = await assistantReplyChat({
+      sessionTitle: req.sessionTitle,
+      transcript: req.transcript,
+      userMessages: req.messages,
+      logger,
+    })
+    return { text }
+  })
+
+  ipcMain.handle('assistant:ollamaStatus', async () => {
+    return ollamaListTags(OLLAMA_DEFAULT_BASE_URL)
+  })
+
+  ipcMain.handle('assistant:ollamaPull', async (_event, model: string) => {
+    const name = typeof model === 'string' && model.trim() ? model.trim() : ''
+    if (!name) throw new Error('Model name required')
+    await ollamaPullModel(OLLAMA_DEFAULT_BASE_URL, name, logger)
+  })
+
   ipcMain.handle('settings:get', async () => {
     return settingsManager.getSettings()
   })
@@ -241,6 +265,12 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
         ]
         const meta = await historyManager.saveSession(segments, 'meeting', now)
         getMainWindow()?.webContents.send('history:saved', meta)
+        void enrichHistorySessionAfterSave({
+          sessionId: meta.id,
+          historyManager,
+          mainWindow: getMainWindow(),
+          logger,
+        })
         logger.info('E2E seeded history session', { id: meta.id, label: meta.label })
         return meta
       },

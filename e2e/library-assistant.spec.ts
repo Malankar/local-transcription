@@ -17,11 +17,18 @@ test.describe('Library assistant', () => {
       await window.evaluate(async (t) => window.api.e2eSeedHistoryMeeting(t), textB)
       await window.evaluate(async (t) => window.api.e2eSeedHistoryMeeting(t), textA)
 
-      const metas = await window.evaluate(() => window.api.listHistory())
-      expect(metas.length).toBeGreaterThanOrEqual(2)
+      let metas = await window.evaluate(() => window.api.listHistory())
+      await expect(async () => {
+        metas = await window.evaluate(() => window.api.listHistory())
+        return (
+          metas.length >= 2 &&
+          (metas[0]?.label?.startsWith('E2E ') ?? false) &&
+          (metas[1]?.label?.startsWith('E2E ') ?? false)
+        )
+      }).toPass({ timeout: 30_000 })
 
-      const newer = metas[0]
-      const older = metas[1]
+      const newer = metas[0]!
+      const older = metas[1]!
 
       await window.getByRole('button', { name: 'Library', exact: true }).click()
       await expect(window.getByRole('heading', { name: 'Transcriptions' })).toBeVisible()

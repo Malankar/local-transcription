@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 
 import { useHistoryContext } from '../contexts/HistoryContext'
 import { useNavigationContext } from '../contexts/NavigationContext'
 import { formatClock, formatSessionDate } from '../lib/formatters'
+import { invokeRegenerateHistorySummary } from '../lib/historyIpc'
 import { mergeTranscriptSegments } from '../lib/transcriptMerge'
 import { TranscriptViewer } from './TranscriptViewer'
 import { ChatAssistant } from './ChatAssistant'
@@ -18,7 +19,10 @@ export function LibrarySurface() {
     deleteSession,
     exportSessionTxt,
     exportSessionSrt,
+    refreshSelectedSession,
   } = useHistoryContext()
+
+  const [summaryRegenOptimistic, setSummaryRegenOptimistic] = useState(false)
 
   useEffect(() => {
     if (mainTab !== 'library') return
@@ -26,6 +30,10 @@ export function LibrarySurface() {
       selectSession(historySessions[0].id)
     }
   }, [mainTab, selectedHistoryId, historySessions, selectSession])
+
+  useEffect(() => {
+    setSummaryRegenOptimistic(false)
+  }, [selectedHistoryId])
 
   const segments = selectedSession ? mergeTranscriptSegments(selectedSession.segments) : []
 
@@ -45,7 +53,10 @@ export function LibrarySurface() {
       : 'No summary yet.'
 
   const titlePending = selectedSession?.aiTitleStatus === 'pending'
-  const summaryPending = selectedSession?.aiSummaryStatus === 'pending'
+  const summaryPendingRemote = selectedSession?.aiSummaryStatus === 'pending'
+  const summaryPending = summaryPendingRemote || summaryRegenOptimistic
+  const summaryRegeneration =
+    summaryPending && Boolean(selectedSession?.aiSummary?.trim())
   const chatSessionTitle =
     titlePending || !selectedSession?.label?.trim()
       ? 'this recording'
@@ -102,6 +113,7 @@ export function LibrarySurface() {
             duration={formatClock(selectedSession.durationMs)}
             summary={summaryText}
             summaryPending={summaryPending}
+            summaryRegeneration={summaryRegeneration}
             transcript={transcriptPlain}
             segments={segments.map((s) => ({
               timestamp: formatClock(s.startMs),
@@ -110,6 +122,21 @@ export function LibrarySurface() {
             }))}
             onExportTxt={() => void exportSessionTxt()}
             onExportSrt={() => void exportSessionSrt()}
+            onRegenerateSummary={() => {
+              const id = selectedSession.id
+              setSummaryRegenOptimistic(true)
+              void (async () => {
+                try {
+                  await invokeRegenerateHistorySummary(id)
+                  await refreshSelectedSession()
+                } catch (err) {
+                  console.error('[LocalTranscribe] Regenerate summary failed', err)
+                } finally {
+                  setSummaryRegenOptimistic(false)
+                }
+              })()
+            }}
+            regenerateSummaryDisabled={transcriptPlain.trim().length === 0}
             onDelete={() => void deleteSession(selectedSession.id)}
           />
           <ChatAssistant

@@ -36,6 +36,9 @@ const api: LocalTranscribeApi = {
   starHistorySession: (id: string, starred: boolean) => ipcRenderer.invoke('history:star', id, starred),
   exportHistoryTxt: (id: string) => ipcRenderer.invoke('history:export:txt', id),
   exportHistorySrt: (id: string) => ipcRenderer.invoke('history:export:srt', id),
+  regenerateHistorySummary: (sessionId: string) =>
+    ipcRenderer.invoke('history:regenerateSummary', sessionId),
+  ipcInvoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
   onHistorySaved: (listener: (meta: HistorySessionMeta) => void) =>
     subscribe('history:saved', listener),
   onHistorySessionUpdated: (listener: (meta: HistorySessionMeta) => void) =>

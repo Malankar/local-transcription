@@ -12,7 +12,11 @@ import type {
   TranscriptSegment,
 } from '../../shared/types'
 import { OLLAMA_DEFAULT_BASE_URL } from '../../shared/assistantModels'
-import { assistantReplyChat, enrichHistorySessionAfterSave } from '../assistant/enrichHistorySession'
+import {
+  assistantReplyChat,
+  enrichHistorySessionAfterSave,
+  regenerateHistorySessionSummary,
+} from '../assistant/enrichHistorySession'
 import { ollamaListTags, ollamaPullModel } from '../assistant/ollamaClient'
 import { AudioCapture } from '../audio/AudioCapture'
 import { SourceDiscovery } from '../audio/SourceDiscovery'
@@ -205,6 +209,17 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   ipcMain.handle('history:star', async (_event, id: string, starred: boolean) => {
     await historyManager.starSession(id, starred)
     logger.info('History session starred', { id, starred })
+  })
+
+  ipcMain.handle('history:regenerateSummary', async (_event, sessionId: string) => {
+    const id = typeof sessionId === 'string' ? sessionId.trim() : ''
+    if (!id) throw new Error('Session id required')
+    await regenerateHistorySessionSummary({
+      sessionId: id,
+      historyManager,
+      mainWindow: getMainWindow(),
+      logger,
+    })
   })
 
   ipcMain.handle('assistant:chat', async (_event, req: AssistantChatRequest) => {

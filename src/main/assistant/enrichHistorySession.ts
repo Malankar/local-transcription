@@ -27,6 +27,84 @@ function sanitizeTitle(raw: string, fallback: string): string {
   return t || fallback
 }
 
+async function generateAiSummaryFromTranscript(
+  transcriptText: string,
+  fallbackSummary: string,
+  baseUrl: string,
+  logger: AppLogger,
+): Promise<string> {
+  try {
+    const summaryPrompt = clip(transcriptText || 'Empty transcript.', 12_000)
+    const summaryRaw = await ollamaChat(
+      baseUrl,
+      ASSISTANT_OLLAMA_MODEL_CHAT,
+      [
+        {
+          role: 'system',
+          content:
+            'You write concise bullet-point summaries of meetings. Use 3–6 bullets. Start each line with "• ". Stay faithful to the transcript.',
+        },
+        { role: 'user', content: `Summarize:\n\n${summaryPrompt}` },
+      ],
+      logger,
+      { temperature: 0.2 },
+    )
+    return summaryRaw.trim() || fallbackSummary
+  } catch (e) {
+    logger.error('Assistant summary generation failed', e)
+    return fallbackSummary
+  }
+}
+
+export async function regenerateHistorySessionSummary(options: {
+  sessionId: string
+  historyManager: HistoryManager
+  mainWindow: BrowserWindow | null
+  logger: AppLogger
+  baseUrl?: string
+}): Promise<void> {
+  const { sessionId, historyManager, mainWindow, logger } = options
+  const baseUrl = options.baseUrl ?? OLLAMA_DEFAULT_BASE_URL
+
+  const broadcast = (meta: HistorySessionMeta): void => {
+    mainWindow?.webContents.send('history:sessionUpdated', meta)
+  }
+
+  const session = await historyManager.getSession(sessionId)
+  if (!session) return
+
+  const transcriptText = session.segments
+    .map((s) => s.text.trim())
+    .filter(Boolean)
+    .join('\n\n')
+
+  const fallbackSummary =
+    session.preview?.trim() ||
+    (transcriptText ? clip(transcriptText, 400) : 'No transcript text for summary.')
+
+  const pendingMeta = await historyManager.patchSessionMeta(sessionId, {
+    aiSummaryStatus: 'pending',
+  })
+  if (pendingMeta) broadcast(pendingMeta)
+
+  if (stubAssistantEnabled()) {
+    const meta = await historyManager.patchSessionMeta(sessionId, {
+      aiSummary: fallbackSummary,
+      aiSummaryStatus: 'ready',
+    })
+    if (meta) broadcast(meta)
+    return
+  }
+
+  const summary = await generateAiSummaryFromTranscript(transcriptText, fallbackSummary, baseUrl, logger)
+
+  const doneMeta = await historyManager.patchSessionMeta(sessionId, {
+    aiSummary: summary,
+    aiSummaryStatus: 'ready',
+  })
+  if (doneMeta) broadcast(doneMeta)
+}
+
 export async function enrichHistorySessionAfterSave(options: {
   sessionId: string
   historyManager: HistoryManager
@@ -104,27 +182,7 @@ export async function enrichHistorySessionAfterSave(options: {
   })
   if (titleMeta) broadcast(titleMeta)
 
-  try {
-    const summaryPrompt = clip(transcriptText || 'Empty transcript.', 12_000)
-    const summaryRaw = await ollamaChat(
-      baseUrl,
-      ASSISTANT_OLLAMA_MODEL_CHAT,
-      [
-        {
-          role: 'system',
-          content:
-            'You write concise bullet-point summaries of meetings. Use 3–6 bullets. Start each line with "• ". Stay faithful to the transcript.',
-        },
-        { role: 'user', content: `Summarize:\n\n${summaryPrompt}` },
-      ],
-      logger,
-      { temperature: 0.2 },
-    )
-    summary = summaryRaw.trim() || fallbackSummary
-  } catch (e) {
-    logger.error('Assistant summary generation failed', e)
-    summary = fallbackSummary
-  }
+  summary = await generateAiSummaryFromTranscript(transcriptText, fallbackSummary, baseUrl, logger)
 
   const doneMeta = await historyManager.patchSessionMeta(sessionId, {
     aiSummary: summary,

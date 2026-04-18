@@ -12,6 +12,8 @@ interface HistoryContextValue {
   deleteSession: (id: string) => Promise<void>
   exportSessionTxt: () => Promise<void>
   exportSessionSrt: () => Promise<void>
+  /** Reload selected session from disk (e.g. after regenerate completes). */
+  refreshSelectedSession: () => Promise<void>
 }
 
 const HistoryContext = createContext<HistoryContextValue | null>(null)
@@ -112,6 +114,16 @@ export function HistoryProvider({ children, onSessionSaved }: HistoryProviderPro
     }
   }
 
+  async function refreshSelectedSession(): Promise<void> {
+    if (selectedHistoryId === null) return
+    try {
+      const fresh = await window.api.getHistorySession(selectedHistoryId)
+      if (fresh) setSelectedSession(fresh)
+    } catch {
+      // silently ignore
+    }
+  }
+
   const value: HistoryContextValue = {
     historySessions,
     selectedHistoryId,
@@ -121,6 +133,7 @@ export function HistoryProvider({ children, onSessionSaved }: HistoryProviderPro
     deleteSession,
     exportSessionTxt,
     exportSessionSrt,
+    refreshSelectedSession,
   }
 
   return <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>

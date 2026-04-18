@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Copy, Download, Loader2, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -17,8 +17,12 @@ export interface TranscriptViewerProps {
   duration: string
   summary: string
   summaryPending?: boolean
+  /** True when replacing an existing AI summary (copy + styling for loading state). */
+  summaryRegeneration?: boolean
   transcript: string
   segments?: TranscriptViewerSegment[]
+  onRegenerateSummary?: () => void
+  regenerateSummaryDisabled?: boolean
   onDelete?: () => void
   onExportTxt?: () => void
   onExportSrt?: () => void
@@ -31,8 +35,11 @@ export function TranscriptViewer({
   duration,
   summary,
   summaryPending = false,
+  summaryRegeneration = false,
   transcript,
   segments: segmentsProp,
+  onRegenerateSummary,
+  regenerateSummaryDisabled = false,
   onDelete,
   onExportTxt,
   onExportSrt,
@@ -69,18 +76,35 @@ export function TranscriptViewer({
 
       <div className="shrink-0 px-6 pt-6">
         <Card className="border-blue-200 bg-blue-50 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-foreground">Quick Summary</h3>
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-foreground">Quick summary</h3>
+            {onRegenerateSummary ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-6 gap-1 px-2 border-blue-300/80 bg-background/80 text-xs text-foreground hover:bg-blue-100/60"
+                disabled={summaryPending || regenerateSummaryDisabled}
+                onClick={() => onRegenerateSummary()}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${summaryPending ? 'animate-spin' : ''}`} aria-hidden />
+                Regenerate
+              </Button>
+            ) : null}
+          </div>
           {summaryPending ? (
             <div
-              className="flex items-center gap-2 text-muted-foreground"
+              className="flex min-h-[3.5rem] items-center gap-2 text-muted-foreground"
               role="status"
-              aria-label="Generating summary"
+              aria-label={summaryRegeneration ? 'Regenerating summary' : 'Generating summary'}
             >
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-              <span className="text-sm">Generating summary…</span>
+              <Loader2 className="h-6 w-6 shrink-0 animate-spin" aria-hidden />
+              <span className="text-sm font-medium">
+                {summaryRegeneration ? 'Regenerating summary…' : 'Generating summary…'}
+              </span>
             </div>
           ) : (
-            <p className="text-sm leading-relaxed text-foreground">{summary}</p>
+            <SummaryBody text={summary} />
           )}
         </Card>
       </div>
@@ -156,6 +180,28 @@ export function TranscriptViewer({
         </div>
       </div>
     </div>
+  )
+}
+
+function SummaryBody({ text }: Readonly<{ text: string }>) {
+  const bullets = text
+    .split(/•/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  if (bullets.length <= 1) {
+    return <p className="text-sm leading-relaxed text-foreground">{text}</p>
+  }
+
+  return (
+    <ul className="space-y-1">
+      {bullets.map((bullet) => (
+        <li key={bullet} className="flex gap-1.5 text-sm leading-relaxed text-foreground">
+          <span className="mt-0.5 shrink-0 text-foreground/60">•</span>
+          <span>{bullet}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 

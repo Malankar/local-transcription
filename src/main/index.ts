@@ -372,44 +372,50 @@ app.whenReady().then(() => {
     logFilePath,
   })
 
-  void settingsManager.getSettings().then((settings) => {
-    applySettings(settings)
-
-    registerIpcHandlers({
-      audioCapture,
-      chunkQueue,
-      sourceDiscovery,
-      whisperEngine,
-      modelManager,
-      historyManager,
-      settingsManager,
-      logger,
-      getMainWindow: () => mainWindow,
-      getTranscriptSegments: () => transcriptSegments,
-      resetTranscriptSegments: () => {
-        transcriptSegments.length = 0
-      },
-      onCaptureStarted: (profile, startTime) => {
-        currentCaptureProfile = profile
-        captureStartTime = startTime
-      },
-      onSettingsChanged: (updated) => {
-        applySettings(updated)
-      },
-      sendStatus,
-      sendError,
-    })
-
-    createWindow(settings.startHidden)
-    sendStatus({ stage: 'idle', detail: `Ready to load audio sources. Logs: ${logFilePath}` })
-
-    app.on('activate', () => {
-      logger.info('Application activate event received')
-      if (BrowserWindow.getAllWindows().length === 0) {
-        void settingsManager.getSettings().then((s) => createWindow(s.startHidden))
-      }
-    })
+  registerIpcHandlers({
+    audioCapture,
+    chunkQueue,
+    sourceDiscovery,
+    whisperEngine,
+    modelManager,
+    historyManager,
+    settingsManager,
+    logger,
+    getMainWindow: () => mainWindow,
+    getTranscriptSegments: () => transcriptSegments,
+    resetTranscriptSegments: () => {
+      transcriptSegments.length = 0
+    },
+    onCaptureStarted: (profile, startTime) => {
+      currentCaptureProfile = profile
+      captureStartTime = startTime
+    },
+    onSettingsChanged: (updated) => {
+      applySettings(updated)
+    },
+    sendStatus,
+    sendError,
   })
+
+  app.on('activate', () => {
+    logger.info('Application activate event received')
+    if (BrowserWindow.getAllWindows().length === 0) {
+      void settingsManager.getSettings().then((s) => createWindow(s.startHidden))
+    }
+  })
+
+  void settingsManager
+    .getSettings()
+    .then((settings) => {
+      applySettings(settings)
+      createWindow(settings.startHidden)
+      sendStatus({ stage: 'idle', detail: `Ready to load audio sources. Logs: ${logFilePath}` })
+    })
+    .catch((err) => {
+      logger.error('Failed to load settings on startup', err)
+      createWindow(false)
+      sendStatus({ stage: 'idle', detail: `Ready to load audio sources. Logs: ${logFilePath}` })
+    })
 })
 
 process.on('uncaughtException', (error) => {

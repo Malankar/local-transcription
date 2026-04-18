@@ -26,6 +26,11 @@ describe('preload api', () => {
     await expect(api.getSources()).resolves.toEqual([{ id: 'src-1' }])
     expect(invoke).toHaveBeenCalledWith('sources:get')
 
+    expect(typeof api.ipcInvoke).toBe('function')
+    invoke.mockResolvedValueOnce(undefined)
+    await expect(api.ipcInvoke('history:regenerateSummary', 'id-1')).resolves.toBeUndefined()
+    expect(invoke).toHaveBeenCalledWith('history:regenerateSummary', 'id-1')
+
     const listener = vi.fn()
     const unsubscribe = api.onStatus(listener)
     expect(on).toHaveBeenCalledWith('status', expect.any(Function))

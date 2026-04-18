@@ -56,6 +56,11 @@ export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): Loca
     starHistorySession: vi.fn().mockResolvedValue(undefined),
     exportHistoryTxt: vi.fn().mockResolvedValue(exportResult),
     exportHistorySrt: vi.fn().mockResolvedValue(exportResult),
+    regenerateHistorySummary: vi.fn().mockResolvedValue(undefined),
+    ipcInvoke: vi.fn().mockImplementation(async (channel: string) => {
+      if (channel === 'history:regenerateSummary') return undefined
+      throw new Error(`ipcInvoke: unmocked channel ${channel}`)
+    }),
     onHistorySaved: vi.fn().mockReturnValue(() => undefined),
     onHistorySessionUpdated: vi.fn().mockReturnValue(() => undefined),
     assistantChat: vi.fn().mockImplementation(async (_req: AssistantChatRequest) => ({ text: 'mock reply' })),

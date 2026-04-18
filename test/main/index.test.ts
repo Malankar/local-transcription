@@ -91,6 +91,7 @@ const mainMocks = vi.hoisted(() => {
     setMode: vi.fn(),
     clear: vi.fn(),
     enqueue: vi.fn(),
+    notifyCaptureEnded: vi.fn(),
   }
 
   const sourceDiscovery = {

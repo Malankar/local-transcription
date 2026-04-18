@@ -205,6 +205,7 @@ function applyVoiceShortcut(shortcut: string): void {
   const ok = globalShortcut.register(shortcut, () => {
     if (audioCapture.isRunning()) {
       audioCapture.stop()
+      chunkQueue.notifyCaptureEnded()
       sendStatus({ stage: 'stopped', detail: 'Capture stopped via shortcut' })
     } else {
       // Trigger start with last-used profile via renderer (or default to meeting)
@@ -432,6 +433,7 @@ const quitAfterLastWindowClosed =
 app.on('window-all-closed', () => {
   logger.info('All windows closed')
   audioCapture.stop()
+  chunkQueue.notifyCaptureEnded()
   whisperEngine.dispose()
   if (quitAfterLastWindowClosed) {
     logger.info('Quitting application after last window closed', {

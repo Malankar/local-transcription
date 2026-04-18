@@ -34,6 +34,14 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
     this.queue = []
   }
 
+  /**
+   * After capture stops, queue may be idle while the last `drained` fired during capture.
+   * Re-enter drain check so listeners can persist (e.g. history save).
+   */
+  notifyCaptureEnded(): void {
+    void this.processNext()
+  }
+
   /** Node EventEmitter throws if `error` is emitted with no listeners; avoid breaking the queue. */
   private emitProcessorError(error: Error): void {
     if (this.listenerCount('error') > 0) {

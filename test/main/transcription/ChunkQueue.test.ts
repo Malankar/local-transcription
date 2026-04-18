@@ -59,6 +59,20 @@ describe('ChunkQueue', () => {
       expect(drainedEvents).toHaveLength(1)
     })
 
+    it('notifyCaptureEnded emits drained when queue already idle', async () => {
+      const processor = vi.fn(async () => [])
+      const queue = new ChunkQueue(processor)
+      const drainedEvents: number[] = []
+      queue.on('drained', () => drainedEvents.push(1))
+
+      queue.enqueue(makeChunk(0, 100))
+      await new Promise(resolve => setTimeout(resolve, 20))
+      expect(drainedEvents).toHaveLength(1)
+
+      queue.notifyCaptureEnded()
+      expect(drainedEvents).toHaveLength(2)
+    })
+
     it('does not process when queue is empty', () => {
       const processor = vi.fn()
       const queue = new ChunkQueue(processor)

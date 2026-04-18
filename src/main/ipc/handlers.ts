@@ -121,6 +121,7 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   ipcMain.handle('capture:stop', async () => {
     logger.info('Received capture:stop request')
     audioCapture.stop()
+    chunkQueue.notifyCaptureEnded()
     sendStatus({ stage: 'stopped', detail: 'Capture stopped' })
   })
 

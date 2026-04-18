@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import * as fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -51,13 +51,27 @@ export async function closeLaunchedApp(electronApp: ElectronApplication): Promis
   }
 }
 
-export async function launchApp(options?: { timeout?: number }) {
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'local-transcribe-e2e-'))
+export async function launchApp(options?: {
+  timeout?: number
+  userDataDir?: string
+  /** Max time for firstWindow, locator actions, etc. (Electron context default). */
+  contextTimeoutMs?: number
+  /** Bound waitForLoadState / navigation-style waits on pages from this app. */
+  navigationTimeoutMs?: number
+}) {
+  const userDataDir = options?.userDataDir ?? fs.mkdtempSync(path.join(tmpdir(), 'local-transcribe-e2e-'))
+  if (options?.userDataDir) {
+    fs.mkdirSync(userDataDir, { recursive: true })
+  }
   const electronApp = await electron.launch({
     cwd: projectRoot,
     args: [`--user-data-dir=${userDataDir}`, electronMain],
     env: launchEnv(),
     timeout: options?.timeout ?? 120_000,
   })
+  const ctx = electronApp.context()
+  const opTimeout = options?.contextTimeoutMs ?? 120_000
+  ctx.setDefaultTimeout(opTimeout)
+  ctx.setDefaultNavigationTimeout(options?.navigationTimeoutMs ?? 120_000)
   return { electronApp, userDataDir }
 }

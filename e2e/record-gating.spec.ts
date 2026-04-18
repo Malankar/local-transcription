@@ -32,7 +32,10 @@ async function ensureTinyModelDownloaded(window: Page) {
 test.describe('Record surface gating', () => {
   test('shows no-sources copy when model is ready but sources are incomplete', async ({}, testInfo) => {
     test.setTimeout(300_000)
-    const { electronApp } = await launchApp()
+    const { electronApp } = await launchApp({
+      contextTimeoutMs: 300_000,
+      navigationTimeoutMs: 300_000,
+    })
 
     try {
       const window = await electronApp.firstWindow()

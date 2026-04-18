@@ -6,7 +6,10 @@ test.describe('@slow Settings transcription models', () => {
   test.setTimeout(300_000)
 
   async function openModelsSection() {
-    const { electronApp } = await launchApp()
+    const { electronApp } = await launchApp({
+      contextTimeoutMs: 300_000,
+      navigationTimeoutMs: 300_000,
+    })
     const page = await electronApp.firstWindow()
     await page.waitForLoadState('domcontentloaded')
     await page.getByRole('navigation').getByTitle('Settings').click()

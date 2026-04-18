@@ -26,7 +26,7 @@ export default function AppShell() {
     ) {
       navigateTo('history')
     }
-  }, [isCapturing, status.stage, meetingSegments.length, captureProfile, navigateTo])
+  }, [isCapturing, mainTab, status.stage, meetingSegments.length, captureProfile, navigateTo])
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">

@@ -7,7 +7,7 @@ export function getLinuxSources(): AudioSource[] {
     encoding: 'utf8',
   })
 
-  return output
+  const sources = output
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
@@ -24,6 +24,36 @@ export function getLinuxSources(): AudioSource[] {
       } satisfies AudioSource
     })
     .filter((source) => source.id.length > 0)
+
+  const preferredMonitorId = resolvePreferredMonitorId()
+  const monitors = sources.filter((s) => s.isMonitor)
+  const mics = sources.filter((s) => !s.isMonitor)
+
+  if (preferredMonitorId) {
+    monitors.sort((a, b) => {
+      const aPref = a.id === preferredMonitorId ? 0 : 1
+      const bPref = b.id === preferredMonitorId ? 0 : 1
+      if (aPref !== bPref) return aPref - bPref
+      return a.id.localeCompare(b.id)
+    })
+  } else {
+    monitors.sort((a, b) => a.id.localeCompare(b.id))
+  }
+
+  mics.sort((a, b) => a.id.localeCompare(b.id))
+
+  return [...monitors, ...mics]
+}
+
+/** Monitor for the default output sink — avoids picking e.g. HDMI when audio plays on analog. */
+function resolvePreferredMonitorId(): string | null {
+  try {
+    const defaultSink = execFileSync('pactl', ['get-default-sink'], { encoding: 'utf8' }).trim()
+    if (!defaultSink) return null
+    return `${defaultSink}.monitor`
+  } catch {
+    return null
+  }
 }
 
 function formatLinuxLabel(sourceName: string, isMonitor: boolean): string {

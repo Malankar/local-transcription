@@ -96,8 +96,18 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
     try {
       const discovered = await window.api.getSources()
       setSources(discovered)
-      setSystemSourceId((c) => c || discovered.find((s) => s.isMonitor)?.id || '')
-      setMicSourceId((c) => c || discovered.find((s) => !s.isMonitor)?.id || '')
+      const monitors = discovered.filter((s) => s.isMonitor)
+      const mics = discovered.filter((s) => !s.isMonitor)
+      setSystemSourceId((prev) => {
+        const preferred = monitors[0]?.id ?? ''
+        if (prev && monitors.some((s) => s.id === prev)) return prev
+        return preferred
+      })
+      setMicSourceId((prev) => {
+        const preferred = mics[0]?.id ?? ''
+        if (prev && mics.some((s) => s.id === prev)) return prev
+        return preferred
+      })
     } catch (error) {
       setErrorMessage(toMessage(error))
     } finally {

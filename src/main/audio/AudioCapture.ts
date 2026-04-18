@@ -25,7 +25,7 @@ const CHUNKING_PROFILES: Record<'meeting' | 'live', ChunkingProfile> = {
   meeting: {
     minChunkMs: 2_500,
     targetChunkMs: 4_000,
-    maxChunkMs: 6_000,
+    maxChunkMs: 4_000,
     minSilenceMs: 400,
     speechPadMs: 200,
     overlapMs: 350,
@@ -232,9 +232,10 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     const durationMs = byteSizeToDurationMs(chunk.length)
     const chunkEndMs = chunkStartMs + durationMs
 
-    // Skip chunks that are entirely silent to avoid sending blank audio to the
-    // transcription engine, which causes [BLANK_AUDIO] spam and needless failures.
-    if (calculateRms(chunk) <= SILENCE_RMS_THRESHOLD) {
+    // Only skip near–digital silence (do not use RMS here: quiet real audio and many
+    // monitor captures sit below the chunking silence threshold and were being dropped
+    // entirely, so nothing ever reached the transcriber).
+    if (isNearDigitalSilencePcm16(chunk)) {
       return
     }
 
@@ -324,6 +325,22 @@ function buildFfmpegArgs(options: CaptureStartOptions): string[] {
     default:
       throw new Error(`Unsupported capture mode: ${String(options.mode)}`)
   }
+}
+
+/** True when every sample is tiny (~-72 dBFS or lower), i.e. true silence or dither only. */
+function isNearDigitalSilencePcm16(buffer: Buffer): boolean {
+  const sampleCount = Math.floor(buffer.length / BYTES_PER_SAMPLE)
+  if (sampleCount === 0) {
+    return true
+  }
+
+  for (let index = 0; index < sampleCount; index += 1) {
+    if (Math.abs(buffer.readInt16LE(index * BYTES_PER_SAMPLE)) > 8) {
+      return false
+    }
+  }
+
+  return true
 }
 
 function pcm16ToFloat32(buffer: Buffer): Float32Array {

@@ -94,7 +94,7 @@ describe('AudioCapture', () => {
       expect(chunks[1].startMs).toBeLessThan(chunks[0].endMs)
     })
 
-    it('does not emit chunk for silence', async () => {
+    it('does not emit chunk for digital silence', async () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default' })
       
       const chunks: any[] = []
@@ -107,6 +107,23 @@ describe('AudioCapture', () => {
       await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(chunks.length).toBe(0)
+    })
+
+    it('emits chunk for quiet audio that is still above the digital floor', async () => {
+      audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
+
+      const chunks: any[] = []
+      audioCapture.on('chunk', (c) => chunks.push(c))
+
+      const data = Buffer.alloc(16000 * 2 * 2)
+      for (let i = 0; i < data.length; i += 2) {
+        data.writeInt16LE(200, i)
+      }
+      mockProcess.stdout.push(data)
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      expect(chunks.length).toBeGreaterThan(0)
     })
   })
 

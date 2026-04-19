@@ -14,10 +14,10 @@ export function TopNavigation() {
   return (
     <header className="shrink-0 border-b border-border bg-background/85 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
       <nav
-        className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-6"
+        className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 gap-y-2 px-3 py-3 sm:gap-x-3 sm:px-4"
         aria-label="Primary"
       >
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
             <Mic className="h-4 w-4" aria-hidden />
           </div>
@@ -27,7 +27,7 @@ export function TopNavigation() {
           </div>
         </div>
 
-        <div className="flex flex-1 justify-center">
+        <div className="flex min-w-0 justify-center justify-self-center">
           <div className="flex items-center gap-0.5 rounded-full border border-border bg-muted/50 p-1 shadow-inner">
             <Button
               variant="ghost"
@@ -63,7 +63,7 @@ export function TopNavigation() {
         <Button
           variant="outline"
           size="icon"
-          className="h-9 w-9 shrink-0 border-border shadow-none"
+          className="h-9 w-9 shrink-0 justify-self-end border-border shadow-none"
           onClick={() => setSettingsOpen(true)}
           aria-label="Open settings"
         >

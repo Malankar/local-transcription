@@ -20,7 +20,7 @@ export default function AppShell() {
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
       <TopNavigation />
-      <main className="min-h-0 flex-1 overflow-hidden">
+      <main className="min-h-0 flex-1 overflow-hidden bg-muted/20">
         {mainTab === 'record' && <RecordSurface />}
         {mainTab === 'library' && <LibrarySurface />}
       </main>

@@ -82,10 +82,10 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
   }
 
   return (
-    <div className="flex h-full w-96 shrink-0 flex-col border-l border-border bg-background">
-      <div className="flex shrink-0 flex-col border-b border-border p-4">
-        <h3 className="text-sm font-semibold">Assistant</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Ask about this transcript</p>
+    <div className="flex h-full w-[min(100%,24rem)] shrink-0 flex-col border-l border-border bg-card">
+      <div className="flex shrink-0 flex-col border-b border-border bg-muted/30 px-4 py-3">
+        <h3 className="text-sm font-semibold tracking-tight text-foreground">Assistant</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">Ask about this session (local Ollama)</p>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -95,10 +95,10 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-xs rounded-lg px-4 py-2 ${
+              className={`max-w-[85%] rounded-xl px-3.5 py-2.5 shadow-sm ${
                 message.role === 'user'
-                  ? 'border border-border bg-muted text-foreground'
-                  : 'bg-muted text-foreground'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'border border-border bg-background text-foreground'
               }`}
             >
               <p className="whitespace-pre-wrap text-sm">{message.content}</p>
@@ -107,7 +107,7 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
         ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="rounded-lg bg-muted px-4 py-2 text-foreground">
+            <div className="rounded-xl border border-border bg-muted/50 px-4 py-2.5">
               <div className="flex gap-2">
                 <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
                 <div
@@ -125,7 +125,7 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="shrink-0 border-t border-border p-4">
+      <div className="shrink-0 border-t border-border bg-muted/20 p-4">
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <input
             type="text"
@@ -133,14 +133,15 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask a question..."
             disabled={isLoading}
-            className="flex-1 rounded border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
           />
-          <Button type="submit" disabled={isLoading || !input.trim()} size="sm" className="gap-2">
-            <Send className="h-4 w-4" />
+          <Button type="submit" disabled={isLoading || !input.trim()} size="sm" className="gap-2 shadow-sm">
+            <Send className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Send</span>
           </Button>
         </form>
 
-        <div className="mt-3 flex gap-2 rounded bg-muted/30 p-3 text-xs text-muted-foreground">
+        <div className="mt-3 flex gap-2 rounded-lg border border-border/60 bg-background/80 p-3 text-xs text-muted-foreground">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
             Local chat uses Ollama <span className="font-mono">{ASSISTANT_OLLAMA_MODEL_CHAT}</span> (titles use{' '}

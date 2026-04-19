@@ -100,15 +100,15 @@ export function TranscriptViewer({
       </div>
 
       <div className="shrink-0 px-6 pt-6">
-        <Card className="border-blue-200 bg-blue-50 p-4">
+        <Card className="border-border bg-muted/35 p-4 shadow-sm">
           <div className="-mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-foreground">Quick summary</h3>
+            <h3 className="text-sm font-semibold text-foreground">Summary</h3>
             {onRegenerateSummary ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-6 gap-1 px-2 border-blue-300/80 bg-background/80 text-xs text-foreground hover:bg-blue-100/60"
+                className="h-7 gap-1 px-2 text-xs shadow-none"
                 disabled={summaryPending || regenerateSummaryDisabled}
                 onClick={() => onRegenerateSummary()}
               >
@@ -160,7 +160,7 @@ export function TranscriptViewer({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-border bg-background px-6 py-4">
+      <div className="shrink-0 border-t border-border bg-muted/25 px-6 py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleCopyTranscript} className="gap-2">

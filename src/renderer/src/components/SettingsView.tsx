@@ -377,15 +377,31 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
       {/* ── Transcription models ── */}
       <section>
         <SectionLabel>Transcription models</SectionLabel>
-        <div className="overflow-hidden rounded-lg border border-border bg-card">
-          <div className="border-b border-border px-6 py-4">
-            <p className="text-sm leading-snug text-muted-foreground">
-              Download and select Whisper weights for local transcription. The chosen model is used the next time you
-              start recording.
-            </p>
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="flex items-start gap-4 border-b border-border bg-muted/15 px-5 py-4 sm:px-6 sm:py-5">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-background text-foreground">
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  fontSize: 22,
+                  fontVariationSettings: `'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
+                  userSelect: 'none',
+                  lineHeight: 1,
+                }}
+                aria-hidden
+              >
+                graphic_eq
+              </span>
+            </div>
+            <div className="min-w-0 pt-0.5">
+              <h2 className="font-heading text-base font-semibold tracking-tight text-foreground">Whisper weights</h2>
+              <p className="mt-1 text-sm leading-snug text-muted-foreground">
+                Pick one engine for local transcription. Next recording uses your selection after download finishes.
+              </p>
+            </div>
           </div>
-          <div className="p-4 sm:p-6">
-            <ModelLibrarySection />
+          <div className="p-4 sm:p-5">
+            <ModelLibrarySection layout="settings" />
           </div>
         </div>
       </section>

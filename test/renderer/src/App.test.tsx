@@ -13,6 +13,6 @@ describe('App', () => {
 
     expect(container.textContent).toContain('Transcribe')
     expect(container.textContent).toContain('Start Recording')
-    expect(container.textContent).toContain('Your transcript will appear here')
+    expect(container.textContent).toContain('transcript streams here')
   })
 })

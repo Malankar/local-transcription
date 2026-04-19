@@ -84,14 +84,16 @@ export default function RecordSurface() {
 
   return (
     <div className="flex h-full min-h-0 bg-background">
-      <div className="flex min-h-0 w-[min(100%,18rem)] min-w-[16.5rem] shrink-0 flex-col overflow-y-auto border-r border-border bg-muted/30 p-5 sm:w-72 sm:min-w-[18rem] sm:p-6">
+      <aside className="flex min-h-0 w-[min(100%,18rem)] min-w-[16.5rem] shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar p-5 text-sidebar-foreground sm:w-72 sm:min-w-[18rem] sm:p-6">
         {isCapturing && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+          <div className="mb-6 rounded-xl border border-destructive/35 bg-destructive/10 p-4">
             <div className="mb-2 flex items-center gap-2">
-              <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-              <span className="text-sm font-medium text-red-700">Recording</span>
+              <div className="h-2 w-2 animate-pulse rounded-full bg-destructive" aria-hidden />
+              <span className="text-sm font-medium text-destructive">Recording</span>
             </div>
-            <div className="font-mono text-2xl text-red-600">{formatTime(elapsedSec)}</div>
+            <div className="font-mono text-2xl tabular-nums tracking-tight text-foreground">
+              {formatTime(elapsedSec)}
+            </div>
           </div>
         )}
 
@@ -138,7 +140,7 @@ export default function RecordSurface() {
         </div>
 
         {!canStartMeeting && !isCapturing && (
-          <p className="mb-6 text-xs text-muted-foreground">
+          <p className="mb-6 text-xs text-sidebar-foreground/75">
             {selectedModel?.isDownloaded ? (
               'Select audio sources above.'
             ) : (
@@ -157,25 +159,27 @@ export default function RecordSurface() {
           </p>
         )}
 
-        <div className="mt-auto space-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
+        <div className="mt-auto space-y-2 border-t border-sidebar-border pt-4 text-xs text-sidebar-foreground/80">
           {selectedModel ? (
             <p>
-              <strong className="text-foreground">Model:</strong> {selectedModel.name}
+              <span className="font-medium text-sidebar-foreground">Model</span>
+              <span className="text-sidebar-foreground/70"> · </span>
+              {selectedModel.name}
             </p>
           ) : null}
         </div>
-      </div>
+      </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
         {showTranscriptWorkspace ? (
-          <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
+          <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6 lg:p-8">
             <div className="flex min-h-0 w-full flex-1 flex-col">
               <div className="mb-4 shrink-0">
-                <h2 className="mb-1 text-lg font-semibold">Recording Transcript</h2>
-                <p className="text-xs text-muted-foreground">Source: {sourceSummary(mode)}</p>
+                <h2 className="mb-1 text-lg font-semibold tracking-tight text-foreground">Live transcript</h2>
+                <p className="text-xs text-muted-foreground">Source · {sourceSummary(mode)}</p>
               </div>
 
-              <Card className="mb-4 flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-border bg-muted/50 p-0">
+              <Card className="mb-4 flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-border bg-card p-0 shadow-sm">
                 <ScrollArea className="h-full min-h-0 flex-1" ref={scrollRef}>
                   <div className="space-y-2 p-4 text-sm">
                     {!meetingText ? (
@@ -195,22 +199,17 @@ export default function RecordSurface() {
               </Card>
 
               {showCompletionCard ? (
-                <Card className="shrink-0 border-green-200 bg-green-50 p-4">
+                <Card className="shrink-0 border-border bg-muted/40 p-4 shadow-sm">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-200">
-                      <Check className="h-5 w-5 text-green-700" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Check className="h-5 w-5" aria-hidden />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="mb-1 text-sm font-semibold text-green-900">Recording saved</h3>
-                      <p className="mb-3 text-xs text-green-800">Your transcript is ready for review.</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-2 border-green-300 text-xs text-green-700 hover:bg-green-100"
-                        onClick={() => setMainTab('library')}
-                      >
+                      <h3 className="mb-1 text-sm font-semibold text-foreground">Saved to library</h3>
+                      <p className="mb-3 text-xs text-muted-foreground">Transcript ready for review or export.</p>
+                      <Button variant="default" size="sm" className="h-8 gap-2 text-xs" onClick={() => setMainTab('library')}>
                         Open in Library
-                        <ArrowRight className="h-3 w-3" />
+                        <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                       </Button>
                     </div>
                   </div>
@@ -219,15 +218,16 @@ export default function RecordSurface() {
             </div>
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-12 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-              <Mic className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h2 className="mb-3 text-2xl font-semibold">Ready to Record</h2>
-            <p className="max-w-md text-sm text-muted-foreground">
-              Select your audio source and click Start Recording to begin. Your transcript will appear here in
-              real-time.
-            </p>
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto p-6">
+            <Card className="max-w-md border-dashed border-border/80 bg-card/80 p-8 text-center shadow-sm backdrop-blur-sm">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+                <Mic className="h-7 w-7 text-muted-foreground" aria-hidden />
+              </div>
+              <h2 className="mb-2 text-xl font-semibold tracking-tight text-foreground">Ready when you are</h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Pick a source, start recording, transcript streams here in real time.
+              </p>
+            </Card>
           </div>
         )}
       </div>

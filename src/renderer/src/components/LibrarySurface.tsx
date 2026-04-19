@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 
+import { Card } from '@/components/ui/card'
 import { useHistoryContext } from '../contexts/HistoryContext'
 import { useNavigationContext } from '../contexts/NavigationContext'
 import { formatClock, formatSessionDate } from '../lib/formatters'
@@ -66,13 +67,13 @@ export function LibrarySurface() {
 
   return (
     <div className="flex h-full min-h-0 bg-background">
-      <div className="w-64 shrink-0 overflow-y-auto border-r border-border bg-muted/30">
+      <aside className="w-64 shrink-0 overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="space-y-2 p-4">
-          <h3 className="mb-4 px-1 text-xs font-semibold uppercase text-muted-foreground">
+          <h3 className="mb-3 px-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60">
             Transcriptions
           </h3>
           {historySessions.length === 0 ? (
-            <p className="px-1 text-sm text-muted-foreground">No saved sessions yet.</p>
+            <p className="px-1 text-sm text-sidebar-foreground/70">No saved sessions yet.</p>
           ) : (
             historySessions.map((session) => (
               <button
@@ -81,13 +82,13 @@ export function LibrarySurface() {
                 onClick={() => selectSession(session.id)}
                 className={`w-full rounded-lg border p-3 text-left transition-colors ${
                   selectedHistoryId === session.id
-                    ? 'border-border bg-muted font-medium text-foreground shadow-sm'
-                    : 'border-transparent text-foreground hover:bg-muted/80'
+                    ? 'border-sidebar-border bg-sidebar-accent font-medium text-sidebar-accent-foreground shadow-sm'
+                    : 'border-transparent text-sidebar-foreground hover:bg-sidebar-accent/50'
                 }`}
               >
                 {session.aiTitleStatus === 'pending' ? (
                   <div
-                    className="flex min-h-[1.25rem] items-center gap-2 text-muted-foreground"
+                    className="flex min-h-[1.25rem] items-center gap-2 text-sidebar-foreground/70"
                     role="status"
                     aria-label="Generating recording title"
                   >
@@ -97,14 +98,14 @@ export function LibrarySurface() {
                 ) : (
                   <h3 className="truncate text-sm font-medium">{session.label || 'Untitled'}</h3>
                 )}
-                <p className="mt-1 text-xs opacity-70">
-                  {formatSessionDate(session.startTime)} • {formatClock(session.durationMs)}
+                <p className="mt-1 text-xs text-sidebar-foreground/65">
+                  {formatSessionDate(session.startTime)} · {formatClock(session.durationMs)}
                 </p>
               </button>
             ))
           )}
         </div>
-      </div>
+      </aside>
 
       {selectedSession ? (
         <>
@@ -163,8 +164,10 @@ export function LibrarySurface() {
           />
         </>
       ) : (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          Select a session to view transcript
+        <div className="flex flex-1 items-center justify-center p-6">
+          <Card className="max-w-sm border-dashed border-border/80 bg-card/80 px-6 py-8 text-center text-sm text-muted-foreground shadow-sm">
+            Select a session to open transcript, summary, and assistant.
+          </Card>
         </div>
       )}
     </div>

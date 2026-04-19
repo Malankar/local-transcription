@@ -3,13 +3,14 @@ import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type {
-  AppStatus,
-  AssistantChatRequest,
-  CaptureStartOptions,
-  ExportResult,
-  HistorySessionMeta,
-  TranscriptSegment,
+import {
+  coerceAssistantChatFlags,
+  type AppStatus,
+  type AssistantChatRequest,
+  type CaptureStartOptions,
+  type ExportResult,
+  type HistorySessionMeta,
+  type TranscriptSegment,
 } from '../../shared/types'
 import { OLLAMA_DEFAULT_BASE_URL } from '../../shared/assistantModels'
 import {
@@ -236,10 +237,13 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   })
 
   ipcMain.handle('assistant:chat', async (_event, req: AssistantChatRequest) => {
+    const flags = coerceAssistantChatFlags(req)
     const text = await assistantReplyChat({
       sessionTitle: req.sessionTitle,
       transcript: req.transcript,
       userMessages: req.messages,
+      thinkingMode: flags.thinkingMode,
+      webSearchEnabled: flags.webSearchEnabled,
       logger,
     })
     return { text }

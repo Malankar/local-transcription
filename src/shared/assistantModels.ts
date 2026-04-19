@@ -1,19 +1,35 @@
 /**
  * Hardcoded local assistant stack (Ollama). Users do not pick per-task models in UI.
  *
- * Title: very small / fast instruct model (Meta Llama 3.2 1B — common Ollama name, ~1.3GB).
- * Summary + Library chat: same small instruct model with stronger text (Qwen 2.5 3B — good speed/quality on CPU/GPU).
+ * Title: small instruct model (Llama 3.2 3B — better specificity than 1B, still light).
+ * Summary + transcript Q&A: Qwen 2.5 7B — stronger local answers vs 3B; needs more RAM/VRAM.
  *
  * @see https://ollama.com/library/llama3.2
  * @see https://ollama.com/library/qwen2.5
  */
 export const OLLAMA_DEFAULT_BASE_URL = 'http://127.0.0.1:11434'
 
-/** Fast title generation */
-export const ASSISTANT_OLLAMA_MODEL_TITLE = 'llama3.2:1b'
+/** Title generation (fast, constrained decoding) */
+export const ASSISTANT_OLLAMA_MODEL_TITLE = 'llama3.2:3b'
 
-/** Summary + transcript Q&A (same model for both) */
-export const ASSISTANT_OLLAMA_MODEL_CHAT = 'qwen2.5:3b'
+/** Summary + transcript Q&A */
+export const ASSISTANT_OLLAMA_MODEL_CHAT = 'qwen2.5:7b'
+
+/** Passed to Ollama `/api/chat` options for title jobs */
+export const ASSISTANT_OLLAMA_TITLE_OPTIONS = {
+  temperature: 0.1,
+  num_predict: 48,
+  top_p: 0.85,
+  repeat_penalty: 1.2,
+} as const
+
+/** Summary bullets */
+export const ASSISTANT_OLLAMA_SUMMARY_OPTIONS = {
+  temperature: 0.2,
+  num_predict: 900,
+  top_p: 0.9,
+  repeat_penalty: 1.1,
+} as const
 
 export const ASSISTANT_OLLAMA_MODELS_TO_PULL = [
   { id: ASSISTANT_OLLAMA_MODEL_TITLE, role: 'Titles (fast)' },

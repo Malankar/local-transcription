@@ -3,12 +3,16 @@ import type { BrowserWindow } from 'electron'
 import {
   ASSISTANT_OLLAMA_MODEL_CHAT,
   ASSISTANT_OLLAMA_MODEL_TITLE,
+  ASSISTANT_OLLAMA_SUMMARY_OPTIONS,
+  ASSISTANT_OLLAMA_TITLE_OPTIONS,
   OLLAMA_DEFAULT_BASE_URL,
 } from '../../shared/assistantModels'
 import type { HistorySessionMeta } from '../../shared/types'
 import { HistoryManager } from '../history/HistoryManager'
 import type { AppLogger } from '../logging/AppLogger'
 import { ollamaChat } from './ollamaClient'
+import { TITLE_SYSTEM_PROMPT } from './titlePrompt'
+import { orchestrateAssistantChat } from './toolOrchestrator'
 
 function stubAssistantEnabled(): boolean {
   return process.env.E2E_STUB_OLLAMA === '1'
@@ -47,7 +51,7 @@ async function generateAiSummaryFromTranscript(
         { role: 'user', content: `Summarize:\n\n${summaryPrompt}` },
       ],
       logger,
-      { temperature: 0.2 },
+      { ...ASSISTANT_OLLAMA_SUMMARY_OPTIONS },
     )
     return summaryRaw.trim() || fallbackSummary
   } catch (e) {
@@ -98,15 +102,11 @@ export async function regenerateHistorySessionTitle(options: {
       baseUrl,
       ASSISTANT_OLLAMA_MODEL_TITLE,
       [
-        {
-          role: 'system',
-          content:
-            'You output ONLY a short meeting title: 3–8 words. No quotes. No punctuation at the end. No explanation.',
-        },
+        { role: 'system', content: TITLE_SYSTEM_PROMPT },
         { role: 'user', content: `Transcript:\n\n${clip(transcriptText || 'Empty transcript.', 6000)}\n\nTitle:` },
       ],
       logger,
-      { temperature: 0.1 },
+      { ...ASSISTANT_OLLAMA_TITLE_OPTIONS },
     )
     title = sanitizeTitle(titleRaw, fallbackTitle)
   } catch (e) {
@@ -224,15 +224,11 @@ export async function enrichHistorySessionAfterSave(options: {
       baseUrl,
       ASSISTANT_OLLAMA_MODEL_TITLE,
       [
-        {
-          role: 'system',
-          content:
-            'You output ONLY a short meeting title: 3–8 words. No quotes. No punctuation at the end. No explanation.',
-        },
+        { role: 'system', content: TITLE_SYSTEM_PROMPT },
         { role: 'user', content: `Transcript:\n\n${titlePrompt}\n\nTitle:` },
       ],
       logger,
-      { temperature: 0.1 },
+      { ...ASSISTANT_OLLAMA_TITLE_OPTIONS },
     )
     title = sanitizeTitle(titleRaw, fallbackTitle)
   } catch (e) {
@@ -259,10 +255,19 @@ export async function assistantReplyChat(options: {
   sessionTitle: string
   transcript: string
   userMessages: { role: 'user' | 'assistant'; content: string }[]
+  thinkingMode?: boolean
+  webSearchEnabled?: boolean
   logger: AppLogger
   baseUrl?: string
 }): Promise<string> {
-  const { sessionTitle, transcript, userMessages, logger } = options
+  const {
+    sessionTitle,
+    transcript,
+    userMessages,
+    logger,
+    thinkingMode = false,
+    webSearchEnabled = false,
+  } = options
   const baseUrl = options.baseUrl ?? OLLAMA_DEFAULT_BASE_URL
 
   if (stubAssistantEnabled()) {
@@ -273,15 +278,13 @@ export async function assistantReplyChat(options: {
     return `Stub assistant (E2E). Real replies need Ollama running with ${ASSISTANT_OLLAMA_MODEL_CHAT}.`
   }
 
-  const transcriptClip = clip(transcript, 14_000)
-  const ollamaMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-    {
-      role: 'system',
-      content: `You help the user understand an audio transcript. Session title: "${sessionTitle}". Answer only from the transcript; if unsure, say you cannot find it. Be concise.`,
-    },
-    { role: 'user', content: `Transcript:\n\n${transcriptClip}` },
-    ...userMessages.map((m) => ({ role: m.role, content: m.content })),
-  ]
-
-  return ollamaChat(baseUrl, ASSISTANT_OLLAMA_MODEL_CHAT, ollamaMessages, logger, { temperature: 0.3 })
+  return orchestrateAssistantChat({
+    sessionTitle,
+    transcript,
+    userMessages,
+    thinkingMode,
+    webSearchEnabled,
+    logger,
+    baseUrl,
+  })
 }

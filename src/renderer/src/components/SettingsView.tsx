@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { AssistantProviderId, HistoryAutoDelete, OllamaStatusResult } from '../types'
-import { ASSISTANT_OLLAMA_MODELS_TO_PULL } from '../../../shared/assistantModels'
+import {
+  ASSISTANT_OLLAMA_MODEL_CHAT,
+  ASSISTANT_OLLAMA_MODEL_TITLE,
+  ASSISTANT_OLLAMA_MODELS_TO_PULL,
+} from '../../../shared/assistantModels'
 import { useSettingsContext } from '../contexts/SettingsContext'
 import { ModelLibrarySection } from './ModelsView'
 import { Button } from './ui/button'
@@ -127,8 +131,8 @@ function OllamaLocalAssistantCard() {
     <div className="px-6 py-5">
       <h3 className="mb-2 text-sm font-medium text-foreground">Ollama models (assistant)</h3>
       <p className="mb-3 text-sm leading-snug text-muted-foreground">
-        Titles use <span className="font-mono">llama3.2:1b</span>; summaries and Library chat use{' '}
-        <span className="font-mono">qwen2.5:3b</span> (no per-task picker in the app). Install{' '}
+        Titles use <span className="font-mono">{ASSISTANT_OLLAMA_MODEL_TITLE}</span>; summaries and Library chat use{' '}
+        <span className="font-mono">{ASSISTANT_OLLAMA_MODEL_CHAT}</span> (no per-task picker in the app). Install{' '}
         <a href="https://ollama.com/download" className="font-medium underline underline-offset-2" target="_blank" rel="noreferrer">
           Ollama
         </a>{' '}

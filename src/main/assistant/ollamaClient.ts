@@ -5,19 +5,36 @@ export interface OllamaChatMessage {
   content: string
 }
 
+/** Ollama `/api/chat` generation options (subset). */
+export interface OllamaChatOptions {
+  temperature?: number
+  num_predict?: number
+  top_p?: number
+  top_k?: number
+  repeat_penalty?: number
+}
+
 export async function ollamaChat(
   baseUrl: string,
   model: string,
   messages: OllamaChatMessage[],
   logger: AppLogger,
-  options?: { temperature?: number },
+  options?: OllamaChatOptions,
 ): Promise<string> {
   const url = `${baseUrl.replace(/\/$/, '')}/api/chat`
+  const opt: Record<string, number> = {
+    temperature: options?.temperature ?? 0.2,
+  }
+  if (options?.num_predict != null) opt.num_predict = options.num_predict
+  if (options?.top_p != null) opt.top_p = options.top_p
+  if (options?.top_k != null) opt.top_k = options.top_k
+  if (options?.repeat_penalty != null) opt.repeat_penalty = options.repeat_penalty
+
   const body = {
     model,
     messages,
     stream: false,
-    options: { temperature: options?.temperature ?? 0.2 },
+    options: opt,
   }
 
   const res = await fetch(url, {

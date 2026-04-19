@@ -16,6 +16,12 @@ function formatTime(seconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
+function sourceSummary(mode: 'system' | 'mic' | 'mixed'): string {
+  if (mode === 'mic') return 'Microphone'
+  if (mode === 'system') return 'System Audio'
+  return 'Microphone + System Audio'
+}
+
 export default function RecordSurface() {
   const { setMainTab, setSettingsOpen } = useNavigationContext()
   const {
@@ -36,6 +42,8 @@ export default function RecordSurface() {
   const [showCompletionCard, setShowCompletionCard] = useState(false)
 
   const meetingText = mergedMeetingSegments.map((s) => s.text).join(' ').trim()
+  const showTranscriptWorkspace =
+    isCapturing || showCompletionCard || mergedMeetingSegments.length > 0
 
   const canStartMeeting =
     !isBusy &&
@@ -75,130 +83,153 @@ export default function RecordSurface() {
   }, [mergedMeetingSegments])
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      {!isCapturing && (
-        <div className="shrink-0 border-b border-border px-6 py-4">
-          <div className="mx-auto min-w-0 max-w-2xl">
-            <RecordingSourceControls />
+    <div className="flex h-full min-h-0 bg-background">
+      <div className="flex min-h-0 w-[min(100%,18rem)] min-w-[16.5rem] shrink-0 flex-col overflow-y-auto border-r border-border bg-muted/30 p-5 sm:w-72 sm:min-w-[18rem] sm:p-6">
+        {isCapturing && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+              <span className="text-sm font-medium text-red-700">Recording</span>
+            </div>
+            <div className="font-mono text-2xl text-red-600">{formatTime(elapsedSec)}</div>
           </div>
+        )}
+
+        <div className="mb-8 min-w-0">
+          <RecordingSourceControls />
         </div>
-      )}
 
-      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-12">
-        <div className="w-full max-w-2xl">
-          <div className="mb-12 text-center">
-            {isCapturing ? (
-              <div className="inline-flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-6 py-3">
-                <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-                <span className="font-medium text-red-700">Recording in progress</span>
-                <span className="font-mono text-lg text-red-600">{formatTime(elapsedSec)}</span>
-              </div>
-            ) : null}
-          </div>
-
-          <Card className="mb-8 min-h-64 overflow-hidden border-border bg-muted p-0">
-            <ScrollArea className="h-64" ref={scrollRef}>
-              <div className="p-6 leading-relaxed text-muted-foreground">
-                {!meetingText ? (
-                  <span>Your transcript will appear here...</span>
-                ) : (
-                  <div className="space-y-4 text-foreground">
-                    {mergedMeetingSegments.map((seg) => (
-                      <p key={seg.id} className="text-sm">
-                        {seg.text}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </Card>
-
-          <div className="mb-12 flex flex-wrap justify-center gap-3">
-            {!isCapturing ? (
-              <Button
-                size="lg"
-                variant="outline"
-                className="gap-2 border-foreground/25 bg-background px-8 text-foreground hover:bg-muted"
-                disabled={!canStartMeeting}
-                title="Start meeting recording"
-                onClick={() => void startCapture('meeting')}
-              >
-                <Mic className="h-5 w-5" />
-                Start Recording
-              </Button>
-            ) : (
-              <Button
-                size="lg"
-                variant="destructive"
-                className="gap-2 px-8"
-                disabled={isBusy}
-                onClick={() => void stopCapture()}
-              >
-                <Square className="h-5 w-5" />
-                Stop Recording
-              </Button>
-            )}
-
+        <div className="mb-8 space-y-3">
+          {!isCapturing ? (
             <Button
-              variant="outline"
               size="lg"
-              className="gap-2 px-8"
-              disabled
-              title="Import file is not available in this build"
-              onClick={() => undefined}
+              className="w-full gap-2"
+              disabled={!canStartMeeting}
+              title="Start meeting recording"
+              onClick={() => void startCapture('meeting')}
             >
-              <Upload className="h-5 w-5" />
-              Import File
+              <Mic className="h-5 w-5" />
+              Start Recording
             </Button>
-          </div>
-
-          {!canStartMeeting && !isCapturing && (
-            <p className="mb-6 text-center text-xs text-muted-foreground">
-              {selectedModel?.isDownloaded
-                ? 'Select audio sources above.'
-                : (
-                    <>
-                      Download a transcription model in{' '}
-                      <button
-                        type="button"
-                        className="font-medium text-foreground underline decoration-foreground/30 underline-offset-2 hover:decoration-foreground"
-                        onClick={() => setSettingsOpen(true)}
-                      >
-                        Settings
-                      </button>
-                      .
-                    </>
-                  )}
-            </p>
+          ) : (
+            <Button
+              size="lg"
+              variant="destructive"
+              className="w-full gap-2"
+              disabled={isBusy}
+              onClick={() => void stopCapture()}
+            >
+              <Square className="h-5 w-5" />
+              Stop Recording
+            </Button>
           )}
 
-          {showCompletionCard && (
-            <Card className="border-green-200 bg-green-50 p-6">
-              <div className="flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-200">
-                  <Check className="h-6 w-6 text-green-700" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="mb-1 font-semibold text-green-900">Recording saved</h3>
-                  <p className="mb-4 text-sm text-green-800/90">
-                    Your transcript has been saved and is ready for review. Open it in the Library to add a summary or
-                    make edits.
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 border-green-300 text-green-700 hover:bg-green-100"
-                    onClick={() => setMainTab('library')}
-                  >
-                    Open in Library
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          )}
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full gap-2"
+            disabled
+            title="Import file is not available in this build"
+            onClick={() => undefined}
+          >
+            <Upload className="h-5 w-5" />
+            Import File
+          </Button>
         </div>
+
+        {!canStartMeeting && !isCapturing && (
+          <p className="mb-6 text-xs text-muted-foreground">
+            {selectedModel?.isDownloaded ? (
+              'Select audio sources above.'
+            ) : (
+              <>
+                Download a transcription model in{' '}
+                <button
+                  type="button"
+                  className="font-medium text-foreground underline decoration-foreground/30 underline-offset-2 hover:decoration-foreground"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  Settings
+                </button>
+                .
+              </>
+            )}
+          </p>
+        )}
+
+        <div className="mt-auto space-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
+          {selectedModel ? (
+            <p>
+              <strong className="text-foreground">Model:</strong> {selectedModel.name}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {showTranscriptWorkspace ? (
+          <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
+            <div className="flex min-h-0 w-full flex-1 flex-col">
+              <div className="mb-4 shrink-0">
+                <h2 className="mb-1 text-lg font-semibold">Recording Transcript</h2>
+                <p className="text-xs text-muted-foreground">Source: {sourceSummary(mode)}</p>
+              </div>
+
+              <Card className="mb-4 flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-border bg-muted/50 p-0">
+                <ScrollArea className="h-full min-h-0 flex-1" ref={scrollRef}>
+                  <div className="space-y-2 p-4 text-sm">
+                    {!meetingText ? (
+                      <p className="text-muted-foreground">Transcript will appear here...</p>
+                    ) : (
+                      mergedMeetingSegments.map((seg) => (
+                        <div key={seg.id} className="flex gap-3">
+                          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                            [{formatTime(Math.floor(seg.startMs / 1000))}]
+                          </span>
+                          <span className="min-w-0 break-words text-foreground">{seg.text}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </Card>
+
+              {showCompletionCard ? (
+                <Card className="shrink-0 border-green-200 bg-green-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-200">
+                      <Check className="h-5 w-5 text-green-700" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="mb-1 text-sm font-semibold text-green-900">Recording saved</h3>
+                      <p className="mb-3 text-xs text-green-800">Your transcript is ready for review.</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-2 border-green-300 text-xs text-green-700 hover:bg-green-100"
+                        onClick={() => setMainTab('library')}
+                      >
+                        Open in Library
+                        <ArrowRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-12 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+              <Mic className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h2 className="mb-3 text-2xl font-semibold">Ready to Record</h2>
+            <p className="max-w-md text-sm text-muted-foreground">
+              Select your audio source and click Start Recording to begin. Your transcript will appear here in
+              real-time.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

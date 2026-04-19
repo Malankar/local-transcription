@@ -1,3 +1,5 @@
+import { Blend, Mic, Volume2 } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -11,45 +13,26 @@ import { cn } from '@/lib/utils'
 import type { AudioSource, AudioSourceMode } from '../../types'
 import { useRecordingContext } from '../../contexts/RecordingContext'
 
-function Icon({ name, filled = false, size = 20 }: { name: string; filled?: boolean; size?: number }) {
-  return (
-    <span
-      className="material-symbols-outlined"
-      style={{
-        fontSize: size,
-        fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
-        userSelect: 'none',
-        lineHeight: 1,
-        display: 'inline-flex',
-        alignItems: 'center',
-        flexShrink: 0,
-      }}
-    >
-      {name}
-    </span>
-  )
-}
-
 function DeviceSelect({
   label,
   value,
   onChange,
   sources,
   placeholder,
+  disabled,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
   sources: AudioSource[]
   placeholder: string
+  disabled?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-10 min-w-0 gap-2 text-sm">
+    <div className="flex flex-col gap-2">
+      <span className="text-xs font-semibold text-muted-foreground">{label}</span>
+      <Select value={value} onValueChange={onChange} disabled={disabled}>
+        <SelectTrigger className="h-10 w-full min-w-0 gap-2 text-sm">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
@@ -64,6 +47,17 @@ function DeviceSelect({
   )
 }
 
+const sourceModes: {
+  id: AudioSourceMode
+  label: string
+  description: string
+  Icon: typeof Mic
+}[] = [
+  { id: 'mic', label: 'Microphone', description: 'Mic only', Icon: Mic },
+  { id: 'system', label: 'System Audio', description: 'Audio only', Icon: Volume2 },
+  { id: 'mixed', label: 'Mix', description: 'Mic + Audio', Icon: Blend },
+]
+
 export function RecordingSourceControls() {
   const {
     mode,
@@ -76,88 +70,106 @@ export function RecordingSourceControls() {
     setMicSourceId,
     errorMessage,
     isBusy,
+    isCapturing,
     refreshSources,
   } = useRecordingContext()
 
-  const sourceModes: { id: AudioSourceMode; icon: string; label: string }[] = [
-    { id: 'system', icon: 'computer', label: 'System' },
-    { id: 'mic', icon: 'mic', label: 'Mic' },
-    { id: 'mixed', icon: 'library_music', label: 'Mixed' },
-  ]
+  const sourcesLocked = isCapturing || isBusy
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex min-w-0 flex-nowrap items-end gap-3 overflow-x-auto pb-0.5 sm:gap-4">
-        <div className="flex shrink-0 flex-col gap-1.5">
-          <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Audio Input
-          </span>
-          <div className="inline-flex gap-0.5 rounded-md border border-border bg-muted p-1">
-            {sourceModes.map(({ id, icon, label }) => (
+    <div className="flex min-w-0 flex-col gap-4">
+      <div>
+        <span className="mb-4 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Source type
+        </span>
+        <div className="space-y-3">
+          {sourceModes.map(({ id, label, description, Icon }) => {
+            const selected = mode === id
+            return (
               <button
                 key={id}
                 type="button"
                 onClick={() => setMode(id)}
+                disabled={sourcesLocked}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium transition-colors',
-                  mode === id
-                    ? 'border border-border bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
+                  'flex w-full items-center gap-4 rounded-lg border-2 p-3 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50',
+                  selected
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border bg-background hover:border-primary/50',
                 )}
               >
-                <Icon name={icon} size={13} filled={mode === id} />
-                {label}
+                <div
+                  className={cn(
+                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors',
+                    selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">{label}</p>
+                  <p className="text-xs text-muted-foreground">{description}</p>
+                </div>
+                {selected ? <div className="h-2 w-2 shrink-0 rounded-full bg-primary" /> : null}
               </button>
-            ))}
-          </div>
-        </div>
-
-        {(mode === 'system' || mode === 'mixed') && (
-          <div className="min-w-0 flex-1 basis-0">
-            <DeviceSelect
-              label="System Source"
-              value={systemSourceId}
-              onChange={setSystemSourceId}
-              sources={systemSources}
-              placeholder="Select system source"
-            />
-          </div>
-        )}
-        {(mode === 'mic' || mode === 'mixed') && (
-          <div className="min-w-0 flex-1 basis-0">
-            <DeviceSelect
-              label="Microphone"
-              value={micSourceId}
-              onChange={setMicSourceId}
-              sources={micSources}
-              placeholder="Select microphone"
-            />
-          </div>
-        )}
-
-        <div className="flex shrink-0 flex-col gap-1.5">
-          <span className="font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Devices
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-10 w-10 shrink-0 p-0"
-            onClick={() => void refreshSources()}
-            disabled={isBusy}
-            title="Refresh audio sources"
-          >
-            <Icon name="refresh" size={16} />
-          </Button>
+            )
+          })}
         </div>
       </div>
 
-      {errorMessage && (
+      <div className="space-y-4 border-t border-border pt-6">
+        {(mode === 'system' || mode === 'mixed') && (
+          <DeviceSelect
+            label="System audio device"
+            value={systemSourceId}
+            onChange={setSystemSourceId}
+            sources={systemSources}
+            placeholder="Select system source"
+            disabled={sourcesLocked}
+          />
+        )}
+        {(mode === 'mic' || mode === 'mixed') && (
+          <DeviceSelect
+            label="Microphone device"
+            value={micSourceId}
+            onChange={setMicSourceId}
+            sources={micSources}
+            placeholder="Select microphone"
+            disabled={sourcesLocked}
+          />
+        )}
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-2"
+          onClick={() => void refreshSources()}
+          disabled={sourcesLocked}
+          title="Refresh audio sources"
+        >
+          <span
+            className="material-symbols-outlined text-base leading-none"
+            style={{
+              fontVariationSettings: "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24",
+            }}
+          >
+            refresh
+          </span>
+          Refresh devices
+        </Button>
+      </div>
+
+      {errorMessage ? (
         <Alert variant="destructive" className="py-2">
-          <Icon name="error" filled size={13} />
+          <span
+            className="material-symbols-outlined text-sm leading-none"
+            style={{ fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24" }}
+          >
+            error
+          </span>
           <AlertDescription className="text-xs">{errorMessage}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
     </div>
   )
 }

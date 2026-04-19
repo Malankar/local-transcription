@@ -25,10 +25,7 @@ test.describe('@slow Settings transcription models', () => {
   }
 
   function modelCard(dialog: Locator) {
-    return (modelId: string) =>
-      dialog
-        .getByText(modelId, { exact: true })
-        .locator('xpath=ancestor::div[@role="button"][1]')
+    return (modelId: string) => dialog.getByTestId(`model-card-${modelId}`)
   }
 
   test('model cards: selection styling', async () => {
@@ -40,13 +37,11 @@ test.describe('@slow Settings transcription models', () => {
       const baseCard = card('base.en')
       await expect(tinyCard).toBeVisible()
       await expect(baseCard).toBeVisible()
-      const selectedBorder = /border-foreground\/25/
-
       await tinyCard.click()
-      await expect(tinyCard).toHaveClass(selectedBorder)
+      await expect(tinyCard).toHaveAttribute('aria-checked', 'true')
       await baseCard.click()
-      await expect(baseCard).toHaveClass(selectedBorder)
-      await expect(tinyCard).not.toHaveClass(selectedBorder)
+      await expect(baseCard).toHaveAttribute('aria-checked', 'true')
+      await expect(tinyCard).toHaveAttribute('aria-checked', 'false')
     } finally {
       await closeLaunchedApp(electronApp)
     }

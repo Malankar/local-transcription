@@ -27,6 +27,8 @@ describe('preload api', () => {
     expect(invoke).toHaveBeenCalledWith('sources:get')
 
     expect(typeof api.ipcInvoke).toBe('function')
+    expect(typeof api.ollamaPullCancel).toBe('function')
+    expect(typeof api.onOllamaPullProgress).toBe('function')
     invoke.mockResolvedValueOnce(undefined)
     await expect(api.ipcInvoke('history:regenerateSummary', 'id-1')).resolves.toBeUndefined()
     expect(invoke).toHaveBeenCalledWith('history:regenerateSummary', 'id-1')

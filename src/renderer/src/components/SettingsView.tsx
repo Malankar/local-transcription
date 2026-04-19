@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
-import type { AssistantProviderId, HistoryAutoDelete, OllamaStatusResult } from '../types'
+import { useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
+
+import type { AssistantProviderId, HistoryAutoDelete, OllamaPullProgress, OllamaStatusResult } from '../types'
 import {
   ASSISTANT_OLLAMA_MODEL_CHAT,
   ASSISTANT_OLLAMA_MODEL_TITLE,
@@ -8,6 +10,7 @@ import {
 import { useSettingsContext } from '../contexts/SettingsContext'
 import { ModelLibrarySection } from './ModelsView'
 import { Button } from './ui/button'
+import { Progress } from './ui/progress'
 import { Switch } from './ui/switch'
 import {
   Select,
@@ -93,7 +96,20 @@ function ollamaHasModel(installed: Set<string>, id: string): boolean {
 function OllamaLocalAssistantCard() {
   const [status, setStatus] = useState<OllamaStatusResult | null>(null)
   const [pulling, setPulling] = useState<string | null>(null)
+  const [pullProgress, setPullProgress] = useState<OllamaPullProgress | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const pullingRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    pullingRef.current = pulling
+  }, [pulling])
+
+  useEffect(() => {
+    return window.api.onOllamaPullProgress((p) => {
+      if (pullingRef.current !== p.model) return
+      setPullProgress(p)
+    })
+  }, [])
 
   function refresh(): void {
     void window.api
@@ -115,6 +131,7 @@ function OllamaLocalAssistantCard() {
   async function pullModel(model: string): Promise<void> {
     setError(null)
     setPulling(model)
+    setPullProgress({ model, status: 'Starting…', percent: null })
     try {
       await window.api.ollamaPull(model)
       refresh()
@@ -122,7 +139,12 @@ function OllamaLocalAssistantCard() {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setPulling(null)
+      setPullProgress(null)
     }
+  }
+
+  function cancelPull(): void {
+    void window.api.ollamaPullCancel()
   }
 
   const names = new Set(status?.models ?? [])
@@ -158,7 +180,7 @@ function OllamaLocalAssistantCard() {
         {ASSISTANT_OLLAMA_MODELS_TO_PULL.map((m) => (
           <li
             key={m.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2"
+            className="flex flex-col gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0">
               <span className="font-mono text-xs">{m.id}</span>
@@ -167,16 +189,43 @@ function OllamaLocalAssistantCard() {
                 <span className="ml-2 text-xs text-green-600">on disk</span>
               ) : null}
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="h-8 shrink-0 text-xs"
-              disabled={pulling !== null}
-              onClick={() => void pullModel(m.id)}
-            >
-              {pulling === m.id ? 'Pulling…' : 'Pull'}
-            </Button>
+            {pulling === m.id ? (
+              <div className="flex w-full min-w-0 flex-col gap-1.5 sm:max-w-md sm:flex-1">
+                <div className="flex items-center gap-2">
+                  {pullProgress?.percent != null ? (
+                    <Progress value={pullProgress.percent} className="h-2 flex-1" />
+                  ) : (
+                    <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-white/5 shadow-inner">
+                      <div className="h-full w-full animate-pulse rounded-full bg-gradient-to-r from-[#EA580C]/45 to-[#F7931A]/45" />
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={cancelPull}
+                    aria-label="Stop pull"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </Button>
+                </div>
+                <p className="truncate text-xs text-muted-foreground" title={pullProgress?.status ?? ''}>
+                  {pullProgress?.status ?? 'Pulling…'}
+                </p>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-8 shrink-0 text-xs sm:self-center"
+                disabled={pulling !== null}
+                onClick={() => void pullModel(m.id)}
+              >
+                Pull
+              </Button>
+            )}
           </li>
         ))}
       </ul>

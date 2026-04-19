@@ -104,6 +104,14 @@ export interface OllamaStatusResult {
   models: string[]
 }
 
+/** Streamed from main while `ollamaPull` runs (same `model` as pull request). */
+export interface OllamaPullProgress {
+  model: string
+  status: string
+  /** 0–100 from layer bytes when Ollama sends completed/total; null if unknown */
+  percent: number | null
+}
+
 export interface AssistantChatMessage {
   role: 'user' | 'assistant'
   content: string
@@ -206,6 +214,9 @@ export interface LocalTranscribeApi {
   assistantChat: (req: AssistantChatRequest) => Promise<{ text: string }>
   ollamaStatus: () => Promise<OllamaStatusResult>
   ollamaPull: (model: string) => Promise<void>
+  /** Abort in-flight `ollamaPull` (closes network stream; Ollama may still finish partial state). */
+  ollamaPullCancel: () => Promise<void>
+  onOllamaPullProgress: (listener: (progress: OllamaPullProgress) => void) => () => void
   getSettings: () => Promise<AppSettings>
   setSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>
   platform: string

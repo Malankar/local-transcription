@@ -73,17 +73,33 @@ export async function ollamaListTags(baseUrl: string): Promise<{ ok: boolean; mo
   }
 }
 
+export interface OllamaPullStreamOptions {
+  signal?: AbortSignal
+  onProgress?: (p: { status: string; percent: number | null }) => void
+}
+
 export async function ollamaPullModel(
   baseUrl: string,
   model: string,
   logger: AppLogger,
+  streamOptions?: OllamaPullStreamOptions,
 ): Promise<void> {
   const url = `${baseUrl.replace(/\/$/, '')}/api/pull`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: model, stream: true }),
-  })
+  const signal = streamOptions?.signal
+  const onProgress = streamOptions?.onProgress
+
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: model, stream: true }),
+      signal,
+    })
+  } catch (e) {
+    if (signal?.aborted) return
+    throw e instanceof Error ? e : new Error(String(e))
+  }
 
   if (!res.ok) {
     const t = await res.text().catch(() => '')
@@ -97,10 +113,25 @@ export async function ollamaPullModel(
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buf = ''
+  let lastEmitKey = ''
+
+  const emit = (status: string, percent: number | null): void => {
+    const key = `${status}\0${percent ?? 'x'}`
+    if (key === lastEmitKey) return
+    lastEmitKey = key
+    onProgress?.({ status, percent })
+  }
 
   try {
     for (;;) {
-      const { done, value } = await reader.read()
+      let chunk: ReadableStreamReadResult<Uint8Array>
+      try {
+        chunk = await reader.read()
+      } catch (e) {
+        if (signal?.aborted) return
+        throw e
+      }
+      const { done, value } = chunk
       if (done) break
       buf += decoder.decode(value, { stream: true })
       const lines = buf.split('\n')
@@ -109,16 +140,44 @@ export async function ollamaPullModel(
         const trimmed = line.trim()
         if (!trimmed) continue
         try {
-          const j = JSON.parse(trimmed) as { status?: string; completed?: number; total?: number }
+          const j = JSON.parse(trimmed) as {
+            status?: string
+            error?: string
+            completed?: number
+            total?: number
+          }
+          if (typeof j.error === 'string' && j.error.trim()) {
+            throw new Error(j.error.trim())
+          }
+          let percent: number | null = null
+          if (typeof j.total === 'number' && j.total > 0 && typeof j.completed === 'number') {
+            percent = Math.min(100, Math.max(0, Math.round((j.completed / j.total) * 100)))
+          }
+          if (j.status === 'success') {
+            emit('Complete', 100)
+            logger.info('Ollama pull finished', { model })
+            continue
+          }
           if (j.status) {
             logger.info('Ollama pull progress', { model, status: j.status, completed: j.completed, total: j.total })
+            emit(j.status, percent)
+          } else if (percent != null) {
+            emit('Downloading', percent)
           }
-        } catch {
-          /* ignore partial JSON */
+        } catch (e) {
+          if (e instanceof SyntaxError) {
+            /* ignore partial JSON */
+          } else {
+            throw e
+          }
         }
       }
     }
   } finally {
     reader.releaseLock()
+  }
+
+  if (!signal?.aborted) {
+    emit('Complete', 100)
   }
 }

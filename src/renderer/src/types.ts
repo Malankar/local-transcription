@@ -10,6 +10,7 @@ export type {
   HistoryAutoDelete,
   HistorySession,
   HistorySessionMeta,
+  OllamaPullProgress,
   OllamaStatusResult,
   ModelDownloadProgress,
   TranscriptionModel,

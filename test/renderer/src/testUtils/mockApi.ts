@@ -66,6 +66,8 @@ export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): Loca
     assistantChat: vi.fn().mockImplementation(async (_req: AssistantChatRequest) => ({ text: 'mock reply' })),
     ollamaStatus: vi.fn().mockResolvedValue({ ok: false, models: [] as string[] }),
     ollamaPull: vi.fn().mockResolvedValue(undefined),
+    ollamaPullCancel: vi.fn().mockResolvedValue(undefined),
+    onOllamaPullProgress: vi.fn().mockReturnValue(() => undefined),
     getSettings: vi.fn().mockResolvedValue(defaultSettings),
     setSettings: vi.fn().mockImplementation(async (partial: Partial<AppSettings>) => {
       const next: AppSettings = {

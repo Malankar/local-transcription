@@ -30,6 +30,9 @@ import { HistoryManager } from '../history/HistoryManager'
 import { SettingsManager } from '../settings/SettingsManager'
 import { AppLogger } from '../logging/AppLogger'
 
+/** In-flight Ollama `api/pull` stream; cancel via `assistant:ollamaPullCancel`. */
+let ollamaPullAbort: AbortController | null = null
+
 interface RegisterHandlersOptions {
   audioCapture: AudioCapture
   chunkQueue: ChunkQueue
@@ -256,7 +259,34 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   ipcMain.handle('assistant:ollamaPull', async (_event, model: string) => {
     const name = typeof model === 'string' && model.trim() ? model.trim() : ''
     if (!name) throw new Error('Model name required')
-    await ollamaPullModel(OLLAMA_DEFAULT_BASE_URL, name, logger)
+    if (ollamaPullAbort) throw new Error('A model pull is already in progress')
+    const ac = new AbortController()
+    ollamaPullAbort = ac
+    const win = getMainWindow()
+    try {
+      await ollamaPullModel(OLLAMA_DEFAULT_BASE_URL, name, logger, {
+        signal: ac.signal,
+        onProgress: (p) => {
+          win?.webContents.send('assistant:ollamaPullProgress', {
+            model: name,
+            status: p.status,
+            percent: p.percent,
+          })
+        },
+      })
+    } catch (e) {
+      if (ac.signal.aborted) {
+        logger.info('Ollama pull aborted by user', { model: name })
+        return
+      }
+      throw e
+    } finally {
+      ollamaPullAbort = null
+    }
+  })
+
+  ipcMain.handle('assistant:ollamaPullCancel', async () => {
+    ollamaPullAbort?.abort()
   })
 
   ipcMain.handle('settings:get', async () => {

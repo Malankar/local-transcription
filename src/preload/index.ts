@@ -9,6 +9,7 @@ import type {
   HistorySessionMeta,
   LocalTranscribeApi,
   ModelDownloadProgress,
+  OllamaPullProgress,
   TranscriptSegment,
 } from '../shared/types'
 
@@ -48,6 +49,9 @@ const api: LocalTranscribeApi = {
   assistantChat: (req: AssistantChatRequest) => ipcRenderer.invoke('assistant:chat', req),
   ollamaStatus: () => ipcRenderer.invoke('assistant:ollamaStatus'),
   ollamaPull: (model: string) => ipcRenderer.invoke('assistant:ollamaPull', model),
+  ollamaPullCancel: () => ipcRenderer.invoke('assistant:ollamaPullCancel'),
+  onOllamaPullProgress: (listener: (progress: OllamaPullProgress) => void) =>
+    subscribe('assistant:ollamaPullProgress', listener),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),
   setSettings: (settings: Partial<AppSettings>): Promise<AppSettings> =>
     ipcRenderer.invoke('settings:set', settings),

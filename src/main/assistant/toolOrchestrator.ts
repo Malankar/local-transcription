@@ -52,40 +52,77 @@ function lastUserContent(messages: { role: string; content: string }[]): string 
   return ''
 }
 
+/** Injected into the tool-decision message so search queries track the real calendar (not model training cutoffs). */
+export function formatWebSearchDecisionDateContext(now: Date = new Date()): string {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const long = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone,
+  }).format(now)
+  const calendar = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone,
+  }).format(now)
+  return `Today: ${long} (${timeZone}). Local calendar date: ${calendar}.`
+}
+
 /** Markdown structure required when thinking mode is on (tests assert on this). */
 export const THINKING_MODE_OUTPUT_SPEC = [
-  'Output format (markdown headings, exactly):',
+  'Thinking mode is ON. Follow output format exactly (heading text verbatim). Skip preamble.',
+  '',
   '### Reasoning (brief)',
-  '- 2–4 bullets max. Ground in transcript and any web results below.',
-  '- No long chain-of-thought; no more than ~80 words in this section.',
+  '- 2–4 bullets max. Each bullet: one concrete fact (paraphrase or short quote from transcript, OR cite which numbered web hit).',
+  '- Forbidden: vague hedges ("might", "could be", "various things") with no anchor; generic filler.',
+  '- If "## Web search" missing or says no results, say transcript-only in one bullet.',
+  '- Cap ~120 words in this section; no chain-of-thought paragraphs.',
   '',
   '### Answer',
-  'Main reply here.',
+  'Direct, specific reply. Match user question; use headings above first.',
 ].join('\n')
 
 function thinkingBlock(): string {
   return THINKING_MODE_OUTPUT_SPEC
 }
 
-function baseChatSystem(sessionTitle: string, thinkingMode: boolean): string {
-  const parts = [
+function baseChatSystem(sessionTitle: string, thinkingMode: boolean, webSearchEnabled: boolean): string {
+  const parts: string[] = [
     `You help the user understand an audio transcript. Session title: "${sessionTitle}".`,
     'Prefer the transcript; if web results are provided, use them only when they clearly help and do not contradict the transcript.',
-    'If unsure or not found in sources, say you cannot find it. Be concise.',
+    'If unsure or not found in sources, say you cannot find it.',
   ]
   if (thinkingMode) {
-    parts.push('', thinkingBlock())
+    parts.push(
+      'When thinking mode is on you MUST output markdown with exactly two sections: "### Reasoning (brief)" first, then "### Answer". No other top-level structure before those headings.',
+    )
+  } else {
+    parts.push('Be concise.')
   }
-  return parts.join(' ')
+  if (webSearchEnabled) {
+    parts.push(
+      'Web search uses a free, limited lookup: results may be empty.',
+      'Cite only URLs that appear verbatim in the "## Web search" section below.',
+      'If that section says there were no results or search failed, say so; do not invent article links, release notes, or generic "check this blog" lists.',
+    )
+  }
+  if (thinkingMode) {
+    parts.push(thinkingBlock())
+  }
+  return parts.join('\n\n')
 }
 
 const TOOL_DECISION_SYSTEM = `You decide if a web search would materially help answer the user's last question with facts outside the meeting transcript (news, definitions, public data, product names not in transcript).
+The user message begins with "Today:" — real current calendar on user's device (includes month and year). For news, releases, "latest", updates, or current events, QUERY MUST include that same calendar month and full year in English (e.g. April 2026) so results stay current. If user asked a historical year, use their year instead.
 If the question is only about what was said in the meeting, output exactly:
 ACTION: none
 
 If a short web query would help, output exactly two lines:
 ACTION: web_search
-QUERY: <concise English query, max 12 words>
+QUERY: <concise English query, max 14 words>
 
 No other text.`
 
@@ -124,7 +161,7 @@ export async function orchestrateAssistantChat(options: {
             { role: 'system', content: TOOL_DECISION_SYSTEM },
             {
               role: 'user',
-              content: `Session: ${sessionTitle}\n\nTranscript excerpt:\n${clip(transcript, 4000)}\n\nUser question:\n${lastQ}`,
+              content: `${formatWebSearchDecisionDateContext()}\n\nSession: ${sessionTitle}\n\nTranscript excerpt:\n${clip(transcript, 4000)}\n\nUser question:\n${lastQ}`,
             },
           ],
           logger,
@@ -132,7 +169,7 @@ export async function orchestrateAssistantChat(options: {
         )
         const decision = parseToolDecision(decisionRaw)
         if (decision.action === 'web_search') {
-          const search = await webSearchNoKey(decision.query, logger)
+          const search = await webSearchNoKey(decision.query, logger, { maxResults: 8 })
           const formatted = formatWebSearchContext(search)
           searchBlock = `\n\n## Web search\n${formatted}`
           logger.info('Assistant web search used', { query: decision.query.slice(0, 120), hitCount: search.hits.length })
@@ -146,7 +183,7 @@ export async function orchestrateAssistantChat(options: {
   const ollamaMessages: OllamaChatMessage[] = [
     {
       role: 'system',
-      content: `${baseChatSystem(sessionTitle, thinkingMode)}${searchBlock}`,
+      content: `${baseChatSystem(sessionTitle, thinkingMode, webSearchEnabled)}${searchBlock}`,
     },
     { role: 'user', content: `Transcript:\n\n${transcriptClip}` },
     ...userMessages.map((m) => ({ role: m.role, content: m.content })),
@@ -159,8 +196,13 @@ export async function orchestrateAssistantChat(options: {
     repeat_penalty: 1.1,
   }
 
+  const thinkingTweaks: Partial<OllamaChatOptions> = thinkingMode
+    ? { temperature: 0.2, repeat_penalty: 1.15, top_p: 0.88 }
+    : {}
+
   return ollamaChat(baseUrl, ASSISTANT_OLLAMA_MODEL_CHAT, ollamaMessages, logger, {
     ...defaultChat,
+    ...thinkingTweaks,
     ...chatOptions,
   })
 }

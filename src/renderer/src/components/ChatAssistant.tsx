@@ -87,7 +87,7 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
   }
 
   return (
-    <div className="flex h-full w-[min(100%,24rem)] shrink-0 flex-col border-l border-border bg-card">
+    <div className="flex h-full min-h-0 w-[min(100%,clamp(22rem,36vw,40rem))] shrink-0 flex-col border-l border-border bg-card">
       <div className="flex shrink-0 flex-col border-b border-border bg-muted/30 px-4 py-3">
         <h3 className="text-sm font-semibold tracking-tight text-foreground">Assistant</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">Ask about this session (local Ollama)</p>
@@ -100,13 +100,13 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[85%] rounded-xl px-3.5 py-2.5 shadow-sm ${
+              className={`rounded-xl px-3.5 py-2.5 shadow-sm ${
                 message.role === 'user'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'border border-border bg-background text-foreground'
+                  ? 'max-w-[85%] bg-primary text-primary-foreground'
+                  : 'w-full min-w-0 border border-border bg-background text-foreground'
               }`}
             >
-              <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+              <p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>
             </div>
           </div>
         ))}

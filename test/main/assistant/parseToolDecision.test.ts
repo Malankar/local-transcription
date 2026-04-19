@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseToolDecision } from '../../../src/main/assistant/toolOrchestrator'
+import {
+  formatWebSearchDecisionDateContext,
+  parseToolDecision,
+} from '../../../src/main/assistant/toolOrchestrator'
 
 describe('parseToolDecision', () => {
   it('parses web_search + query', () => {
@@ -21,5 +24,14 @@ describe('parseToolDecision', () => {
   it('query line mid-body', () => {
     const raw = 'Here\nACTION: web_search\nQUERY: 2026 lunar eclipse'
     expect(parseToolDecision(raw)).toEqual({ action: 'web_search', query: '2026 lunar eclipse' })
+  })
+})
+
+describe('formatWebSearchDecisionDateContext', () => {
+  it('prefixes Today and includes an ISO-style calendar segment', () => {
+    const s = formatWebSearchDecisionDateContext(new Date('2026-06-15T12:00:00Z'))
+    expect(s.startsWith('Today:')).toBe(true)
+    expect(s).toMatch(/Local calendar date: \d{4}-\d{2}-\d{2}\./)
+    expect(s).toMatch(/\(.+\)\. Local calendar date:/)
   })
 })

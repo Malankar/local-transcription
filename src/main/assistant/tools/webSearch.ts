@@ -12,7 +12,7 @@ export interface WebSearchResult {
   notice?: string
 }
 
-type DdgTopic = { Text?: string; FirstURL?: string; Topics?: DdgTopic[] }
+type DdgTopic = { Text?: string; Result?: string; FirstURL?: string; Topics?: DdgTopic[] }
 
 function flattenTopics(topics: DdgTopic[] | undefined, out: { text: string; url: string }[]): void {
   if (!topics) return
@@ -21,16 +21,41 @@ function flattenTopics(topics: DdgTopic[] | undefined, out: { text: string; url:
       flattenTopics(t.Topics, out)
       continue
     }
-    const text = typeof t.Text === 'string' ? t.Text.trim() : ''
+    const text =
+      typeof t.Text === 'string'
+        ? t.Text.trim()
+        : typeof t.Result === 'string'
+          ? t.Result.trim()
+          : ''
     const url = typeof t.FirstURL === 'string' ? t.FirstURL.trim() : ''
     if (text || url) out.push({ text, url })
   }
+}
+
+function stripHtmlish(s: string): string {
+  return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
 function clipSnippet(s: string, max: number): string {
   const t = s.replace(/\s+/g, ' ').trim()
   if (t.length <= max) return t
   return `${t.slice(0, max - 1)}…`
+}
+
+/**
+ * If query has no 4-digit year, append local "Month YYYY" so DDG leans toward recent pages.
+ */
+export function appendRecencyContextToQuery(query: string, now: Date = new Date()): string {
+  const q = query.trim()
+  if (!q) return q
+  if (/\b20\d{2}\b/.test(q)) return q
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const monthYear = new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone,
+  }).format(now)
+  return `${q} ${monthYear}`
 }
 
 /**
@@ -41,13 +66,13 @@ export async function webSearchNoKey(
   logger: AppLogger,
   opts?: { timeoutMs?: number; maxResults?: number },
 ): Promise<WebSearchResult> {
-  const q = query.trim()
+  const q = appendRecencyContextToQuery(query.trim())
   if (!q) {
     return { hits: [], notice: 'Empty search query; answering from transcript only.' }
   }
 
   const timeoutMs = opts?.timeoutMs ?? 8000
-  const maxResults = opts?.maxResults ?? 5
+  const maxResults = opts?.maxResults ?? 8
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -69,7 +94,12 @@ export async function webSearchNoKey(
       AbstractText?: string
       AbstractURL?: string
       Heading?: string
+      Answer?: string
+      Definition?: string
+      DefinitionURL?: string
       RelatedTopics?: DdgTopic[]
+      /** Organic-style hits; same leaf shape as RelatedTopics for many queries */
+      Results?: DdgTopic[]
     }
 
     const hits: WebSearchHit[] = []
@@ -86,8 +116,28 @@ export async function webSearchNoKey(
       })
     }
 
+    const answerRaw = typeof data.Answer === 'string' ? stripHtmlish(data.Answer) : ''
+    if (answerRaw && hits.length < maxResults) {
+      hits.push({
+        title: 'Instant answer',
+        url: '',
+        snippet: clipSnippet(answerRaw, 400),
+      })
+    }
+
+    const defText = typeof data.Definition === 'string' ? data.Definition.trim() : ''
+    const defUrl = typeof data.DefinitionURL === 'string' ? data.DefinitionURL.trim() : ''
+    if ((defText || defUrl) && hits.length < maxResults) {
+      hits.push({
+        title: 'Definition',
+        url: defUrl,
+        snippet: clipSnippet(defText || defUrl, 400),
+      })
+    }
+
     const flat: { text: string; url: string }[] = []
     flattenTopics(data.RelatedTopics, flat)
+    flattenTopics(data.Results, flat)
 
     for (const row of flat) {
       if (hits.length >= maxResults) break

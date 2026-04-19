@@ -134,29 +134,31 @@ export function TranscriptViewer({
         </Card>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-6">
-        <h3 className="mb-4 text-sm font-semibold text-foreground">Full Transcript</h3>
-        <div className="space-y-4 pb-2">
-          {segments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No segments in this session.</p>
-          ) : (
-            segments.map((segment, idx) => (
-              <div
-                key={`${segment.timestamp}-${idx}`}
-                className="flex gap-4 border-b border-border pb-4 last:border-b-0"
-              >
-                <div className="w-16 shrink-0">
-                  <span className="rounded bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
-                    {segment.timestamp}
-                  </span>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-6">
+        <h3 className="mb-4 shrink-0 text-sm font-semibold text-foreground">Full Transcript</h3>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="space-y-4 pb-2">
+            {segments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No segments in this session.</p>
+            ) : (
+              segments.map((segment, idx) => (
+                <div
+                  key={`${segment.timestamp}-${idx}`}
+                  className="flex gap-4 border-b border-border pb-4 last:border-b-0"
+                >
+                  <div className="w-16 shrink-0">
+                    <span className="rounded bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+                      {segment.timestamp}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="mb-1 text-xs font-semibold text-muted-foreground">{segment.speaker}</p>
+                    <p className="text-sm leading-relaxed text-foreground">{segment.text}</p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="mb-1 text-xs font-semibold text-muted-foreground">{segment.speaker}</p>
-                  <p className="text-sm leading-relaxed text-foreground">{segment.text}</p>
-                </div>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
       </div>
 

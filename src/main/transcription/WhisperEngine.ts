@@ -1,25 +1,33 @@
-import { fork, type ChildProcess } from 'node:child_process'
-import { join } from 'node:path'
+import { fork, type ChildProcess } from "node:child_process";
+import { join } from "node:path";
 
-import type { AudioChunk, TranscriptSegment, TranscriptionModel } from '../../shared/types'
-import type { WorkerRequest, WorkerRequestPayload, WorkerResponse } from './workerProtocol'
+import type {
+  AudioChunk,
+  TranscriptSegment,
+  TranscriptionModel,
+} from "../../shared/types";
+import type {
+  WorkerRequest,
+  WorkerRequestPayload,
+  WorkerResponse,
+} from "./workerProtocol";
 
 export class WhisperEngine {
-  private child: ChildProcess | null = null
-  private initializing: Promise<void> | null = null
-  private nextRequestId = 0
+  private child: ChildProcess | null = null;
+  private initializing: Promise<void> | null = null;
+  private nextRequestId = 0;
   private readonly pending = new Map<
     string,
     {
-      resolve: (value: TranscriptSegment[] | void) => void
-      reject: (error: Error) => void
+      resolve: (value: TranscriptSegment[] | void) => void;
+      reject: (error: Error) => void;
     }
-  >()
-  private currentModel: TranscriptionModel | null = null
+  >();
+  private currentModel: TranscriptionModel | null = null;
 
   constructor(
     private readonly onStatus: (detail: string) => void,
-    private readonly onLog: (message: string, context?: unknown) => void
+    private readonly onLog: (message: string, context?: unknown) => void,
   ) {}
 
   setModel(model: TranscriptionModel): void {
@@ -27,245 +35,253 @@ export class WhisperEngine {
       this.currentModel?.id === model.id &&
       this.currentModel.runtimeModelName === model.runtimeModelName
     ) {
-      return
+      return;
     }
 
-    this.dispose()
-    this.currentModel = model
+    this.dispose();
+    this.currentModel = model;
   }
 
   /** Model id currently configured for the worker, if any (may not be initialized yet). */
   getConfiguredModelId(): string | null {
-    return this.currentModel?.id ?? null
+    return this.currentModel?.id ?? null;
   }
 
   async initialize(): Promise<void> {
     if (!this.currentModel) {
-      throw new Error('No model configured. Select and download a model first.')
+      throw new Error(
+        "No model configured. Select and download a model first.",
+      );
     }
 
     if (this.child?.connected) {
-      return
+      return;
     }
 
     if (this.initializing !== null) {
-      return this.initializing
+      return this.initializing;
     }
 
-    const model = this.currentModel
+    const model = this.currentModel;
     this.initializing = (async () => {
-      await this.ensureWorker()
+      await this.ensureWorker();
       await this.sendRequest<void>({
-        type: 'initialize',
+        type: "initialize",
         modelId: model.id,
         engine: model.engine,
         runtimeModelName: model.runtimeModelName,
         useGpuAcceleration: model.supportsGpuAcceleration,
-      })
-    })()
+      });
+    })();
 
     try {
-      await this.initializing
+      await this.initializing;
     } finally {
-      this.initializing = null
+      this.initializing = null;
     }
   }
 
   async transcribe(chunk: AudioChunk): Promise<TranscriptSegment[]> {
-    await this.initialize()
-    return this.sendRequest<TranscriptSegment[]>({ type: 'transcribe', chunk })
+    await this.initialize();
+    return this.sendRequest<TranscriptSegment[]>({ type: "transcribe", chunk });
   }
 
   dispose(): void {
     if (!this.child) {
-      return
+      return;
     }
 
-    const child = this.child
-    this.child = null
+    const child = this.child;
+    this.child = null;
 
     try {
       if (child.connected) {
         child.send({
-          type: 'shutdown',
+          type: "shutdown",
           requestId: this.createRequestId(),
-        } as WorkerRequest)
+        } as WorkerRequest);
       }
     } catch (error) {
-      this.onLog('Failed to request Whisper worker shutdown', error)
+      this.onLog("Failed to request Whisper worker shutdown", error);
     }
 
-    child.disconnect()
+    child.disconnect();
     if (!child.killed) {
-      child.kill()
+      child.kill();
     }
-    this.rejectPending(new Error('Whisper worker disposed'))
+    this.rejectPending(new Error("Whisper worker disposed"));
   }
 
   private async ensureWorker(): Promise<void> {
     if (this.child?.connected) {
-      return
+      return;
     }
 
-    const workerPath = join(__dirname, 'whisper-worker.js')
-    this.onLog('Starting Whisper worker process', {
+    const workerPath = join(__dirname, "whisper-worker.js");
+    this.onLog("Starting Whisper worker process", {
       workerPath,
       execPath: process.execPath,
-    })
+    });
 
     await new Promise<void>((resolve, reject) => {
       const child = fork(workerPath, [], {
         cwd: process.cwd(),
         env: {
           ...process.env,
-          ELECTRON_RUN_AS_NODE: '1',
+          ELECTRON_RUN_AS_NODE: "1",
         },
         execPath: process.execPath,
-        serialization: 'advanced',
+        serialization: "advanced",
         silent: true,
-      })
+      });
 
-      let settled = false
+      let settled = false;
 
       const cleanup = (): void => {
-        child.off('spawn', handleSpawn)
-        child.off('error', handleError)
-      }
+        child.off("spawn", handleSpawn);
+        child.off("error", handleError);
+      };
 
       const handleSpawn = (): void => {
         if (settled) {
-          return
+          return;
         }
-        settled = true
-        cleanup()
-        resolve()
-      }
+        settled = true;
+        cleanup();
+        resolve();
+      };
 
       const handleError = (error: Error): void => {
         if (settled) {
-          return
+          return;
         }
-        settled = true
-        cleanup()
-        reject(error)
-      }
+        settled = true;
+        cleanup();
+        reject(error);
+      };
 
-      child.once('spawn', handleSpawn)
-      child.once('error', handleError)
+      child.once("spawn", handleSpawn);
+      child.once("error", handleError);
 
-      child.on('message', (message: WorkerResponse) => {
-        this.handleWorkerMessage(message)
-      })
+      child.on("message", (message: WorkerResponse) => {
+        this.handleWorkerMessage(message);
+      });
 
-      child.on('exit', (code, signal) => {
-        const detail = { code, signal }
-        this.onLog('Whisper worker exited', detail)
+      child.on("exit", (code, signal) => {
+        const detail = { code, signal };
+        this.onLog("Whisper worker exited", detail);
 
-        const exitedChild = this.child === child
+        const exitedChild = this.child === child;
         if (exitedChild) {
-          this.child = null
+          this.child = null;
         }
 
-        const codePart = code === null ? '' : ` with code ${code}`
-        const signalPart = signal ? ` (${signal})` : ''
-        this.rejectPending(new Error(`Whisper worker exited unexpectedly${codePart}${signalPart}`))
-      })
+        const codePart = code === null ? "" : ` with code ${code}`;
+        const signalPart = signal ? ` (${signal})` : "";
+        this.rejectPending(
+          new Error(
+            `Whisper worker exited unexpectedly${codePart}${signalPart}`,
+          ),
+        );
+      });
 
-      child.stdout?.on('data', (chunk: Buffer) => {
-        const detail = chunk.toString('utf8').trim()
+      child.stdout?.on("data", (chunk: Buffer) => {
+        const detail = chunk.toString("utf8").trim();
         if (detail) {
-          this.onLog('Whisper worker stdout', { detail })
+          this.onLog("Whisper worker stdout", { detail });
         }
-      })
+      });
 
-      child.stderr?.on('data', (chunk: Buffer) => {
-        const detail = chunk.toString('utf8').trim()
+      child.stderr?.on("data", (chunk: Buffer) => {
+        const detail = chunk.toString("utf8").trim();
         if (detail) {
-          this.onLog('Whisper worker stderr', { detail })
+          this.onLog("Whisper worker stderr", { detail });
         }
-      })
+      });
 
-      this.child = child
+      this.child = child;
     }).catch((error) => {
-      this.onLog('Failed to start Whisper worker process', error)
-      throw error
-    })
+      this.onLog("Failed to start Whisper worker process", error);
+      throw error;
+    });
   }
 
-  private sendRequest<T extends TranscriptSegment[] | void>(message: WorkerRequestPayload): Promise<T> {
+  private sendRequest<T extends TranscriptSegment[] | void>(
+    message: WorkerRequestPayload,
+  ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       if (!this.child?.connected) {
-        reject(new Error('Whisper worker is not running'))
-        return
+        reject(new Error("Whisper worker is not running"));
+        return;
       }
 
-      const requestId = this.createRequestId()
+      const requestId = this.createRequestId();
       this.pending.set(requestId, {
         resolve: resolve as (value: TranscriptSegment[] | void) => void,
         reject,
-      })
+      });
 
       try {
-        this.child.send({ ...message, requestId } as WorkerRequest)
+        this.child.send({ ...message, requestId } as WorkerRequest);
       } catch (error) {
-        this.pending.delete(requestId)
-        reject(error instanceof Error ? error : new Error(String(error)))
+        this.pending.delete(requestId);
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
-    })
+    });
   }
 
   private handleWorkerMessage(message: WorkerResponse): void {
     switch (message.type) {
-      case 'status':
-        this.onStatus(message.detail)
-        break
-      case 'log':
-        this.onLog(message.message, message.context)
-        break
-      case 'ready': {
-        const pending = this.pending.get(message.requestId)
+      case "status":
+        this.onStatus(message.detail);
+        break;
+      case "log":
+        this.onLog(message.message, message.context);
+        break;
+      case "ready": {
+        const pending = this.pending.get(message.requestId);
         if (!pending) {
-          return
+          return;
         }
-        this.pending.delete(message.requestId)
-        pending.resolve()
-        break
+        this.pending.delete(message.requestId);
+        pending.resolve();
+        break;
       }
-      case 'result': {
-        const pending = this.pending.get(message.requestId)
+      case "result": {
+        const pending = this.pending.get(message.requestId);
         if (!pending) {
-          return
+          return;
         }
-        this.pending.delete(message.requestId)
-        pending.resolve(message.segments)
-        break
+        this.pending.delete(message.requestId);
+        pending.resolve(message.segments);
+        break;
       }
-      case 'error': {
-        const pending = this.pending.get(message.requestId)
+      case "error": {
+        const pending = this.pending.get(message.requestId);
         if (!pending) {
-          this.onLog('Whisper worker reported untracked error', message)
-          return
+          this.onLog("Whisper worker reported untracked error", message);
+          return;
         }
-        this.pending.delete(message.requestId)
-        const error = new Error(message.message)
+        this.pending.delete(message.requestId);
+        const error = new Error(message.message);
         if (message.stack) {
-          error.stack = message.stack
+          error.stack = message.stack;
         }
-        pending.reject(error)
-        break
+        pending.reject(error);
+        break;
       }
     }
   }
 
   private rejectPending(error: Error): void {
     for (const pending of this.pending.values()) {
-      pending.reject(error)
+      pending.reject(error);
     }
-    this.pending.clear()
+    this.pending.clear();
   }
 
   private createRequestId(): string {
-    this.nextRequestId += 1
-    return `worker-${this.nextRequestId}`
+    this.nextRequestId += 1;
+    return `worker-${this.nextRequestId}`;
   }
 }

@@ -37,11 +37,16 @@ export async function ollamaChat(
     options: opt,
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch (e) {
+    throw toOllamaSetupError(e, baseUrl)
+  }
 
   if (!res.ok) {
     const t = await res.text().catch(() => '')
@@ -68,7 +73,7 @@ export async function ollamaListTags(baseUrl: string): Promise<{ ok: boolean; mo
     const models = (data.models ?? []).map((m) => m.name ?? '').filter(Boolean)
     return { ok: true, models }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = toOllamaSetupError(e, baseUrl).message
     return { ok: false, models: [], error: msg }
   }
 }
@@ -98,7 +103,7 @@ export async function ollamaPullModel(
     })
   } catch (e) {
     if (signal?.aborted) return
-    throw e instanceof Error ? e : new Error(String(e))
+    throw toOllamaSetupError(e, baseUrl)
   }
 
   if (!res.ok) {
@@ -180,4 +185,20 @@ export async function ollamaPullModel(
   if (!signal?.aborted) {
     emit('Complete', 100)
   }
+}
+
+function toOllamaSetupError(error: unknown, baseUrl: string): Error {
+  const raw = error instanceof Error ? error.message : String(error)
+  const lower = raw.toLowerCase()
+  if (
+    lower.includes('fetch failed') ||
+    lower.includes('econnrefused') ||
+    lower.includes('enotfound') ||
+    lower.includes('networkerror')
+  ) {
+    return new Error(
+      `Cannot reach Ollama at ${baseUrl}. Install Ollama from https://ollama.com/download and start it, then retry.`,
+    )
+  }
+  return error instanceof Error ? error : new Error(String(error))
 }

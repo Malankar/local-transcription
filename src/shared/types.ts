@@ -216,6 +216,7 @@ export interface LocalTranscribeApi {
   ollamaPull: (model: string) => Promise<void>
   /** Abort in-flight `ollamaPull` (closes network stream; Ollama may still finish partial state). */
   ollamaPullCancel: () => Promise<void>
+  ollamaPullState: () => Promise<OllamaPullProgress | null>
   onOllamaPullProgress: (listener: (progress: OllamaPullProgress) => void) => () => void
   getSettings: () => Promise<AppSettings>
   setSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>

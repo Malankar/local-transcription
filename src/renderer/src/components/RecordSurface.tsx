@@ -118,7 +118,6 @@ export default function RecordSurface() {
               size="lg"
               variant="destructive"
               className="w-full gap-2"
-              disabled={isBusy}
               onClick={() => void stopCapture()}
             >
               <Square className="h-5 w-5" />

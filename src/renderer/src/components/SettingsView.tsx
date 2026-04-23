@@ -93,6 +93,11 @@ function ollamaHasModel(installed: Set<string>, id: string): boolean {
   return false
 }
 
+function normalizeIpcErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error)
+  return raw.replace(/^Error invoking remote method '[^']+':\s*/u, '').replace(/^Error:\s*/u, '').trim()
+}
+
 function OllamaLocalAssistantCard() {
   const [status, setStatus] = useState<OllamaStatusResult | null>(null)
   const [pulling, setPulling] = useState<string | null>(null)
@@ -118,17 +123,32 @@ function OllamaLocalAssistantCard() {
         setStatus(s)
         setError(null)
       })
-      .catch((e) => {
+      .catch((_e) => {
         setStatus({ ok: false, models: [] })
-        setError(e instanceof Error ? e.message : String(e))
+        // Reachability details are already shown in Status; avoid duplicate red error text.
+        setError(null)
       })
   }
 
   useEffect(() => {
     refresh()
+    void window.api
+      .ollamaPullState()
+      .then((state) => {
+        if (!state) return
+        setPulling(state.model)
+        setPullProgress(state)
+      })
+      .catch(() => {
+        // no-op: the card can still function without restoring active pull state
+      })
   }, [])
 
   async function pullModel(model: string): Promise<void> {
+    if (!status?.ok) {
+      setError('Ollama is not reachable. Install/start Ollama first, then refresh.')
+      return
+    }
     setError(null)
     setPulling(model)
     setPullProgress({ model, status: 'Starting…', percent: null })
@@ -136,7 +156,7 @@ function OllamaLocalAssistantCard() {
       await window.api.ollamaPull(model)
       refresh()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(normalizeIpcErrorMessage(e))
     } finally {
       setPulling(null)
       setPullProgress(null)
@@ -220,7 +240,7 @@ function OllamaLocalAssistantCard() {
                 variant="secondary"
                 size="sm"
                 className="h-8 shrink-0 text-xs sm:self-center"
-                disabled={pulling !== null}
+                disabled={pulling !== null || !status?.ok}
                 onClick={() => void pullModel(m.id)}
               >
                 Pull

@@ -122,9 +122,14 @@ chunkQueue.on('segment', (segment) => {
 })
 
 chunkQueue.on('error', (error) => {
-  // Individual chunk transcription failures are non-fatal — the queue resumes automatically.
-  // Don't call sendError here as that would send stage:'error' and stop the capture UI.
   logger.error('Chunk queue emitted error', error)
+  const detail = error.message
+  const missingWhisperDeps =
+    detail.includes('Failed to run cmake') || detail.includes('whisper-cli executable not found')
+  if (missingWhisperDeps) {
+    // Missing local whisper.cpp dependencies is effectively fatal for transcription on this model.
+    sendError(detail)
+  }
 })
 
 chunkQueue.on('status', (detail) => {

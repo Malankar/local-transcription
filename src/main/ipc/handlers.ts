@@ -32,6 +32,7 @@ import { AppLogger } from '../logging/AppLogger'
 
 /** In-flight Ollama `api/pull` stream; cancel via `assistant:ollamaPullCancel`. */
 let ollamaPullAbort: AbortController | null = null
+let ollamaActivePull: { model: string; status: string; percent: number | null } | null = null
 
 interface RegisterHandlersOptions {
   audioCapture: AudioCapture
@@ -262,11 +263,17 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     if (ollamaPullAbort) throw new Error('A model pull is already in progress')
     const ac = new AbortController()
     ollamaPullAbort = ac
+    ollamaActivePull = { model: name, status: 'Starting…', percent: null }
     const win = getMainWindow()
     try {
       await ollamaPullModel(OLLAMA_DEFAULT_BASE_URL, name, logger, {
         signal: ac.signal,
         onProgress: (p) => {
+          ollamaActivePull = {
+            model: name,
+            status: p.status,
+            percent: p.percent,
+          }
           win?.webContents.send('assistant:ollamaPullProgress', {
             model: name,
             status: p.status,
@@ -282,11 +289,16 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
       throw e
     } finally {
       ollamaPullAbort = null
+      ollamaActivePull = null
     }
   })
 
   ipcMain.handle('assistant:ollamaPullCancel', async () => {
     ollamaPullAbort?.abort()
+  })
+
+  ipcMain.handle('assistant:ollamaPullState', async () => {
+    return ollamaActivePull
   })
 
   ipcMain.handle('settings:get', async () => {

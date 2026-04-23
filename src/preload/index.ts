@@ -50,6 +50,7 @@ const api: LocalTranscribeApi = {
   ollamaStatus: () => ipcRenderer.invoke('assistant:ollamaStatus'),
   ollamaPull: (model: string) => ipcRenderer.invoke('assistant:ollamaPull', model),
   ollamaPullCancel: () => ipcRenderer.invoke('assistant:ollamaPullCancel'),
+  ollamaPullState: () => ipcRenderer.invoke('assistant:ollamaPullState'),
   onOllamaPullProgress: (listener: (progress: OllamaPullProgress) => void) =>
     subscribe('assistant:ollamaPullProgress', listener),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('settings:get'),

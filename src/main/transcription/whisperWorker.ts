@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -168,6 +168,8 @@ let currentModel: ModelConfig | null = null
 let initialized = false
 let parakeetServer: ChildProcessWithoutNullStreams | null = null
 let parakeetRequestSeq = 0
+let whisperCliReady = false
+let whisperCliInitError: Error | null = null
 const pendingParakeetRequests = new Map<string, PendingParakeetRequest>()
 
 function respond(message: WorkerResponse): void {
@@ -245,6 +247,7 @@ async function transcribeWithWhisper(
   modelName: string,
   chunk: AudioChunk
 ): Promise<TranscriptSegment[]> {
+  await ensureWhisperCliReady()
   const { nodewhisper } = await import('nodejs-whisper')
 
   const tmpDir = tmpdir()
@@ -289,6 +292,93 @@ async function transcribeWithWhisper(
   } finally {
     cleanupFiles(wavPath, jsonPath)
   }
+}
+
+function getWhisperExecutablePath(whisperCppPath: string): string | null {
+  const executable = process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli'
+  const candidates = [
+    join(whisperCppPath, 'build', 'bin', executable),
+    join(whisperCppPath, 'build', 'bin', 'Release', executable),
+    join(whisperCppPath, 'build', 'bin', 'Debug', executable),
+    join(whisperCppPath, 'build', executable),
+    join(whisperCppPath, executable),
+  ]
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+function runCmake(args: string[], cwd: string): void {
+  const result = spawnSync('cmake', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  if (result.error) {
+    throw new Error(
+      `Failed to run cmake (${args.join(' ')}): ${result.error.message}. Install cmake and C/C++ build tools.`
+    )
+  }
+
+  if (result.status !== 0) {
+    const stderr = result.stderr?.trim()
+    const stdout = result.stdout?.trim()
+    const details = stderr || stdout || 'No output'
+    throw new Error(`cmake ${args.join(' ')} failed: ${details}`)
+  }
+}
+
+async function ensureWhisperCliReady(): Promise<void> {
+  if (whisperCliReady) return
+  if (whisperCliInitError) {
+    throw whisperCliInitError
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const constants = require('nodejs-whisper/dist/constants') as { WHISPER_CPP_PATH: string }
+  const whisperCppPath = constants.WHISPER_CPP_PATH
+
+  const existing = getWhisperExecutablePath(whisperCppPath)
+  if (existing) {
+    whisperCliReady = true
+    return
+  }
+
+  sendStatus('Preparing whisper.cpp executable (first run may compile native binary)...')
+  log('whisper-cli not found. Building whisper.cpp executable.', { whisperCppPath })
+
+  const cachePath = join(whisperCppPath, 'build', 'CMakeCache.txt')
+  try {
+    if (!existsSync(cachePath)) {
+      runCmake(['-B', 'build'], whisperCppPath)
+    }
+    runCmake(['--build', 'build', '--config', 'Release'], whisperCppPath)
+  } catch (error) {
+    const normalized = error instanceof Error ? error : new Error(String(error))
+    if (normalized.message.includes('Failed to run cmake')) {
+      whisperCliInitError = new Error(
+        `${normalized.message} Install dependencies (Ubuntu/Debian: sudo apt install cmake build-essential).`
+      )
+    } else {
+      whisperCliInitError = normalized
+    }
+    throw whisperCliInitError
+  }
+
+  const built = getWhisperExecutablePath(whisperCppPath)
+  if (!built) {
+    whisperCliInitError = new Error(
+      'whisper.cpp build completed but whisper-cli executable is still missing. Verify cmake output and build dependencies.'
+    )
+    throw whisperCliInitError
+  }
+
+  whisperCliReady = true
+  whisperCliInitError = null
+  log('whisper.cpp executable ready', { path: built })
 }
 
 async function transcribeWithParakeet(

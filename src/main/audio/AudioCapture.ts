@@ -82,7 +82,7 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     })
 
     process.on('error', (error) => {
-      this.emit('error', error)
+      this.emit('error', toCaptureError(error))
     })
 
     process.on('close', () => {
@@ -372,3 +372,14 @@ function calculateRms(buffer: Buffer): number {
 }
 
 const pulse = 'pulse'
+
+function toCaptureError(error: Error): Error {
+  const systemError = error as NodeJS.ErrnoException
+  if (systemError.code === 'ENOENT' && systemError.message.includes('ffmpeg')) {
+    return new Error(
+      'FFmpeg is not installed or not available in PATH. Install it (Ubuntu/Debian: sudo apt install ffmpeg) and restart the app.',
+    )
+  }
+
+  return error
+}

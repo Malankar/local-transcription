@@ -12,6 +12,8 @@ export interface OllamaChatOptions {
   top_p?: number
   top_k?: number
   repeat_penalty?: number
+  /** Abort the HTTP request if Ollama does not finish within this many ms (avoids infinite "Generating…"). */
+  timeoutMs?: number
 }
 
 export async function ollamaChat(
@@ -22,13 +24,20 @@ export async function ollamaChat(
   options?: OllamaChatOptions,
 ): Promise<string> {
   const url = `${baseUrl.replace(/\/$/, '')}/api/chat`
-  const opt: Record<string, number> = {
-    temperature: options?.temperature ?? 0.2,
-  }
-  if (options?.num_predict != null) opt.num_predict = options.num_predict
-  if (options?.top_p != null) opt.top_p = options.top_p
-  if (options?.top_k != null) opt.top_k = options.top_k
-  if (options?.repeat_penalty != null) opt.repeat_penalty = options.repeat_penalty
+  const {
+    timeoutMs,
+    temperature = 0.2,
+    num_predict,
+    top_p,
+    top_k,
+    repeat_penalty,
+  } = options ?? {}
+
+  const opt: Record<string, number> = { temperature }
+  if (num_predict != null) opt.num_predict = num_predict
+  if (top_p != null) opt.top_p = top_p
+  if (top_k != null) opt.top_k = top_k
+  if (repeat_penalty != null) opt.repeat_penalty = repeat_penalty
 
   const body = {
     model,
@@ -37,15 +46,27 @@ export async function ollamaChat(
     options: opt,
   }
 
+  const ac = new AbortController()
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  if (timeoutMs != null && timeoutMs > 0) {
+    timeoutId = setTimeout(() => ac.abort(), timeoutMs)
+  }
+
   let res: Response
   try {
     res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: ac.signal,
     })
   } catch (e) {
+    if (timeoutMs != null && timeoutMs > 0 && ac.signal.aborted) {
+      throw new Error(`Ollama chat timed out after ${timeoutMs}ms (model=${model})`)
+    }
     throw toOllamaSetupError(e, baseUrl)
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
   }
 
   if (!res.ok) {

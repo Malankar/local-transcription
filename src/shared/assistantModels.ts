@@ -21,6 +21,8 @@ export const ASSISTANT_OLLAMA_TITLE_OPTIONS = {
   num_predict: 48,
   top_p: 0.85,
   repeat_penalty: 1.2,
+  /** Title must fail fast if Ollama is stuck so Library does not spin forever. */
+  timeoutMs: 120_000,
 } as const
 
 /** Summary bullets */
@@ -29,7 +31,14 @@ export const ASSISTANT_OLLAMA_SUMMARY_OPTIONS = {
   num_predict: 900,
   top_p: 0.9,
   repeat_penalty: 1.1,
+  timeoutMs: 240_000,
 } as const
+
+/** Main assistant reply (longer generations). */
+export const ASSISTANT_OLLAMA_CHAT_TIMEOUT_MS = 300_000
+
+/** Tool-decision pass before optional web search. */
+export const ASSISTANT_OLLAMA_TOOL_DECISION_TIMEOUT_MS = 90_000
 
 export const ASSISTANT_OLLAMA_MODELS_TO_PULL = [
   { id: ASSISTANT_OLLAMA_MODEL_TITLE, role: 'Titles (fast)' },

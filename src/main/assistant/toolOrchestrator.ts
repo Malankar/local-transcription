@@ -1,5 +1,7 @@
 import {
+  ASSISTANT_OLLAMA_CHAT_TIMEOUT_MS,
   ASSISTANT_OLLAMA_MODEL_CHAT,
+  ASSISTANT_OLLAMA_TOOL_DECISION_TIMEOUT_MS,
   OLLAMA_DEFAULT_BASE_URL,
 } from '../../shared/assistantModels'
 import type { AppLogger } from '../logging/AppLogger'
@@ -12,6 +14,7 @@ const TOOL_DECISION_OPTIONS: OllamaChatOptions = {
   num_predict: 120,
   top_p: 0.85,
   repeat_penalty: 1.15,
+  timeoutMs: ASSISTANT_OLLAMA_TOOL_DECISION_TIMEOUT_MS,
 }
 
 function clip(s: string, max: number): string {
@@ -194,6 +197,7 @@ export async function orchestrateAssistantChat(options: {
     num_predict: 2048,
     top_p: 0.9,
     repeat_penalty: 1.1,
+    timeoutMs: ASSISTANT_OLLAMA_CHAT_TIMEOUT_MS,
   }
 
   const thinkingTweaks: Partial<OllamaChatOptions> = thinkingMode

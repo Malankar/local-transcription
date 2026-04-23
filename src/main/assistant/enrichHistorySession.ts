@@ -18,6 +18,9 @@ function stubAssistantEnabled(): boolean {
   return process.env.E2E_STUB_OLLAMA === '1'
 }
 
+/** Prevents duplicate Ollama work if enrichment is triggered twice (e.g. save + resume). */
+const enrichmentInFlight = new Set<string>()
+
 function clip(s: string, max: number): string {
   const t = s.trim()
   if (t.length <= max) return t
@@ -179,76 +182,152 @@ export async function enrichHistorySessionAfterSave(options: {
   const { sessionId, historyManager, mainWindow, logger } = options
   const baseUrl = options.baseUrl ?? OLLAMA_DEFAULT_BASE_URL
 
+  if (enrichmentInFlight.has(sessionId)) return
   const session = await historyManager.getSession(sessionId)
   if (!session) return
-
-  const transcriptText = session.segments
-    .map((s) => s.text.trim())
-    .filter(Boolean)
-    .join('\n\n')
-
-  const fallbackTitle = historyManager.generateLabel(session.segments)
-  const fallbackSummary =
-    session.preview?.trim() ||
-    (transcriptText ? clip(transcriptText, 400) : 'No transcript text for summary.')
+  enrichmentInFlight.add(sessionId)
 
   const broadcast = (meta: HistorySessionMeta): void => {
     mainWindow?.webContents.send('history:sessionUpdated', meta)
   }
 
-  if (stubAssistantEnabled()) {
-    const delayMs = Number(process.env.E2E_ASSISTANT_DELAY_MS ?? '0')
-    if (delayMs > 0) {
-      await new Promise((r) => setTimeout(r, delayMs))
+  try {
+    const transcriptText = session.segments
+      .map((s) => s.text.trim())
+      .filter(Boolean)
+      .join('\n\n')
+
+    const fallbackTitle = historyManager.generateLabel(session.segments)
+    const fallbackSummary =
+      session.preview?.trim() ||
+      (transcriptText ? clip(transcriptText, 400) : 'No transcript text for summary.')
+
+    if (stubAssistantEnabled()) {
+      const delayMs = Number(process.env.E2E_ASSISTANT_DELAY_MS ?? '0')
+      if (delayMs > 0) {
+        await new Promise((r) => setTimeout(r, delayMs))
+      }
+      const label = `E2E ${fallbackTitle}`.slice(0, 80)
+      const meta = await historyManager.patchSessionMeta(sessionId, {
+        label,
+        aiTitleStatus: 'ready',
+        aiSummary: fallbackSummary,
+        aiSummaryStatus: 'ready',
+      })
+      if (meta) broadcast(meta)
+      return
     }
-    const label = `E2E ${fallbackTitle}`.slice(0, 80)
-    const meta = await historyManager.patchSessionMeta(sessionId, {
-      label,
+
+    let title = fallbackTitle
+    let summary = fallbackSummary
+
+    try {
+      const titlePrompt = clip(transcriptText || 'Empty transcript.', 6000)
+      const titleRaw = await ollamaChat(
+        baseUrl,
+        ASSISTANT_OLLAMA_MODEL_TITLE,
+        [
+          { role: 'system', content: TITLE_SYSTEM_PROMPT },
+          { role: 'user', content: `Transcript:\n\n${titlePrompt}\n\nTitle:` },
+        ],
+        logger,
+        { ...ASSISTANT_OLLAMA_TITLE_OPTIONS },
+      )
+      title = sanitizeTitle(titleRaw, fallbackTitle)
+    } catch (e) {
+      logger.error('Assistant title generation failed', e)
+      title = fallbackTitle
+    }
+
+    const titleMeta = await historyManager.patchSessionMeta(sessionId, {
+      label: title,
       aiTitleStatus: 'ready',
-      aiSummary: fallbackSummary,
+    })
+    if (titleMeta) broadcast(titleMeta)
+
+    summary = await generateAiSummaryFromTranscript(transcriptText, fallbackSummary, baseUrl, logger)
+
+    const doneMeta = await historyManager.patchSessionMeta(sessionId, {
+      aiSummary: summary,
       aiSummaryStatus: 'ready',
     })
-    if (meta) broadcast(meta)
+    if (doneMeta) broadcast(doneMeta)
+  } catch (e) {
+    logger.error('History session enrichment crashed', e)
+    try {
+      const latest = await historyManager.getSession(sessionId)
+      if (!latest) return
+      const transcriptText = latest.segments
+        .map((s) => s.text.trim())
+        .filter(Boolean)
+        .join('\n\n')
+      const fallbackTitle = historyManager.generateLabel(latest.segments)
+      const fallbackSummary =
+        latest.preview?.trim() ||
+        (transcriptText ? clip(transcriptText, 400) : 'No transcript text for summary.')
+      const meta = await historyManager.patchSessionMeta(sessionId, {
+        label: latest.label?.trim() || fallbackTitle,
+        aiTitleStatus: 'ready',
+        aiSummary: latest.aiSummary?.trim() || fallbackSummary,
+        aiSummaryStatus: 'ready',
+      })
+      if (meta) broadcast(meta)
+    } catch (recoveryErr) {
+      logger.error('Failed to recover session after enrichment crash', recoveryErr)
+    }
+  } finally {
+    enrichmentInFlight.delete(sessionId)
+  }
+}
+
+/**
+ * Re-run AI enrichment for sessions left `pending` on disk (e.g. app quit mid-request).
+ * Runs sequentially to avoid saturating Ollama.
+ */
+export async function resumePendingHistoryEnrichment(options: {
+  historyManager: HistoryManager
+  mainWindow: BrowserWindow | null
+  logger: AppLogger
+  baseUrl?: string
+}): Promise<void> {
+  const { historyManager, mainWindow, logger } = options
+  const baseUrl = options.baseUrl ?? OLLAMA_DEFAULT_BASE_URL
+  let pending: HistorySessionMeta[]
+  try {
+    pending = (await historyManager.listSessions()).filter(
+      (m) => m.aiTitleStatus === 'pending' || m.aiSummaryStatus === 'pending',
+    )
+  } catch (e) {
+    logger.error('Failed to list sessions for enrichment resume', e)
     return
   }
-
-  let title = fallbackTitle
-  let summary = fallbackSummary
-
-  try {
-    const titlePrompt = clip(
-      transcriptText || 'Empty transcript.',
-      6000,
-    )
-    const titleRaw = await ollamaChat(
-      baseUrl,
-      ASSISTANT_OLLAMA_MODEL_TITLE,
-      [
-        { role: 'system', content: TITLE_SYSTEM_PROMPT },
-        { role: 'user', content: `Transcript:\n\n${titlePrompt}\n\nTitle:` },
-      ],
-      logger,
-      { ...ASSISTANT_OLLAMA_TITLE_OPTIONS },
-    )
-    title = sanitizeTitle(titleRaw, fallbackTitle)
-  } catch (e) {
-    logger.error('Assistant title generation failed', e)
-    title = fallbackTitle
+  if (pending.length === 0) return
+  logger.info('Resuming pending history AI enrichment', { count: pending.length })
+  for (const m of pending) {
+    try {
+      await enrichHistorySessionAfterSave({
+        sessionId: m.id,
+        historyManager,
+        mainWindow,
+        logger,
+        baseUrl,
+      })
+    } catch (e) {
+      logger.error('Resume enrichment failed for session', { sessionId: m.id, error: e })
+    }
   }
+}
 
-  let titleMeta = await historyManager.patchSessionMeta(sessionId, {
-    label: title,
-    aiTitleStatus: 'ready',
+/** Non-blocking wrapper for IPC / startup. */
+export function scheduleResumePendingHistoryEnrichment(options: {
+  historyManager: HistoryManager
+  mainWindow: BrowserWindow | null
+  logger: AppLogger
+  baseUrl?: string
+}): void {
+  void resumePendingHistoryEnrichment(options).catch((e) => {
+    options.logger.error('resumePendingHistoryEnrichment failed', e)
   })
-  if (titleMeta) broadcast(titleMeta)
-
-  summary = await generateAiSummaryFromTranscript(transcriptText, fallbackSummary, baseUrl, logger)
-
-  const doneMeta = await historyManager.patchSessionMeta(sessionId, {
-    aiSummary: summary,
-    aiSummaryStatus: 'ready',
-  })
-  if (doneMeta) broadcast(doneMeta)
 }
 
 export async function assistantReplyChat(options: {

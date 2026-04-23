@@ -18,6 +18,7 @@ import {
   enrichHistorySessionAfterSave,
   regenerateHistorySessionSummary,
   regenerateHistorySessionTitle,
+  scheduleResumePendingHistoryEnrichment,
 } from '../assistant/enrichHistorySession'
 import { ollamaListTags, ollamaPullModel } from '../assistant/ollamaClient'
 import { AudioCapture } from '../audio/AudioCapture'
@@ -183,7 +184,13 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   })
 
   ipcMain.handle('history:list', async () => {
-    return historyManager.listSessions()
+    const list = await historyManager.listSessions()
+    scheduleResumePendingHistoryEnrichment({
+      historyManager,
+      mainWindow: getMainWindow(),
+      logger,
+    })
+    return list
   })
 
   ipcMain.handle('history:get', async (_event, id: string) => {

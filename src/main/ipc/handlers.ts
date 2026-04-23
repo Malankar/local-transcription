@@ -7,6 +7,7 @@ import {
   coerceAssistantChatFlags,
   type AppStatus,
   type AssistantChatRequest,
+  type AudioSource,
   type CaptureStartOptions,
   type ExportResult,
   type HistorySessionMeta,
@@ -18,7 +19,6 @@ import {
   enrichHistorySessionAfterSave,
   regenerateHistorySessionSummary,
   regenerateHistorySessionTitle,
-  scheduleResumePendingHistoryEnrichment,
 } from '../assistant/enrichHistorySession'
 import { ollamaListTags, ollamaPullModel } from '../assistant/ollamaClient'
 import { AudioCapture } from '../audio/AudioCapture'
@@ -34,6 +34,10 @@ import { AppLogger } from '../logging/AppLogger'
 /** In-flight Ollama `api/pull` stream; cancel via `assistant:ollamaPullCancel`. */
 let ollamaPullAbort: AbortController | null = null
 let ollamaActivePull: { model: string; status: string; percent: number | null } | null = null
+
+/** Coalesce back-to-back `sources:get` (e.g. React Strict Mode double mount). */
+let sourcesGetCache: { atMs: number; sources: AudioSource[] } | null = null
+const SOURCES_GET_CACHE_MS = 300
 
 interface RegisterHandlersOptions {
   audioCapture: AudioCapture
@@ -73,6 +77,11 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   } = options
 
   ipcMain.handle('sources:get', async () => {
+    const now = Date.now()
+    if (sourcesGetCache && now - sourcesGetCache.atMs < SOURCES_GET_CACHE_MS) {
+      return sourcesGetCache.sources
+    }
+
     sendStatus({ stage: 'discovering', detail: 'Looking up audio sources...' })
 
     try {
@@ -82,6 +91,7 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
         sourceIds: sources.map((source) => source.id),
       })
       sendStatus({ stage: 'ready', detail: `Found ${sources.length} audio sources` })
+      sourcesGetCache = { atMs: Date.now(), sources }
       return sources
     } catch (error) {
       const message = toMessage(error)
@@ -184,13 +194,7 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   })
 
   ipcMain.handle('history:list', async () => {
-    const list = await historyManager.listSessions()
-    scheduleResumePendingHistoryEnrichment({
-      historyManager,
-      mainWindow: getMainWindow(),
-      logger,
-    })
-    return list
+    return historyManager.listSessions()
   })
 
   ipcMain.handle('history:get', async (_event, id: string) => {

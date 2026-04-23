@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events'
 
 import type { AudioChunk, TranscriptSegment } from '../../shared/types'
+import { dropNoiseTranscriptSegments } from '../../shared/transcriptSegments'
 
 interface ChunkQueueEvents {
   segment: [TranscriptSegment]
@@ -71,7 +72,7 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
     try {
       const segments = await this.processor(nextChunk)
       if (Array.isArray(segments)) {
-        for (const segment of segments) {
+        for (const segment of dropNoiseTranscriptSegments(segments)) {
           this.emit('segment', segment)
         }
       } else {

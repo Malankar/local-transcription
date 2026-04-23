@@ -11,3 +11,6 @@ linux:
   target: AppImage
 directories:
   buildResources: build
+extraResources:
+  - from: build/tray-icon.png
+    to: tray-icon.png

@@ -182,10 +182,21 @@ export async function enrichHistorySessionAfterSave(options: {
   const { sessionId, historyManager, mainWindow, logger } = options
   const baseUrl = options.baseUrl ?? OLLAMA_DEFAULT_BASE_URL
 
-  if (enrichmentInFlight.has(sessionId)) return
-  const session = await historyManager.getSession(sessionId)
-  if (!session) return
+  const sizeBefore = enrichmentInFlight.size
   enrichmentInFlight.add(sessionId)
+  if (enrichmentInFlight.size === sizeBefore) return
+
+  let session: Awaited<ReturnType<HistoryManager['getSession']>>
+  try {
+    session = await historyManager.getSession(sessionId)
+  } catch (e) {
+    enrichmentInFlight.delete(sessionId)
+    throw e
+  }
+  if (!session) {
+    enrichmentInFlight.delete(sessionId)
+    return
+  }
 
   const broadcast = (meta: HistorySessionMeta): void => {
     mainWindow?.webContents.send('history:sessionUpdated', meta)

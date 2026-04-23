@@ -1,10 +1,14 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut } from 'electron'
+import { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut, session } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { AppSettings, AppStatus, ModelDownloadProgress, TranscriptSegment } from '../shared/types'
 import { AudioCapture } from './audio/AudioCapture'
 import { SourceDiscovery } from './audio/SourceDiscovery'
-import { enrichHistorySessionAfterSave } from './assistant/enrichHistorySession'
+import {
+  enrichHistorySessionAfterSave,
+  scheduleResumePendingHistoryEnrichment,
+} from './assistant/enrichHistorySession'
 import { HistoryManager } from './history/HistoryManager'
 import { registerIpcHandlers } from './ipc/handlers'
 import { AppLogger } from './logging/AppLogger'
@@ -28,6 +32,18 @@ let lastAppliedTrayVisibility: boolean | null = null
 let trayCreateTimer: ReturnType<typeof setTimeout> | null = null
 
 function createTrayIcon() {
+  if (process.platform === 'linux') {
+    const pngPath = app.isPackaged
+      ? join(process.resourcesPath, 'tray-icon.png')
+      : join(__dirname, '../../build/tray-icon.png')
+    if (existsSync(pngPath)) {
+      const fromFile = nativeImage.createFromPath(pngPath)
+      if (!fromFile.isEmpty()) {
+        return fromFile.resize({ width: 20, height: 20 })
+      }
+    }
+  }
+
   const traySvg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
       <rect x="5" y="4" width="22" height="24" rx="6" fill="#1f2937"/>
@@ -378,6 +394,19 @@ app.whenReady().then(() => {
     logFilePath,
   })
 
+  if (!isDev) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+          ],
+        },
+      })
+    })
+  }
+
   registerIpcHandlers({
     audioCapture,
     chunkQueue,
@@ -416,11 +445,21 @@ app.whenReady().then(() => {
       applySettings(settings)
       createWindow(settings.startHidden)
       sendStatus({ stage: 'idle', detail: `Ready to load audio sources. Logs: ${logFilePath}` })
+      scheduleResumePendingHistoryEnrichment({
+        historyManager,
+        mainWindow,
+        logger,
+      })
     })
     .catch((err) => {
       logger.error('Failed to load settings on startup', err)
       createWindow(false)
       sendStatus({ stage: 'idle', detail: `Ready to load audio sources. Logs: ${logFilePath}` })
+      scheduleResumePendingHistoryEnrichment({
+        historyManager,
+        mainWindow,
+        logger,
+      })
     })
 })
 

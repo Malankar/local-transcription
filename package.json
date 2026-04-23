@@ -30,7 +30,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "electron": "35.4.0",
+    "electron": "39.8.9",
     "lucide-react": "^1.7.0",
     "nodejs-whisper": "^0.2.9",
     "postcss": "^8.5.8",

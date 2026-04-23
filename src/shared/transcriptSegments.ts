@@ -1,5 +1,17 @@
 import type { TranscriptSegment } from './types'
 
+/** Whisper.cpp sometimes emits numeric-only hallucinations (e.g. a lone "1"). */
+export function isNoiseTranscriptText(text: string): boolean {
+  const t = text.trim()
+  if (!t) return true
+  if (/^[0-9]+$/.test(t)) return true
+  return false
+}
+
+export function dropNoiseTranscriptSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
+  return segments.filter((s) => !isNoiseTranscriptText(s.text))
+}
+
 export const TRANSCRIPT_MERGE_GAP_MS = 2_000
 const OVERLAP_DEDUPE_WINDOW_MS = 400
 const WORD_PATTERN = /[\p{L}\p{N}']+/gu

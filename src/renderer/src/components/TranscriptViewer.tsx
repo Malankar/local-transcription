@@ -163,46 +163,42 @@ export function TranscriptViewer({
       </div>
 
       <div className="shrink-0 border-t border-border bg-muted/25 px-6 py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleCopyTranscript} className="gap-2">
-              {copied ? (
-                <>
-                  <Check className="h-4 w-4" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4" />
-                  Copy Transcript
-                </>
-              )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleCopyTranscript} className="gap-2">
+            {copied ? (
+              <>
+                <Check className="h-4 w-4" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4" />
+                Copy Transcript
+              </>
+            )}
+          </Button>
+          {onExportTxt ? (
+            <Button variant="outline" size="sm" onClick={onExportTxt} className="gap-2">
+              <Download className="h-4 w-4" />
+              Export TXT
             </Button>
-            {onExportTxt ? (
-              <Button variant="outline" size="sm" onClick={onExportTxt} className="gap-2">
-                <Download className="h-4 w-4" />
-                Export TXT
-              </Button>
-            ) : null}
-            {onExportSrt ? (
-              <Button variant="outline" size="sm" onClick={onExportSrt} className="gap-2">
-                <Download className="h-4 w-4" />
-                Export SRT
-              </Button>
-            ) : null}
-          </div>
+          ) : null}
+          {onExportSrt ? (
+            <Button variant="outline" size="sm" onClick={onExportSrt} className="gap-2">
+              <Download className="h-4 w-4" />
+              Export SRT
+            </Button>
+          ) : null}
           {onDelete ? (
-            <div className="flex sm:ml-auto sm:pl-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onDelete}
-                className="gap-2 text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              className="gap-2 text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
           ) : null}
         </div>
       </div>

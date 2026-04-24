@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { Send, AlertCircle } from 'lucide-react'
 
 import { ASSISTANT_OLLAMA_MODEL_CHAT, ASSISTANT_OLLAMA_MODEL_TITLE } from '../../../shared/assistantModels'
@@ -16,7 +16,199 @@ interface ChatAssistantProps {
   transcript: string
 }
 
-export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) {
+function splitAssistantContent(content: string): { reasoning?: string; answer: string } {
+  const lines = content.split(/\r?\n/)
+  const reasoningStart = lines.findIndex((line) => /^#{1,6}\s*Reasoning(?:\s*\([^)]*\))?\s*$/i.test(line.trim()))
+  if (reasoningStart === -1) return { answer: content }
+
+  const answerOffset = lines
+    .slice(reasoningStart + 1)
+    .findIndex((line) => /^#{1,6}\s*Answer\s*$/i.test(line.trim()))
+
+  if (answerOffset === -1) return { answer: content }
+
+  const answerStart = reasoningStart + 1 + answerOffset
+  return {
+    reasoning: lines.slice(reasoningStart + 1, answerStart).join('\n').trim(),
+    answer: lines.slice(answerStart + 1).join('\n').trim(),
+  }
+}
+
+type MarkdownBlockNode =
+  | { id: string; type: 'code'; language: string; text: string }
+  | { id: string; type: 'heading'; level: number; text: string }
+  | { id: string; type: 'list'; ordered: boolean; items: { id: string; text: string }[] }
+  | { id: string; type: 'paragraph'; text: string }
+
+const INLINE_MARKDOWN_PATTERN = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\n]+\*)/g
+const HEADING_PATTERN = /^(#{1,6})\s+(.+)$/
+const BULLET_ITEM_PATTERN = /^[-*]\s+/
+const NUMBERED_ITEM_PATTERN = /^\d+\.\s+/
+const BLOCK_START_PATTERN = /^(#{1,6}\s+|[-*]\s+|\d+\.\s+|```)/
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const nodes: ReactNode[] = []
+  let lastIndex = 0
+
+  for (const match of text.matchAll(INLINE_MARKDOWN_PATTERN)) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index))
+
+    const token = match[0]
+    if (token.startsWith('`')) {
+      nodes.push(
+        <code key={match.index} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">
+          {token.slice(1, -1)}
+        </code>,
+      )
+    } else if (token.startsWith('**')) {
+      nodes.push(<strong key={match.index}>{token.slice(2, -2)}</strong>)
+    } else if (token.startsWith('*')) {
+      nodes.push(<em key={match.index}>{token.slice(1, -1)}</em>)
+    }
+
+    lastIndex = match.index + token.length
+  }
+
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex))
+  return nodes
+}
+
+function readCodeBlock(lines: string[], start: number): { block: MarkdownBlockNode; next: number } {
+  const language = lines[start].trim().slice(3).trim()
+  const codeLines: string[] = []
+  let next = start + 1
+
+  while (next < lines.length && !lines[next].trim().startsWith('```')) {
+    codeLines.push(lines[next])
+    next += 1
+  }
+
+  return {
+    block: { id: `code-${start}`, type: 'code', language, text: codeLines.join('\n') },
+    next: next < lines.length ? next + 1 : next,
+  }
+}
+
+function readListBlock(lines: string[], start: number, ordered: boolean): { block: MarkdownBlockNode; next: number } {
+  const pattern = ordered ? NUMBERED_ITEM_PATTERN : BULLET_ITEM_PATTERN
+  const items: { id: string; text: string }[] = []
+  let next = start
+
+  while (next < lines.length && pattern.test(lines[next].trim())) {
+    items.push({ id: `item-${next}`, text: lines[next].trim().replace(pattern, '') })
+    next += 1
+  }
+
+  return { block: { id: `list-${start}`, type: 'list', ordered, items }, next }
+}
+
+function readParagraphBlock(lines: string[], start: number): { block: MarkdownBlockNode; next: number } {
+  const paragraphLines = [lines[start].trim()]
+  let next = start + 1
+
+  while (next < lines.length && lines[next].trim() && !BLOCK_START_PATTERN.test(lines[next].trim())) {
+    paragraphLines.push(lines[next].trim())
+    next += 1
+  }
+
+  return {
+    block: { id: `paragraph-${start}`, type: 'paragraph', text: paragraphLines.join(' ') },
+    next,
+  }
+}
+
+function readNextBlock(lines: string[], start: number): { block?: MarkdownBlockNode; next: number } {
+  const trimmed = lines[start].trim()
+  if (!trimmed) return { next: start + 1 }
+  if (trimmed.startsWith('```')) return readCodeBlock(lines, start)
+
+  const heading = HEADING_PATTERN.exec(trimmed)
+  if (heading) {
+    return {
+      block: { id: `heading-${start}`, type: 'heading', level: Math.min(heading[1].length, 4), text: heading[2] },
+      next: start + 1,
+    }
+  }
+
+  if (BULLET_ITEM_PATTERN.test(trimmed)) return readListBlock(lines, start, false)
+  if (NUMBERED_ITEM_PATTERN.test(trimmed)) return readListBlock(lines, start, true)
+  return readParagraphBlock(lines, start)
+}
+
+function parseMarkdownBlocks(text: string): MarkdownBlockNode[] {
+  const lines = text.split(/\r?\n/)
+  const blocks: MarkdownBlockNode[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    const nextBlock = readNextBlock(lines, index)
+    if (nextBlock.block) blocks.push(nextBlock.block)
+    index = nextBlock.next
+  }
+
+  return blocks
+}
+
+function renderMarkdownBlock(block: MarkdownBlockNode): ReactNode {
+  if (block.type === 'code') {
+    return (
+      <pre key={block.id} className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
+        <code className="font-mono" data-language={block.language || undefined}>
+          {block.text}
+        </code>
+      </pre>
+    )
+  }
+
+  if (block.type === 'heading') {
+    const HeadingTag = `h${block.level}` as 'h1' | 'h2' | 'h3' | 'h4'
+    return (
+      <HeadingTag key={block.id} className="font-semibold leading-snug">
+        {renderInlineMarkdown(block.text)}
+      </HeadingTag>
+    )
+  }
+
+  if (block.type === 'list') {
+    const ListTag = block.ordered ? 'ol' : 'ul'
+    const listClass = block.ordered ? 'list-decimal space-y-1 pl-5' : 'list-disc space-y-1 pl-5'
+    return (
+      <ListTag key={block.id} className={listClass}>
+        {block.items.map((item) => (
+          <li key={item.id}>{renderInlineMarkdown(item.text)}</li>
+        ))}
+      </ListTag>
+    )
+  }
+
+  return <p key={block.id}>{renderInlineMarkdown(block.text)}</p>
+}
+
+function MarkdownBlock({ text }: Readonly<{ text: string }>) {
+  return <div className="space-y-3 break-words text-sm leading-relaxed">{parseMarkdownBlocks(text).map(renderMarkdownBlock)}</div>
+}
+
+function AssistantMessage({ content }: Readonly<{ content: string }>) {
+  const { reasoning, answer } = splitAssistantContent(content)
+
+  return (
+    <div className="space-y-3">
+      {reasoning && (
+        <details className="group rounded-lg border border-border bg-muted/30 px-3 py-2" open={false}>
+          <summary className="cursor-pointer select-none text-xs font-semibold text-muted-foreground marker:text-muted-foreground">
+            Reasoning
+          </summary>
+          <div className="mt-2 border-t border-border/70 pt-2 text-muted-foreground">
+            <MarkdownBlock text={reasoning} />
+          </div>
+        </details>
+      )}
+      <MarkdownBlock text={answer} />
+    </div>
+  )
+}
+
+export function ChatAssistant({ sessionTitle, transcript }: Readonly<ChatAssistantProps>) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -48,7 +240,7 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
     }
 
     const convoForApi = [...messages.slice(1), userMessage].map((m) => ({
-      role: m.role as 'user' | 'assistant',
+      role: m.role,
       content: m.content,
     }))
 
@@ -104,7 +296,11 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
                   : 'w-full min-w-0 border border-border bg-background text-foreground'
               }`}
             >
-              <p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>
+              {message.role === 'user' ? (
+                <p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>
+              ) : (
+                <AssistantMessage content={message.content} />
+              )}
             </div>
           </div>
         ))}

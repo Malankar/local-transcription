@@ -123,18 +123,14 @@ export interface AssistantChatRequest {
   messages: AssistantChatMessage[]
   /** Brief reasoning section + answer (default false for older clients) */
   thinkingMode?: boolean
-  /** Allow optional web search pass before answer (default false) */
-  webSearchEnabled?: boolean
 }
 
 /** Strict booleans for IPC; undefined / false stay off (backward compatible). */
 export function coerceAssistantChatFlags(req: AssistantChatRequest): {
   thinkingMode: boolean
-  webSearchEnabled: boolean
 } {
   return {
     thinkingMode: req.thinkingMode === true,
-    webSearchEnabled: req.webSearchEnabled === true,
   }
 }
 

@@ -346,7 +346,6 @@ export async function assistantReplyChat(options: {
   transcript: string
   userMessages: { role: 'user' | 'assistant'; content: string }[]
   thinkingMode?: boolean
-  webSearchEnabled?: boolean
   logger: AppLogger
   baseUrl?: string
 }): Promise<string> {
@@ -356,7 +355,6 @@ export async function assistantReplyChat(options: {
     userMessages,
     logger,
     thinkingMode = false,
-    webSearchEnabled = false,
   } = options
   const baseUrl = options.baseUrl ?? OLLAMA_DEFAULT_BASE_URL
 
@@ -373,7 +371,6 @@ export async function assistantReplyChat(options: {
     transcript,
     userMessages,
     thinkingMode,
-    webSearchEnabled,
     logger,
     baseUrl,
   })

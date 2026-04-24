@@ -258,7 +258,6 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
       transcript: req.transcript,
       userMessages: req.messages,
       thinkingMode: flags.thinkingMode,
-      webSearchEnabled: flags.webSearchEnabled,
       logger,
     })
     return { text }

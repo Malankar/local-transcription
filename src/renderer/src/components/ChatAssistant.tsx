@@ -27,7 +27,6 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [thinkingMode, setThinkingMode] = useState(false)
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -63,7 +62,6 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
         transcript,
         messages: convoForApi,
         thinkingMode,
-        webSearchEnabled,
       })
       const assistantResponse: Message = {
         id: (Date.now() + 1).toString(),
@@ -136,15 +134,7 @@ export function ChatAssistant({ sessionTitle, transcript }: ChatAssistantProps) 
             <span className="text-muted-foreground">Thinking mode (brief bullets + answer)</span>
             <Switch checked={thinkingMode} onCheckedChange={setThinkingMode} disabled={isLoading} aria-label="Thinking mode" />
           </label>
-          <label className="flex cursor-pointer items-center justify-between gap-3 text-foreground">
-            <span className="text-muted-foreground">Web search (no key, best-effort)</span>
-            <Switch
-              checked={webSearchEnabled}
-              onCheckedChange={setWebSearchEnabled}
-              disabled={isLoading}
-              aria-label="Web search"
-            />
-          </label>
+
         </div>
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <input

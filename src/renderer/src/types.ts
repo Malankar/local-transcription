@@ -13,6 +13,7 @@ export type {
   OllamaPullProgress,
   OllamaStatusResult,
   ModelDownloadProgress,
+  ThemeMode,
   TranscriptionModel,
   TranscriptSegment,
   UiFeatureFlags,

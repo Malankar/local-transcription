@@ -144,6 +144,8 @@ export type HistoryAutoDelete =
   | 'older-than-30d'
   | 'older-than-90d'
 
+export type ThemeMode = 'system' | 'light' | 'dark'
+
 export type AssistantProviderId =
   | 'local'
   | 'openai-gpt4'
@@ -168,6 +170,7 @@ export interface AppSettings {
   unloadModelAfterMinutes: number  // 0 = never, default 5
   voiceToTextShortcut: string      // Electron accelerator string
   muteWhileRecording: boolean
+  themeMode: ThemeMode
   // History
   historyLimit: number             // max sessions to keep, 0 = unlimited, default 5
   autoDeleteRecordings: HistoryAutoDelete

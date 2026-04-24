@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 
-import type { AssistantProviderId, HistoryAutoDelete, OllamaPullProgress, OllamaStatusResult } from '../types'
+import type { AssistantProviderId, HistoryAutoDelete, OllamaPullProgress, OllamaStatusResult, ThemeMode } from '../types'
 import {
   ASSISTANT_OLLAMA_MODEL_CHAT,
   ASSISTANT_OLLAMA_MODEL_TITLE,
@@ -63,6 +63,12 @@ const UNLOAD_OPTIONS: { value: string; label: string }[] = [
   { value: '10', label: '10 minutes' },
   { value: '30', label: '30 minutes' },
   { value: '60', label: '1 hour' },
+]
+
+const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
 ]
 
 const AUTO_DELETE_OPTIONS: { value: HistoryAutoDelete; label: string }[] = [
@@ -367,6 +373,28 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
               onCheckedChange={(v) => updateSettings({ launchOnStartup: v })}
               disabled={settingsSaving}
             />
+          </SettingRow>
+
+          <SettingRow
+            label="Theme"
+            description="Choose light, dark, or follow your system appearance."
+          >
+            <Select
+              value={settings.themeMode}
+              onValueChange={(v) => updateSettings({ themeMode: v as ThemeMode })}
+              disabled={settingsSaving}
+            >
+              <SelectTrigger className={cn(selectTriggerClass, 'min-w-[140px]')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {THEME_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
 
           <SettingRow

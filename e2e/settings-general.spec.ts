@@ -55,6 +55,31 @@ test.describe('Settings — General — Launch on startup', () => {
   })
 })
 
+test.describe('Settings — General — Theme', () => {
+  test('select changes document theme', async () => {
+    const { electronApp } = await launchApp()
+    try {
+      const page = await electronApp.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      await openSettings(page)
+
+      const row = generalRow(page, 'Theme')
+      const trigger = row.getByRole('combobox')
+      await expect(trigger).toContainText('System')
+
+      await trigger.click()
+      await page.getByRole('option', { name: 'Dark' }).click()
+      await expect(page.locator('html')).toHaveClass(/dark/)
+
+      await trigger.click()
+      await page.getByRole('option', { name: 'Light' }).click()
+      await expect(page.locator('html')).not.toHaveClass(/dark/)
+    } finally {
+      await closeLaunchedApp(electronApp)
+    }
+  })
+})
+
 test.describe('Settings — General — Show tray icon', () => {
   test('toggle updates tray switch; on Linux shows restart hint and disables control', async () => {
     const { electronApp } = await launchApp()

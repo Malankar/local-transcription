@@ -31,6 +31,7 @@ describe('SettingsManager', () => {
       const settings = await settingsManager.getSettings()
       expect(settings.historyLimit).toBe(5)
       expect(settings.startHidden).toBe(false)
+      expect(settings.themeMode).toBe('system')
       expect(settings.uiFeatures.assistantProvider).toBe('local')
       expect(settings.uiFeatures.enableExternalAssistant).toBe(false)
     })
@@ -42,6 +43,7 @@ describe('SettingsManager', () => {
       const settings = await settingsManager.getSettings()
       expect(settings.historyLimit).toBe(10)
       expect(settings.startHidden).toBe(false) // from defaults
+      expect(settings.themeMode).toBe('system') // from defaults
     })
 
     it('caches settings after first load', async () => {

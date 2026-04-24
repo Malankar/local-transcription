@@ -131,6 +131,7 @@ const mainMocks = vi.hoisted(() => {
       unloadModelAfterMinutes: 0,
       voiceToTextShortcut: '',
       muteWhileRecording: false,
+      themeMode: 'system',
       historyLimit: 5,
       autoDeleteRecordings: 'never',
       keepStarredUntilDeleted: true,

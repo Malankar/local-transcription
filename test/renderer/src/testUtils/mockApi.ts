@@ -24,6 +24,7 @@ export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): Loca
     unloadModelAfterMinutes: 5,
     voiceToTextShortcut: 'Control+Shift+T',
     muteWhileRecording: false,
+    themeMode: 'system',
     historyLimit: 10,
     autoDeleteRecordings: 'never',
     keepStarredUntilDeleted: true,

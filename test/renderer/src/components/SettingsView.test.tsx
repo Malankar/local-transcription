@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { SettingsView } from '../../../../src/renderer/src/components/SettingsView'
 import { installMockApi } from '../testUtils/mockApi'
-import { flushMicrotasks, renderIntoDocument } from '../testUtils/render'
+import { flushMicrotasks } from '../testUtils/render'
 import { renderRendererApp } from '../testUtils/renderRenderer'
 
 describe('SettingsView', () => {
@@ -14,6 +14,7 @@ describe('SettingsView', () => {
       unloadModelAfterMinutes: 5,
       voiceToTextShortcut: 'Control+Shift+T',
       muteWhileRecording: false,
+      themeMode: 'system' as const,
       historyLimit: 10,
       autoDeleteRecordings: 'never' as const,
       keepStarredUntilDeleted: true,
@@ -40,6 +41,7 @@ describe('SettingsView', () => {
         unloadModelAfterMinutes: 5,
         voiceToTextShortcut: 'Control+Shift+T',
         muteWhileRecording: false,
+        themeMode: 'system',
         historyLimit: 10,
         autoDeleteRecordings: 'never',
         keepStarredUntilDeleted: true,
@@ -64,5 +66,7 @@ describe('SettingsView', () => {
 
     expect(setSettings).toHaveBeenCalledWith({ startHidden: true })
     expect(container.textContent).toContain('Start hidden')
+    expect(container.textContent).toContain('Theme')
+    expect(container.textContent).toContain('System')
   })
 })

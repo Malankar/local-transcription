@@ -1,7 +1,12 @@
-import { EventEmitter } from 'events'
+import { EventEmitter } from 'node:events'
 
 import type { AudioChunk, TranscriptSegment } from '../../shared/types'
 import { dropNoiseTranscriptSegments } from '../../shared/transcriptSegments'
+import {
+  applySubstitutions,
+  BUILT_IN_SUBSTITUTIONS,
+  type SubstitutionEntry,
+} from '../../shared/wordSubstitutions'
 
 interface ChunkQueueEvents {
   segment: [TranscriptSegment]
@@ -17,9 +22,14 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
   private queue: AudioChunk[] = []
   private processing = false
   private mode: QueueMode = 'default'
+  private customSubstitutions: SubstitutionEntry[] = []
 
   constructor(private readonly processor: Processor) {
     super()
+  }
+
+  setCustomSubstitutions(entries: SubstitutionEntry[]): void {
+    this.customSubstitutions = entries
   }
 
   setMode(mode: QueueMode): void {
@@ -72,7 +82,12 @@ export class ChunkQueue extends EventEmitter<ChunkQueueEvents> {
     try {
       const segments = await this.processor(nextChunk)
       if (Array.isArray(segments)) {
-        for (const segment of dropNoiseTranscriptSegments(segments)) {
+        const allSubstitutions = [...BUILT_IN_SUBSTITUTIONS, ...this.customSubstitutions]
+        const cleaned = dropNoiseTranscriptSegments(segments).map((seg) => ({
+          ...seg,
+          text: applySubstitutions(seg.text, allSubstitutions),
+        }))
+        for (const segment of cleaned) {
           this.emit('segment', segment)
         }
       } else {

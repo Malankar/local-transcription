@@ -71,10 +71,9 @@ export function TranscriptViewer({
             <span className="text-lg font-medium">Generating title…</span>
           </div>
         ) : (
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2 flex items-start gap-2">
             <h2
-              className="truncate text-2xl font-semibold"
-              style={{ maxWidth: '28ch' }}
+              className="min-w-0 flex-1 break-words text-2xl font-semibold leading-tight"
               title={title || 'Untitled'}
             >
               {title || 'Untitled'}
@@ -207,25 +206,133 @@ export function TranscriptViewer({
 }
 
 function SummaryBody({ text }: Readonly<{ text: string }>) {
-  const bullets = text
+  const legacyBullets = text
     .split(/•/)
     .map((s) => s.trim())
     .filter(Boolean)
 
-  if (bullets.length <= 1) {
+  if (!text.includes('\n') && legacyBullets.length > 1) {
+    return (
+      <ul className="space-y-1">
+        {legacyBullets.map((bullet, idx) => (
+          <li key={`${idx}-${bullet}`} className="flex gap-1.5 text-sm leading-relaxed text-foreground">
+            <span className="mt-0.5 shrink-0 text-foreground/60">•</span>
+            <span>{bullet}</span>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  const blocks = parseSummaryBlocks(text)
+  if (blocks.length === 0) {
     return <p className="text-sm leading-relaxed text-foreground">{text}</p>
   }
 
   return (
-    <ul className="space-y-1">
-      {bullets.map((bullet) => (
-        <li key={bullet} className="flex gap-1.5 text-sm leading-relaxed text-foreground">
-          <span className="mt-0.5 shrink-0 text-foreground/60">•</span>
-          <span>{bullet}</span>
-        </li>
+    <div className="space-y-3">
+      {blocks.map((block, blockIdx) => (
+        <section key={`${block.heading ?? 'summary'}-${blockIdx}`} className="space-y-1.5">
+          {block.heading ? <h4 className="text-sm font-semibold text-foreground">{block.heading}</h4> : null}
+          {block.paragraphs.map((paragraph, idx) => (
+            <p key={`${idx}-${paragraph}`} className="text-sm leading-relaxed text-foreground">
+              {paragraph}
+            </p>
+          ))}
+          {block.bullets.length > 0 ? (
+            <ul className="space-y-1">
+              {block.bullets.map((bullet, idx) => (
+                <li key={`${idx}-${bullet}`} className="flex gap-1.5 text-sm leading-relaxed text-foreground">
+                  <span className="mt-0.5 shrink-0 text-foreground/60">•</span>
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
       ))}
-    </ul>
+    </div>
   )
+}
+
+interface SummaryBlock {
+  heading?: string
+  paragraphs: string[]
+  bullets: string[]
+}
+
+const summaryHeadings = new Set(['overview', 'key points', 'decisions', 'action items', 'open questions'])
+const summaryHeadingPattern = /^#{1,3}\s+(.+)$/
+const summaryBulletPattern = /^[-*•]\s+(.+)$/
+const summaryInlineHeadingPattern = /^(overview|key points|decisions|action items|open questions):\s*(.*)$/i
+
+function parseSummaryBlocks(text: string): SummaryBlock[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const hasSummaryMarkup = lines.some((line) => getSummaryHeading(line) || getSummaryBullet(line))
+  if (!hasSummaryMarkup) return []
+
+  const blocks: SummaryBlock[] = []
+  let current: SummaryBlock | undefined
+
+  for (const line of lines) {
+    const headingLine = getSummaryHeadingLine(line)
+    if (headingLine) {
+      const { heading, rest } = headingLine
+      current = { heading, paragraphs: [], bullets: [] }
+      blocks.push(current)
+      if (rest) current.paragraphs.push(rest)
+      continue
+    }
+
+    current ??= { paragraphs: [], bullets: [] }
+    if (!blocks.includes(current)) blocks.push(current)
+
+    const bullet = getSummaryBullet(line)
+    if (bullet) {
+      current.bullets.push(bullet)
+    } else {
+      current.paragraphs.push(line)
+    }
+  }
+
+  return blocks
+}
+
+function getSummaryHeading(line: string): string | null {
+  return getSummaryHeadingLine(line)?.heading ?? null
+}
+
+function getSummaryHeadingLine(line: string): { heading: string; rest: string } | null {
+  const markdownHeading = summaryHeadingPattern.exec(line)
+  const rawHeading = markdownHeading?.[1] ?? line
+  const inlineHeading = summaryInlineHeadingPattern.exec(rawHeading)
+  if (inlineHeading?.[1]) {
+    return { heading: toSummaryHeadingLabel(inlineHeading[1]), rest: inlineHeading[2]?.trim() ?? '' }
+  }
+
+  const normalized = rawHeading
+    .replace(/^\*\*/, '')
+    .replace(/\*\*:?$/, '')
+    .replace(/:$/, '')
+    .trim()
+
+  return summaryHeadings.has(normalized.toLowerCase()) ? { heading: toSummaryHeadingLabel(normalized), rest: '' } : null
+}
+
+function toSummaryHeadingLabel(heading: string): string {
+  return heading
+    .toLowerCase()
+    .split(' ')
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(' ')
+}
+
+function getSummaryBullet(line: string): string | null {
+  const match = summaryBulletPattern.exec(line)
+  return match?.[1]?.trim() || null
 }
 
 function parseTranscript(transcript: string): TranscriptViewerSegment[] {

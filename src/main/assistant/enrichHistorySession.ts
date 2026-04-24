@@ -11,6 +11,7 @@ import type { HistorySessionMeta } from '../../shared/types'
 import { HistoryManager } from '../history/HistoryManager'
 import type { AppLogger } from '../logging/AppLogger'
 import { ollamaChat } from './ollamaClient'
+import { SUMMARY_SYSTEM_PROMPT } from './summaryPrompt'
 import { TITLE_SYSTEM_PROMPT } from './titlePrompt'
 import { orchestrateAssistantChat } from './toolOrchestrator'
 
@@ -48,10 +49,9 @@ async function generateAiSummaryFromTranscript(
       [
         {
           role: 'system',
-          content:
-            'You write concise bullet-point summaries of meetings. Use 3–6 bullets. Start each line with "• ". Stay faithful to the transcript.',
+          content: SUMMARY_SYSTEM_PROMPT,
         },
-        { role: 'user', content: `Summarize:\n\n${summaryPrompt}` },
+        { role: 'user', content: `Transcript:\n---\n${summaryPrompt}\n---\nSummary:` },
       ],
       logger,
       { ...ASSISTANT_OLLAMA_SUMMARY_OPTIONS },

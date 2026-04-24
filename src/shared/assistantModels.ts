@@ -3,17 +3,30 @@
  *
  * Title: small instruct model (Llama 3.2 3B — better specificity than 1B, still light).
  * Summary + transcript Q&A: Qwen 2.5 7B — stronger local answers vs 3B; needs more RAM/VRAM.
+ * Thinking mode: Qwen 3 8B — hybrid thinking/non-thinking model; supports Ollama `think` param.
  *
  * @see https://ollama.com/library/llama3.2
  * @see https://ollama.com/library/qwen2.5
+ * @see https://ollama.com/library/qwen3
+ * @see https://docs.ollama.com/capabilities/thinking
  */
 export const OLLAMA_DEFAULT_BASE_URL = 'http://127.0.0.1:11434'
 
 /** Title generation (fast, constrained decoding) */
 export const ASSISTANT_OLLAMA_MODEL_TITLE = 'llama3.2:3b'
 
-/** Summary + transcript Q&A */
+/** Summary + transcript Q&A (standard, non-thinking) */
 export const ASSISTANT_OLLAMA_MODEL_CHAT = 'qwen2.5:7b'
+
+/**
+ * Thinking-mode Q&A. Must be a hybrid model that supports Ollama's `think` parameter
+ * (i.e. thinking can be toggled on/off — NOT a thinking-only model like qwen3:8b-instruct
+ * which ignores `think: false`).
+ *
+ * qwen3:8b is the recommended choice: it supports `/think` and `/no_think` and responds
+ * well to `think: true` via the chat API.
+ */
+export const ASSISTANT_OLLAMA_MODEL_CHAT_THINKING = 'qwen3:8b'
 
 /** Passed to Ollama `/api/chat` options for title jobs */
 export const ASSISTANT_OLLAMA_TITLE_OPTIONS = {
@@ -37,10 +50,8 @@ export const ASSISTANT_OLLAMA_SUMMARY_OPTIONS = {
 /** Main assistant reply (longer generations). */
 export const ASSISTANT_OLLAMA_CHAT_TIMEOUT_MS = 300_000
 
-/** Tool-decision pass before optional web search. */
-export const ASSISTANT_OLLAMA_TOOL_DECISION_TIMEOUT_MS = 90_000
-
 export const ASSISTANT_OLLAMA_MODELS_TO_PULL = [
   { id: ASSISTANT_OLLAMA_MODEL_TITLE, role: 'Titles (fast)' },
   { id: ASSISTANT_OLLAMA_MODEL_CHAT, role: 'Summary & chat' },
+  { id: ASSISTANT_OLLAMA_MODEL_CHAT_THINKING, role: 'Thinking mode (Q&A)' },
 ] as const

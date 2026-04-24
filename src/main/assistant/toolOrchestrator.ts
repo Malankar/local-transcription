@@ -1,6 +1,7 @@
 import {
   ASSISTANT_OLLAMA_CHAT_TIMEOUT_MS,
   ASSISTANT_OLLAMA_MODEL_CHAT,
+  ASSISTANT_OLLAMA_MODEL_CHAT_THINKING,
   OLLAMA_DEFAULT_BASE_URL,
 } from '../../shared/assistantModels'
 import type { AppLogger } from '../logging/AppLogger'
@@ -12,7 +13,10 @@ function clip(s: string, max: number): string {
   return `${t.slice(0, max)}\n…`
 }
 
-/** Markdown structure required when thinking mode is on (tests assert on this). */
+/**
+ * Exported for tests. When native Ollama thinking is unavailable (non-thinking model fallback),
+ * the system prompt asks the model to follow this structure manually.
+ */
 export const THINKING_MODE_OUTPUT_SPEC = [
   'Thinking mode is ON. Follow output format exactly (heading text verbatim). Skip preamble.',
   '',
@@ -25,20 +29,16 @@ export const THINKING_MODE_OUTPUT_SPEC = [
   'Direct, specific reply. Match user question; use headings above first.',
 ].join('\n')
 
-function thinkingBlock(): string {
-  return THINKING_MODE_OUTPUT_SPEC
-}
-
 function baseChatSystem(sessionTitle: string, thinkingMode: boolean): string {
   const parts: string[] = [
     `You help the user understand an audio transcript. Session title: "${sessionTitle}".`,
     'Prefer the transcript. If unsure or not found in transcript, say you cannot find it.',
   ]
   if (thinkingMode) {
-    parts.push(
-      'When thinking mode is on you MUST output markdown with exactly two sections: "### Reasoning (brief)" first, then "### Answer". No other top-level structure before those headings.',
-    )
-    parts.push(thinkingBlock())
+    // With native Ollama thinking (`think: true`), the model reasons internally and the
+    // orchestrator formats the trace as "### Reasoning / ### Answer". Only instruct the
+    // model to keep its final answer concise — reasoning happens in the thinking trace.
+    parts.push('Give a direct, specific answer. The reasoning trace is handled separately.')
   } else {
     parts.push('Be concise.')
   }
@@ -73,11 +73,16 @@ export async function orchestrateAssistantChat(options: {
     timeoutMs: ASSISTANT_OLLAMA_CHAT_TIMEOUT_MS,
   }
 
+  // Thinking mode: use a thinking-capable model and enable Ollama's native `think` flag.
+  // The `think` field is sent top-level (not inside `options`) by ollamaClient — putting it
+  // in `options` causes Ollama to silently ignore it and burn the token budget on hidden reasoning.
   const thinkingTweaks: Partial<OllamaChatOptions> = thinkingMode
-    ? { temperature: 0.2, repeat_penalty: 1.15, top_p: 0.88 }
+    ? { think: true, temperature: 0.6, repeat_penalty: 1, top_p: 0.95 }
     : {}
 
-  return ollamaChat(baseUrl, ASSISTANT_OLLAMA_MODEL_CHAT, ollamaMessages, logger, {
+  const model = thinkingMode ? ASSISTANT_OLLAMA_MODEL_CHAT_THINKING : ASSISTANT_OLLAMA_MODEL_CHAT
+
+  return ollamaChat(baseUrl, model, ollamaMessages, logger, {
     ...defaultChat,
     ...thinkingTweaks,
     ...chatOptions,

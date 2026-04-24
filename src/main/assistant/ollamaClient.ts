@@ -12,6 +12,13 @@ export interface OllamaChatOptions {
   top_p?: number
   top_k?: number
   repeat_penalty?: number
+  /**
+   * Enable native Ollama thinking mode (Qwen3, DeepSeek-R1, etc.).
+   * Sent as a **top-level** request field — NOT inside `options` — to avoid silent ignoring.
+   * When true, Ollama separates reasoning into `message.thinking`; the reply only contains
+   * the final answer in `message.content`.
+   */
+  think?: boolean
   /** Abort the HTTP request if Ollama does not finish within this many ms (avoids infinite "Generating…"). */
   timeoutMs?: number
 }
@@ -26,6 +33,7 @@ export async function ollamaChat(
   const url = `${baseUrl.replace(/\/$/, '')}/api/chat`
   const {
     timeoutMs,
+    think,
     temperature = 0.2,
     num_predict,
     top_p,
@@ -39,12 +47,15 @@ export async function ollamaChat(
   if (top_k != null) opt.top_k = top_k
   if (repeat_penalty != null) opt.repeat_penalty = repeat_penalty
 
-  const body = {
+  // `think` must be top-level — placing it inside `options` is silently ignored by Ollama
+  // and causes thinking-capable models to burn their entire token budget on hidden reasoning.
+  const body: Record<string, unknown> = {
     model,
     messages,
     stream: false,
     options: opt,
   }
+  if (think != null) body.think = think
 
   const ac = new AbortController()
   let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -75,12 +86,20 @@ export async function ollamaChat(
     throw new Error(`Ollama chat failed (${res.status}): ${t.slice(0, 200)}`)
   }
 
-  const data = (await res.json()) as { message?: { content?: string } }
-  const text = data.message?.content?.trim() ?? ''
-  if (!text) {
+  const data = (await res.json()) as { message?: { content?: string; thinking?: string } }
+  const content = data.message?.content?.trim() ?? ''
+  const thinking = data.message?.thinking?.trim() ?? ''
+
+  if (!content && !thinking) {
     throw new Error('Ollama returned empty response')
   }
-  return text
+
+  // When the model returns a separate reasoning trace, format it into the expected
+  // "### Reasoning / ### Answer" sections so the UI renders them correctly.
+  if (thinking) {
+    return `### Reasoning\n\n${thinking}\n\n### Answer\n\n${content}`
+  }
+  return content
 }
 
 export async function ollamaListTags(baseUrl: string): Promise<{ ok: boolean; models: string[]; error?: string }> {

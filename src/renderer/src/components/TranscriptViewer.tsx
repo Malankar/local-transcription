@@ -59,7 +59,8 @@ export function TranscriptViewer({
   const segments = segmentsProp ?? parseTranscript(transcript)
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="shrink-0 px-6 pt-6">
         {titlePending ? (
           <div
@@ -133,33 +134,32 @@ export function TranscriptViewer({
         </Card>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-6">
-        <h3 className="mb-4 shrink-0 text-sm font-semibold text-foreground">Full Transcript</h3>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="space-y-4 pb-2">
-            {segments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No segments in this session.</p>
-            ) : (
-              segments.map((segment, idx) => (
-                <div
-                  key={`${segment.timestamp}-${idx}`}
-                  className="flex gap-4 border-b border-border pb-4 last:border-b-0"
-                >
-                  <div className="w-16 shrink-0">
-                    <span className="rounded bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
-                      {segment.timestamp}
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="mb-1 text-xs font-semibold text-muted-foreground">{segment.speaker}</p>
-                    <p className="text-sm leading-relaxed text-foreground">{segment.text}</p>
-                  </div>
+      <div className="px-6 pt-6">
+        <h3 className="mb-4 text-sm font-semibold text-foreground">Full Transcript</h3>
+        <div className="space-y-4 pb-2">
+          {segments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No segments in this session.</p>
+          ) : (
+            segments.map((segment, idx) => (
+              <div
+                key={`${segment.timestamp}-${idx}`}
+                className="flex gap-4 border-b border-border pb-4 last:border-b-0"
+              >
+                <div className="w-16 shrink-0">
+                  <span className="rounded bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+                    {segment.timestamp}
+                  </span>
                 </div>
-              ))
-            )}
-          </div>
+                <div className="min-w-0 flex-1">
+                  <p className="mb-1 text-xs font-semibold text-muted-foreground">{segment.speaker}</p>
+                  <p className="text-sm leading-relaxed text-foreground">{segment.text}</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
+      </div>{/* end scrollable region */}
 
       <div className="shrink-0 border-t border-border bg-muted/25 px-6 py-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -193,7 +193,7 @@ export function TranscriptViewer({
               variant="outline"
               size="sm"
               onClick={onDelete}
-              className="gap-2 text-destructive hover:bg-destructive/10"
+              className="gap-2 text-destructive hover:border-destructive/70 hover:bg-destructive/15 hover:text-destructive"
             >
               <Trash2 className="h-4 w-4" />
               Delete

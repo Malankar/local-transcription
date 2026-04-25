@@ -94,8 +94,8 @@ export function RecordingSourceControls() {
                 className={cn(
                   'flex w-full items-center gap-4 rounded-lg border-2 p-3 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50',
                   selected
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border bg-background hover:border-primary/50',
+                    ? 'border-primary bg-primary/5 dark:bg-accent dark:border-foreground/30'
+                    : 'border-border bg-background hover:border-primary/50 dark:bg-transparent',
                 )}
               >
                 <div

@@ -1,0 +1,122 @@
+name: Release
+
+# Triggered by version tags pushed to the repo, e.g.:
+#   pnpm version patch && git push origin --tags
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]*"
+
+  # Allow manual release from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── macOS Intel (x64) ───────────────────────────────────────────
+          # macos-13 is the last Intel GitHub-hosted runner.
+          # nodejs-whisper compiles whisper.cpp natively here → Mach-O x64 .node
+          - name: mac-x64
+            os: macos-13
+            eb_args: --mac --x64
+            release_script: release:mac:x64
+
+          # ── macOS Apple Silicon (arm64) ─────────────────────────────────
+          # macos-latest is M-series; whisper.cpp compiles → Mach-O arm64 .node
+          - name: mac-arm64
+            os: macos-latest
+            eb_args: --mac --arm64
+            release_script: release:mac:arm64
+
+          # ── Linux x64 ───────────────────────────────────────────────────
+          # whisper.cpp compiles → ELF x64 .node; outputs AppImage + deb
+          - name: linux
+            os: ubuntu-latest
+            eb_args: --linux
+            release_script: release:linux
+
+          # ── Windows x64 ─────────────────────────────────────────────────
+          # whisper.cpp compiles → PE x64 .node; outputs NSIS installer
+          - name: windows
+            os: windows-latest
+            eb_args: --win
+            release_script: release:win
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Windows: pnpm's default virtual-store path can exceed MAX_PATH (260 chars),
+      # which causes makensis.exe to fail with ENOENT on long paths.
+      - name: Limit pnpm store path length (Windows only)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pnpm config set virtual-store-dir-max-length 60
+
+      # Linux: electron-builder needs rpmbuild for rpm targets (optional)
+      # and fuse for AppImage mounting in tests.
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libfuse2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # electron-builder automatically calls @electron/rebuild internally, which
+      # recompiles nodejs-whisper against Electron's Node ABI (not the system's).
+      # No manual rebuild step is needed here.
+      - name: Build & package (${{ matrix.name }})
+        run: pnpm run ${{ matrix.release_script }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          # ── macOS signing & notarization ─────────────────────────────────
+          # Required: Apple Developer ID Application certificate (.p12 → base64).
+          # Generate: Keychain Access → export cert → base64 encode the .p12
+          # Set notarize: true in electron-builder.yml once these are configured.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+          # Apple Connect API key for notarization (replaces legacy APPLE_ID flow).
+          # Create at: https://appstoreconnect.apple.com/access/api
+          # Store the .p8 file content as base64 in the APPLE_API_KEY secret.
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+
+          # ── Windows code signing (optional) ──────────────────────────────
+          # Without this, SmartScreen shows an "Unknown publisher" warning.
+          # CSC_LINK / CSC_KEY_PASSWORD re-used (same env var names as macOS).
+          # Windows signing uses the same .p12 certificate format.
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-artifacts
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.dmg
+            release/*.exe
+          if-no-files-found: warn
+          retention-days: 7

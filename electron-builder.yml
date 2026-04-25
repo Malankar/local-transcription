@@ -1,16 +1,69 @@
 appId: com.local-transcription.app
 productName: LocalTranscribe
 asar: true
+
 files:
   - out/**/*
   - package.json
+
+# nodejs-whisper bundles whisper.cpp .node files — must live outside ASAR
 asarUnpack:
   - "node_modules/nodejs-whisper/**"
   - "**/*.node"
-linux:
-  target: AppImage
+
 directories:
   buildResources: build
+  output: release
+
 extraResources:
   - from: build/tray-icon.png
     to: tray-icon.png
+
+# Publish artifacts to GitHub Releases as a draft on every tagged build.
+# Set to "always" via --publish flag in CI; this is a fallback default.
+publish:
+  provider: github
+  releaseType: draft
+
+# ── Linux ──────────────────────────────────────────────────────────────────
+linux:
+  icon: build/icon.png
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Utility
+  executableName: localtranscribe
+
+# ── macOS ──────────────────────────────────────────────────────────────────
+# Arch is driven by the CLI flag (--x64 or --arm64) passed per CI job so
+# that each runner compiles nodejs-whisper natively for its own arch.
+mac:
+  icon: build/icon.png
+  target:
+    - target: dmg
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # notarize: true requires APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER secrets.
+  # Set to false until those secrets are configured; flip to true when ready.
+  notarize: false
+
+dmg:
+  # Disambiguate x64 vs arm64 downloads in the GitHub release.
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+
+# ── Windows ────────────────────────────────────────────────────────────────
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: "${productName}-Setup-${version}.${ext}"
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false

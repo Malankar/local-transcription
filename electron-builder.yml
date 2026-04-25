@@ -35,6 +35,7 @@ linux:
       arch: [x64]
   category: Utility
   executableName: localtranscribe
+  artifactName: "${productName}-${version}-linux-${arch}.${ext}"
 
 # ── macOS ──────────────────────────────────────────────────────────────────
 # Arch is driven by the CLI flag (--x64 or --arm64) passed per CI job so

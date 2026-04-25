@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 
-import type { AssistantProviderId, HistoryAutoDelete, OllamaPullProgress, OllamaStatusResult, ThemeMode } from '../types'
+import type { OllamaPullProgress, OllamaStatusResult, ThemeMode } from '../types'
 import {
   ASSISTANT_OLLAMA_MODEL_CHAT,
   ASSISTANT_OLLAMA_MODEL_TITLE,
@@ -56,39 +56,10 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-const UNLOAD_OPTIONS: { value: string; label: string }[] = [
-  { value: '0', label: 'Never' },
-  { value: '1', label: '1 minute' },
-  { value: '5', label: '5 minutes' },
-  { value: '10', label: '10 minutes' },
-  { value: '30', label: '30 minutes' },
-  { value: '60', label: '1 hour' },
-]
-
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'system', label: 'System' },
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
-]
-
-const AUTO_DELETE_OPTIONS: { value: HistoryAutoDelete; label: string }[] = [
-  { value: 'never', label: 'Never' },
-  { value: 'keep-latest-5', label: 'Keep latest 5' },
-  { value: 'keep-latest-10', label: 'Keep latest 10' },
-  { value: 'keep-latest-20', label: 'Keep latest 20' },
-  { value: 'keep-latest-50', label: 'Keep latest 50' },
-  { value: 'older-than-7d', label: 'Older than 7 days' },
-  { value: 'older-than-30d', label: 'Older than 30 days' },
-  { value: 'older-than-90d', label: 'Older than 90 days' },
-]
-
-const HISTORY_LIMIT_OPTIONS = [
-  { value: '0', label: 'Unlimited' },
-  { value: '5', label: '5 sessions' },
-  { value: '10', label: '10 sessions' },
-  { value: '25', label: '25 sessions' },
-  { value: '50', label: '50 sessions' },
-  { value: '100', label: '100 sessions' },
 ]
 
 function ollamaHasModel(installed: Set<string>, id: string): boolean {
@@ -259,16 +230,6 @@ function OllamaLocalAssistantCard() {
   )
 }
 
-const ASSISTANT_PROVIDER_OPTIONS: { value: AssistantProviderId; label: string }[] = [
-  { value: 'local', label: 'Local (default)' },
-  { value: 'openai-gpt4', label: 'OpenAI GPT-4' },
-  { value: 'openai-gpt4mini', label: 'OpenAI GPT-4 Mini' },
-  { value: 'anthropic-sonnet', label: 'Anthropic Claude 3.5 Sonnet' },
-  { value: 'anthropic-opus', label: 'Anthropic Claude 3 Opus' },
-  { value: 'gemini-pro', label: 'Google Gemini Pro' },
-  { value: 'gemini-flash', label: 'Google Gemini Flash' },
-]
-
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' }) {
@@ -417,30 +378,8 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
           </SettingRow>
 
           <SettingRow
-            label="Unload model after idle"
-            description="Release the Whisper model from memory after the specified idle period."
-          >
-            <Select
-              value={String(settings.unloadModelAfterMinutes)}
-              onValueChange={(v) => updateSettings({ unloadModelAfterMinutes: Number(v) })}
-              disabled={settingsSaving}
-            >
-              <SelectTrigger className={cn(selectTriggerClass, 'min-w-[140px]')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {UNLOAD_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
-
-          <SettingRow
-            label="Voice-to-text shortcut"
-            description="Global keyboard shortcut to start / stop recording from anywhere."
+            label="Start and stop recording shortcut"
+            description="Global keyboard shortcut to start or stop recording from anywhere."
           >
             <div className="flex items-center gap-2">
               <div
@@ -462,16 +401,6 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
             </div>
           </SettingRow>
 
-          <SettingRow
-            label="Mute while recording"
-            description="Automatically mute system audio output during capture."
-          >
-            <Switch
-              checked={settings.muteWhileRecording}
-              onCheckedChange={(v) => updateSettings({ muteWhileRecording: v })}
-              disabled={settingsSaving}
-            />
-          </SettingRow>
         </div>
       </section>
 
@@ -479,13 +408,13 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
       <section>
         <SectionLabel>Transcription models</SectionLabel>
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          <div className="flex items-start gap-4 border-b border-border bg-muted/15 px-5 py-4 sm:px-6 sm:py-5">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-background text-foreground">
+          <div className="flex items-start gap-4 border-b border-border bg-gradient-to-br from-orange-500/[0.04] via-transparent to-transparent px-5 py-4 sm:px-6 sm:py-5 dark:from-amber-500/[0.05]">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-orange-300/40 bg-orange-50/80 text-orange-600 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
               <span
                 className="material-symbols-outlined"
                 style={{
                   fontSize: 22,
-                  fontVariationSettings: `'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
+                  fontVariationSettings: `'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24`,
                   userSelect: 'none',
                   lineHeight: 1,
                 }}
@@ -507,111 +436,9 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
         </div>
       </section>
 
-      {/* ── History ── */}
-      <section>
-        <SectionLabel>History</SectionLabel>
-        <div className={surfaceCard}>
-          <SettingRow
-            label="Session limit"
-            description="Maximum number of recording sessions to keep on disk."
-          >
-            <Select
-              value={String(settings.historyLimit)}
-              onValueChange={(v) => updateSettings({ historyLimit: Number(v) })}
-              disabled={settingsSaving}
-            >
-              <SelectTrigger className={cn(selectTriggerClass, 'min-w-[140px]')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {HISTORY_LIMIT_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
-
-          <SettingRow
-            label="Auto-delete recordings"
-            description="Automatically remove old recordings according to this policy."
-          >
-            <Select
-              value={settings.autoDeleteRecordings}
-              onValueChange={(v) => updateSettings({ autoDeleteRecordings: v as HistoryAutoDelete })}
-              disabled={settingsSaving}
-            >
-              <SelectTrigger className={cn(selectTriggerClass, 'min-w-[160px]')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AUTO_DELETE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
-
-          <SettingRow
-            label="Keep starred recordings"
-            description="Starred sessions are exempt from auto-delete and the session limit."
-          >
-            <Switch
-              checked={settings.keepStarredUntilDeleted}
-              onCheckedChange={(v) => updateSettings({ keepStarredUntilDeleted: v })}
-              disabled={settingsSaving}
-            />
-          </SettingRow>
-        </div>
-      </section>
-
       <section>
         <SectionLabel>Assistant &amp; integrations</SectionLabel>
         <div className={surfaceCard}>
-          <SettingRow
-            label="Assistant provider"
-            description="Reserved for a future assistant backend. Transcription stays local today."
-          >
-            <Select
-              value={settings.uiFeatures.assistantProvider}
-              onValueChange={(v) =>
-                updateSettings({
-                  uiFeatures: { ...settings.uiFeatures, assistantProvider: v as AssistantProviderId },
-                })
-              }
-              disabled={settingsSaving}
-            >
-              <SelectTrigger className={cn(selectTriggerClass, 'min-w-[180px]')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ASSISTANT_PROVIDER_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-xs">
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
-
-          <SettingRow
-            label="Enable external assistant"
-            description="Opt in to cloud assist when an assistant service is wired up (not available yet)."
-          >
-            <Switch
-              checked={settings.uiFeatures.enableExternalAssistant}
-              onCheckedChange={(v) =>
-                updateSettings({
-                  uiFeatures: { ...settings.uiFeatures, enableExternalAssistant: v },
-                })
-              }
-              disabled={settingsSaving}
-            />
-          </SettingRow>
-
           <SettingRow
             label="Third-party integrations"
             description="Reserved for exports to external services (Notion, Drive, etc.)."

@@ -166,32 +166,37 @@ export function ModelLibrarySection({
                 onKeyDown={onRowKeyDown}
                 data-testid={`model-card-${model.id}`}
                 className={cn(
-                  'model-pick-card border text-left outline-none transition-[border-color,box-shadow,transform] duration-200 focus-visible:ring-2 focus-visible:ring-[var(--model-pick-orange)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                  'model-pick-card relative overflow-hidden border text-left outline-none transition-all duration-200',
+                  'focus-visible:ring-2 focus-visible:ring-[var(--model-pick-orange)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                   isSelected
-                    ? 'border-foreground/30 ring-1 ring-foreground/15'
-                    : 'border-border/90 hover:border-muted-foreground/35 hover:-translate-y-px',
-                  listDisabled ? 'cursor-default opacity-90' : 'cursor-pointer',
+                    ? 'border-orange-400/35 bg-gradient-to-br from-orange-500/[0.06] to-transparent shadow-sm ring-1 ring-orange-400/20 dark:border-amber-500/30 dark:from-amber-500/[0.07]'
+                    : 'border-border/80 bg-card hover:-translate-y-px hover:border-muted-foreground/30 hover:bg-muted/15 hover:shadow-sm',
+                  listDisabled ? 'cursor-default opacity-80' : 'cursor-pointer',
                 )}
               >
+                {isSelected ? (
+                  <span className="absolute inset-y-0 left-0 w-[3px] rounded-r-full bg-[var(--model-pick-orange)]" aria-hidden />
+                ) : null}
+
                 <div className="flex gap-3.5 px-4 py-4 sm:gap-4 sm:px-5 sm:py-[1.125rem]">
                   <span
                     className={cn(
-                      'mt-1 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                      'mt-[3px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 transition-all duration-200',
                       isSelected
-                        ? 'border-foreground/70 bg-background shadow-inner'
-                        : 'border-muted-foreground/40 bg-background',
+                        ? 'border-[var(--model-pick-orange)] bg-[var(--model-pick-orange)]/10'
+                        : 'border-muted-foreground/35 bg-background',
                     )}
                     aria-hidden
                   >
                     {isSelected ? (
-                      <span className="h-[7px] w-[7px] rounded-full bg-[var(--model-pick-orange)]" />
+                      <span className="h-[7px] w-[7px] rounded-full bg-[var(--model-pick-orange)] shadow-[0_0_5px_var(--model-pick-orange)]" />
                     ) : null}
                   </span>
 
-                  <div className="flex min-w-0 flex-1 flex-col gap-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-2.5">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                        <h3 className="model-pick-title min-w-0 flex-1 text-[1.05rem] font-semibold leading-snug tracking-tight text-foreground sm:text-[1.08rem]">
+                        <h3 className="model-pick-title min-w-0 flex-1 text-[1rem] font-semibold leading-snug tracking-tight text-foreground sm:text-[1.04rem]">
                           {model.name}
                           {isSelected ? <span className="sr-only"> — active model</span> : null}
                         </h3>
@@ -199,54 +204,47 @@ export function ModelLibrarySection({
                           {model.recommended ? (
                             <Badge
                               variant="secondary"
-                              className="rounded-full border-orange-400/45 bg-orange-100/90 px-2.5 py-0 text-[10px] font-semibold uppercase tracking-wider text-orange-950 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-50"
+                              className="rounded-full border-orange-400/40 bg-orange-100/90 px-2.5 py-0 text-[9.5px] font-semibold uppercase tracking-wider text-orange-900 dark:border-amber-500/35 dark:bg-amber-500/12 dark:text-amber-100"
                             >
                               Recommended
                             </Badge>
                           ) : null}
-                          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                          <span className="rounded-md bg-muted/70 px-1.5 py-0.5 font-mono text-[10.5px] tabular-nums text-muted-foreground">
                             {formatSize(model.sizeMb)}
                           </span>
                         </div>
                       </div>
-                      <p className="mt-1 font-mono text-[11px] leading-none text-muted-foreground/90">{model.id}</p>
-                      <p className="mt-2.5 line-clamp-3 text-[0.8125rem] leading-relaxed text-muted-foreground sm:text-sm">
+                      <p className="mt-0.5 font-mono text-[10.5px] leading-none text-muted-foreground/60">{model.id}</p>
+                      <p className="mt-2 line-clamp-2 text-[0.8rem] leading-relaxed text-muted-foreground">
                         {model.description}
                       </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <ModelMeterRow
-                        label="Accuracy"
-                        value={model.accuracy}
-                        highlight={isSelected}
-                        variant="picker"
-                      />
+                    <div className="space-y-1.5">
+                      <ModelMeterRow label="Accuracy" value={model.accuracy} highlight={isSelected} variant="picker" />
                       <ModelMeterRow label="Speed" value={model.speed} variant="picker" />
                     </div>
 
-                    <div className="flex min-h-[2.25rem] flex-wrap items-center justify-end gap-2 pt-1">
+                    <div className="flex min-h-[2rem] flex-wrap items-center justify-end gap-2">
                       {model.isDownloaded ? (
                         <>
-                          <span className="mr-auto flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/25 dark:ring-emerald-400/30" />
+                          <span className="mr-auto flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20 dark:ring-emerald-400/25" />
                             Ready
                           </span>
                           {model.downloadManaged ? (
                             <Button
-                              variant="outline"
+                              variant="ghost"
                               size="sm"
-                              className="h-8 gap-1 rounded-lg border-border/90 bg-background px-3 text-[11px] text-muted-foreground shadow-none hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-200"
+                              className="h-7 gap-1 rounded-lg px-2.5 text-[11px] text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 void onRemoveModel(model.id)
                               }}
                               disabled={isCapturing}
-                              title={
-                                isCapturing ? 'Stop capture before removing a model' : 'Delete downloaded weights from disk'
-                              }
+                              title={isCapturing ? 'Stop capture before removing a model' : 'Delete downloaded weights from disk'}
                             >
-                              <Icon name="delete_forever" size={11} />
+                              <Icon name="delete_forever" size={12} />
                               Remove
                             </Button>
                           ) : null}
@@ -255,7 +253,7 @@ export function ModelLibrarySection({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-8 rounded-lg border-border/90 bg-background px-3 text-[11px] shadow-none"
+                          className="h-7 rounded-lg border-border/80 px-3 text-[11px] shadow-none"
                           onClick={(e) => {
                             e.stopPropagation()
                             onCancelDownload()
@@ -267,25 +265,25 @@ export function ModelLibrarySection({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-8 gap-1.5 rounded-lg border-border/90 bg-background px-3 text-[11px] font-medium text-foreground shadow-none hover:border-muted-foreground/40 hover:bg-muted/30"
+                          className="h-7 gap-1.5 rounded-lg border-border/80 px-3 text-[11px] font-medium shadow-none hover:border-orange-400/50 hover:bg-orange-50/60 hover:text-orange-700 dark:hover:bg-orange-950/20 dark:hover:text-orange-300"
                           onClick={(e) => {
                             e.stopPropagation()
                             onDownload(model.id)
                           }}
                           disabled={!!downloadingId || isCapturing}
                         >
-                          <Icon name="download" size={14} />
+                          <Icon name="download" size={13} />
                           Download
                         </Button>
                       ) : (
-                        <span className="text-[11px] text-muted-foreground/70">Auto</span>
+                        <span className="text-[11px] text-muted-foreground/60">Auto</span>
                       )}
                     </div>
 
                     {isDownloading ? (
-                      <div className="flex flex-col gap-1.5 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                      <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-muted/25 px-3 py-2">
                         <Progress value={downloadProgress?.percent ?? 0} className="h-1" />
-                        <span className="font-mono text-[11px] text-muted-foreground">
+                        <span className="font-mono text-[10.5px] text-muted-foreground">
                           {downloadProgress
                             ? `${downloadProgress.percent}% — ${formatSize(Math.round(downloadProgress.downloadedBytes / 1_048_576))} / ${formatSize(Math.round(downloadProgress.totalBytes / 1_048_576))}`
                             : 'Starting download…'}
@@ -294,7 +292,7 @@ export function ModelLibrarySection({
                     ) : null}
 
                     {model.setupHint ? (
-                      <p className="rounded-md border border-dashed border-border/70 bg-muted/15 px-2.5 py-2 text-[11px] italic leading-snug text-muted-foreground">
+                      <p className="rounded-md border border-dashed border-border/60 bg-muted/10 px-2.5 py-2 text-[11px] italic leading-snug text-muted-foreground">
                         {model.setupHint}
                       </p>
                     ) : null}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check, Mic, Square, Upload } from 'lucide-react'
+import { ArrowRight, Check, Mic, Square } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -101,7 +101,7 @@ export default function RecordSurface() {
           <RecordingSourceControls />
         </div>
 
-        <div className="mb-8 space-y-3">
+        <div className="mb-8">
           {!isCapturing ? (
             <Button
               size="lg"
@@ -124,18 +124,6 @@ export default function RecordSurface() {
               Stop Recording
             </Button>
           )}
-
-          <Button
-            variant="outline"
-            size="lg"
-            className="w-full gap-2"
-            disabled
-            title="Import file is not available in this build"
-            onClick={() => undefined}
-          >
-            <Upload className="h-5 w-5" />
-            Import File
-          </Button>
         </div>
 
         {!canStartMeeting && !isCapturing && (

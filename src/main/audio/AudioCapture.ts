@@ -114,6 +114,10 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     }
 
     this.flushRemainingChunk()
+    // Remove data listener before sending SIGTERM so that any buffered stdout
+    // ffmpeg flushes on exit cannot accumulate new data after we've already
+    // drained the buffer above.
+    this.process.stdout.removeAllListeners('data')
     this.process.kill('SIGTERM')
     this.process = null
   }

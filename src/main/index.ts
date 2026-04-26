@@ -126,7 +126,10 @@ audioCapture.on('status', (detail) => {
 
 audioCapture.on('stopped', () => {
   logger.info('Audio capture stopped')
-  sendStatus({ stage: 'stopped', detail: 'Audio capture has stopped' })
+  // Do not send a 'stopped' status here. All stop call-sites (IPC handler,
+  // shortcut, tray) already send it immediately for snappy UI feedback.
+  // Sending it again on process 'close' (which fires after 'ready') would
+  // override the 'ready' state that follows chunk processing.
 })
 
 chunkQueue.on('segment', (segment) => {

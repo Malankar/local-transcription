@@ -34,7 +34,6 @@ function settingsWithTheme(themeMode: ThemeMode): AppSettings {
     keepStarredUntilDeleted: true,
     uiFeatures: {
       enableExternalAssistant: false,
-      enableIntegrations: false,
       assistantProvider: 'local',
     },
   }

@@ -230,12 +230,26 @@ function OllamaLocalAssistantCard() {
   )
 }
 
+function buildShortcutCombo(e: React.KeyboardEvent<HTMLInputElement>): string {
+  const parts: string[] = []
+  if (e.ctrlKey) parts.push('Control')
+  if (e.metaKey) parts.push('Meta')
+  if (e.altKey) parts.push('Alt')
+  if (e.shiftKey) parts.push('Shift')
+  const key = e.key
+  if (key && !['Control', 'Meta', 'Alt', 'Shift'].includes(key)) {
+    parts.push(key.length === 1 ? key.toUpperCase() : key)
+  }
+  return parts.join('+')
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' }) {
   const { settings, updateSettings, settingsSaving } = useSettingsContext()
   const [shortcutInput, setShortcutInput] = useState(settings?.voiceToTextShortcut ?? '')
   const [shortcutEditing, setShortcutEditing] = useState(false)
+  const [shortcutLive, setShortcutLive] = useState('')
   const [trayRestartNeeded, setTrayRestartNeeded] = useState(false)
   const isLinux = window.api.platform === 'linux'
 
@@ -250,20 +264,17 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
   function handleShortcutKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     e.preventDefault()
     e.stopPropagation()
+    setShortcutLive(buildShortcutCombo(e))
+  }
 
-    const parts: string[] = []
-    if (e.ctrlKey) parts.push('Control')
-    if (e.metaKey) parts.push('Meta')
-    if (e.altKey) parts.push('Alt')
-    if (e.shiftKey) parts.push('Shift')
-
-    const key = e.key
-    if (key && !['Control', 'Meta', 'Alt', 'Shift'].includes(key)) {
-      parts.push(key.length === 1 ? key.toUpperCase() : key)
-      const accelerator = parts.join('+')
-      setShortcutInput(accelerator)
-      updateSettings({ voiceToTextShortcut: accelerator })
+  function handleShortcutKeyUp(e: React.KeyboardEvent<HTMLInputElement>) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!['Control', 'Meta', 'Alt', 'Shift'].includes(e.key) && shortcutLive) {
+      setShortcutInput(shortcutLive)
+      updateSettings({ voiceToTextShortcut: shortcutLive })
       setShortcutEditing(false)
+      setShortcutLive('')
     }
   }
 
@@ -316,12 +327,16 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
         <div className={surfaceCard}>
           <SettingRow
             label="Start hidden"
-            description="Launch minimised to the tray instead of showing the window."
+            description={
+              settings.showTrayIcon
+                ? 'Launch minimised to the tray instead of showing the window.'
+                : 'Requires "Show tray icon" to be enabled.'
+            }
           >
             <Switch
               checked={settings.startHidden}
               onCheckedChange={(v) => updateSettings({ startHidden: v })}
-              disabled={settingsSaving}
+              disabled={settingsSaving || !settings.showTrayIcon}
             />
           </SettingRow>
 
@@ -381,23 +396,21 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
             label="Start and stop recording shortcut"
             description="Global keyboard shortcut to start or stop recording from anywhere."
           >
-            <div className="flex items-center gap-2">
-              <div
-                className={cn(
-                  'flex h-10 items-center rounded-xl border border-input bg-background px-4 font-mono text-sm text-foreground outline-none transition-colors',
-                  shortcutEditing ? 'ring-1 ring-ring' : 'hover:border-muted-foreground/30',
-                )}
-              >
-                <input
-                  className="min-w-[10rem] flex-1 bg-transparent text-sm font-mono text-foreground outline-none"
-                  readOnly
-                  value={shortcutEditing ? 'Press keys…' : shortcutInput}
-                  onFocus={() => setShortcutEditing(true)}
-                  onBlur={() => setShortcutEditing(false)}
-                  onKeyDown={handleShortcutKeyDown}
-                />
-              </div>
-              {!shortcutEditing && <span className="text-xs text-muted-foreground">edit</span>}
+            <div
+              className={cn(
+                'flex h-10 items-center rounded-xl border border-input bg-background px-4 font-mono text-sm text-foreground outline-none transition-colors',
+                shortcutEditing ? 'ring-1 ring-ring' : 'hover:border-muted-foreground/30',
+              )}
+            >
+              <input
+                className="min-w-[10rem] flex-1 bg-transparent text-sm font-mono text-foreground outline-none"
+                readOnly
+                value={shortcutEditing ? (shortcutLive || 'Press keys…') : shortcutInput}
+                onFocus={() => { setShortcutEditing(true); setShortcutLive('') }}
+                onBlur={() => { setShortcutEditing(false); setShortcutLive('') }}
+                onKeyDown={handleShortcutKeyDown}
+                onKeyUp={handleShortcutKeyUp}
+              />
             </div>
           </SettingRow>
 
@@ -437,23 +450,8 @@ export function SettingsView({ variant = 'page' }: { variant?: 'page' | 'modal' 
       </section>
 
       <section>
-        <SectionLabel>Assistant &amp; integrations</SectionLabel>
+        <SectionLabel>Assistant</SectionLabel>
         <div className={surfaceCard}>
-          <SettingRow
-            label="Third-party integrations"
-            description="Reserved for exports to external services (Notion, Drive, etc.)."
-          >
-            <Switch
-              checked={settings.uiFeatures.enableIntegrations}
-              onCheckedChange={(v) =>
-                updateSettings({
-                  uiFeatures: { ...settings.uiFeatures, enableIntegrations: v },
-                })
-              }
-              disabled={settingsSaving}
-            />
-          </SettingRow>
-
           <OllamaLocalAssistantCard />
         </div>
       </section>

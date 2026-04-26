@@ -16,7 +16,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   keepStarredUntilDeleted: true,
   uiFeatures: {
     enableExternalAssistant: false,
-    enableIntegrations: false,
     assistantProvider: 'local',
   },
 }

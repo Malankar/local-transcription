@@ -23,6 +23,7 @@ const api: LocalTranscribeApi = {
     subscribe('transcript:segment', listener),
   onStatus: (listener: (status: AppStatus) => void) => subscribe('status', listener),
   onError: (listener: (message: string) => void) => subscribe('capture:error', listener),
+  onShortcutVoiceToText: (listener: () => void) => subscribe('shortcut:voice-to-text', listener),
   getModels: () => ipcRenderer.invoke('models:list'),
   getSelectedModel: () => ipcRenderer.invoke('models:getSelected'),
   selectModel: (modelId: string) => ipcRenderer.invoke('models:select', modelId),

@@ -65,6 +65,9 @@ function createTrayIcon() {
 const sendStatus = (status: AppStatus): void => {
   logger.info('Status update', status)
   mainWindow?.webContents.send('status', status)
+  if (status.stage === 'capturing' || status.stage === 'stopped' || status.stage === 'ready') {
+    refreshTrayMenu()
+  }
 }
 
 const sendError = (message: string): void => {
@@ -241,22 +244,47 @@ function applyVoiceShortcut(shortcut: string): void {
   }
 }
 
+function buildTrayMenu(): Menu {
+  const capturing = audioCapture.isRunning()
+  return Menu.buildFromTemplate([
+    {
+      label: capturing ? 'Stop Recording' : 'Start Recording',
+      click: () => {
+        if (audioCapture.isRunning()) {
+          audioCapture.stop()
+          chunkQueue.notifyCaptureEnded()
+          sendStatus({ stage: 'stopped', detail: 'Capture stopped via tray' })
+        } else {
+          mainWindow?.show()
+          mainWindow?.focus()
+          mainWindow?.webContents.send('shortcut:voice-to-text')
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Show',
+      click: () => {
+        mainWindow?.show()
+        mainWindow?.focus()
+      },
+    },
+    { label: 'Quit', click: () => app.quit() },
+  ])
+}
+
+function refreshTrayMenu(): void {
+  if (tray) {
+    tray.setContextMenu(buildTrayMenu())
+  }
+}
+
 function applyTray(show: boolean): void {
   if (show && !tray) {
     const icon = createTrayIcon()
     tray = new Tray(icon)
     tray.setToolTip('LocalTranscribe')
-    const menu = Menu.buildFromTemplate([
-      {
-        label: 'Show',
-        click: () => {
-          mainWindow?.show()
-          mainWindow?.focus()
-        },
-      },
-      { label: 'Quit', click: () => app.quit() },
-    ])
-    tray.setContextMenu(menu)
+    tray.setContextMenu(buildTrayMenu())
     tray.on('click', () => {
       if (mainWindow?.isVisible()) {
         mainWindow.hide()
@@ -270,6 +298,11 @@ function applyTray(show: boolean): void {
     tray.destroy()
     tray = null
     logger.info('Tray icon removed')
+    // Without a tray icon the window is the only entry point — make sure it's visible.
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show()
+      mainWindow.focus()
+    }
   }
 }
 
@@ -435,7 +468,7 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     logger.info('Application activate event received')
     if (BrowserWindow.getAllWindows().length === 0) {
-      void settingsManager.getSettings().then((s) => createWindow(s.startHidden))
+      void settingsManager.getSettings().then((s) => createWindow(s.startHidden && s.showTrayIcon))
     }
   })
 
@@ -443,7 +476,9 @@ app.whenReady().then(() => {
     .getSettings()
     .then((settings) => {
       applySettings(settings)
-      createWindow(settings.startHidden)
+      // Without a tray icon there is no way to un-hide the window, so always show it.
+      const startHidden = settings.startHidden && settings.showTrayIcon
+      createWindow(startHidden)
       sendStatus({ stage: 'idle', detail: `Ready to load audio sources. Logs: ${logFilePath}` })
       scheduleResumePendingHistoryEnrichment({
         historyManager,

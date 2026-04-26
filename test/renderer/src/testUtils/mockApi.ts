@@ -14,7 +14,6 @@ import { vi } from 'vitest'
 export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): LocalTranscribeApi {
   const defaultUiFeatures: UiFeatureFlags = {
     enableExternalAssistant: false,
-    enableIntegrations: false,
     assistantProvider: 'local',
   }
   const defaultSettings: AppSettings = {

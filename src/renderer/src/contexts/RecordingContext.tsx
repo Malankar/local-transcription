@@ -55,10 +55,15 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
   const [captureProfile, setCaptureProfile] = useState<CaptureProfile>('meeting')
 
   const captureProfileRef = useRef<CaptureProfile>('meeting')
+  const startCaptureRef = useRef(startCapture)
 
   useEffect(() => {
     captureProfileRef.current = captureProfile
   }, [captureProfile])
+
+  useEffect(() => {
+    startCaptureRef.current = startCapture
+  })
 
   const systemSources = useMemo(() => sources.filter((s) => s.isMonitor), [sources])
   const micSources = useMemo(() => sources.filter((s) => !s.isMonitor), [sources])
@@ -137,9 +142,14 @@ export function RecordingProvider({ children }: { children: ReactNode }) {
       setIsCapturing(false)
     })
 
+    const unsubShortcut = window.api.onShortcutVoiceToText(() => {
+      void startCaptureRef.current('meeting')
+    })
+
     return () => {
       unsubStatus()
       unsubError()
+      unsubShortcut()
     }
   }, [])
 

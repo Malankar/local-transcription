@@ -36,8 +36,9 @@ export function TopNavigation() {
               aria-label="Record"
               className={cn(
                 'gap-2 rounded-full px-3 sm:px-4',
-                mainTab === 'record' &&
-                  'bg-background text-foreground shadow-sm ring-1 ring-border/60 hover:bg-background',
+                mainTab === 'record'
+                  ? 'bg-primary/90 text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary dark:hover:text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:hover:bg-muted/60 dark:hover:text-foreground',
               )}
             >
               <Mic className="h-4 w-4 shrink-0" aria-hidden />
@@ -50,8 +51,9 @@ export function TopNavigation() {
               aria-label="Library"
               className={cn(
                 'gap-2 rounded-full px-3 sm:px-4',
-                mainTab === 'library' &&
-                  'bg-background text-foreground shadow-sm ring-1 ring-border/60 hover:bg-background',
+                mainTab === 'library'
+                  ? 'bg-primary/90 text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary dark:hover:text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground dark:hover:bg-muted/60 dark:hover:text-foreground',
               )}
             >
               <Library className="h-4 w-4 shrink-0" aria-hidden />

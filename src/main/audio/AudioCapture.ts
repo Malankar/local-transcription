@@ -59,7 +59,22 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     }
 
     this.chunkingProfile = CHUNKING_PROFILES[options.profile ?? 'meeting']
-    const args = buildFfmpegArgs(options)
+
+    let effectiveOptions = options
+    if (options.mode === 'mixed') {
+      if (!options.systemSourceId && !options.micSourceId) {
+        throw new Error('At least one audio source is required for capture')
+      }
+      if (!options.micSourceId) {
+        this.emit('status', 'No microphone source found — capturing system audio only')
+        effectiveOptions = { ...options, mode: 'system' }
+      } else if (!options.systemSourceId) {
+        this.emit('status', 'No system audio source found — capturing microphone only')
+        effectiveOptions = { ...options, mode: 'mic' }
+      }
+    }
+
+    const args = buildFfmpegArgs(effectiveOptions)
     this.buffer = Buffer.alloc(0)
     this.bufferStartMs = 0
     const process = spawn('ffmpeg', args, {

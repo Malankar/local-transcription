@@ -20,7 +20,6 @@ describe('SettingsView', () => {
       keepStarredUntilDeleted: true,
       uiFeatures: {
         enableExternalAssistant: false,
-        enableIntegrations: false,
         assistantProvider: 'local' as const,
       },
     }
@@ -47,7 +46,6 @@ describe('SettingsView', () => {
         keepStarredUntilDeleted: true,
         uiFeatures: {
           enableExternalAssistant: false,
-          enableIntegrations: false,
           assistantProvider: 'local',
         },
       }),

@@ -137,7 +137,6 @@ const mainMocks = vi.hoisted(() => {
       keepStarredUntilDeleted: true,
       uiFeatures: {
         enableExternalAssistant: false,
-        enableIntegrations: false,
         assistantProvider: 'local',
       },
     }),

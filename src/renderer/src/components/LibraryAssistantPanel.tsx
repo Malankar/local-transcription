@@ -21,7 +21,7 @@ export function LibraryAssistantPanel() {
           <div className="space-y-2">
             {!enabled && (
               <p>
-                External assistant is off. Turn it on under Settings → Assistant &amp; integrations
+                External assistant is off. Turn it on under Settings → Assistant
                 to opt in when this feature ships.
               </p>
             )}

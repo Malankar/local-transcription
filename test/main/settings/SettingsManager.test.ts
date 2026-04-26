@@ -85,7 +85,6 @@ describe('SettingsManager', () => {
 
       const settings = await settingsManager.getSettings()
       expect(settings.uiFeatures.enableExternalAssistant).toBe(true)
-      expect(settings.uiFeatures.enableIntegrations).toBe(false)
       expect(settings.uiFeatures.assistantProvider).toBe('local')
     })
   })

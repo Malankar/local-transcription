@@ -51,7 +51,7 @@ export default function RecordSurface() {
     selectedModel?.isDownloaded === true &&
     ((mode === 'system' && !!systemSourceId) ||
       (mode === 'mic' && !!micSourceId) ||
-      (mode === 'mixed' && !!systemSourceId && !!micSourceId))
+      (mode === 'mixed' && (!!systemSourceId || !!micSourceId)))
 
   useEffect(() => {
     if (!isCapturing) {
@@ -84,9 +84,9 @@ export default function RecordSurface() {
 
   return (
     <div className="flex h-full min-h-0 bg-background">
-      <aside className="flex min-h-0 w-[min(100%,18rem)] min-w-[16.5rem] shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar p-5 text-sidebar-foreground sm:w-72 sm:min-w-[18rem] sm:p-6">
+        <aside className="flex min-h-0 w-[min(100%,18rem)] min-w-[16.5rem] shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar p-5 text-sidebar-foreground sm:w-72 sm:min-w-[18rem] sm:p-6">
         {isCapturing && (
-          <div className="mb-6 rounded-xl border border-destructive/35 bg-destructive/10 p-4">
+          <div className="mb-4 shrink-0 rounded-xl border border-destructive/35 bg-destructive/10 p-4">
             <div className="mb-2 flex items-center gap-2">
               <div className="h-2 w-2 animate-pulse rounded-full bg-destructive" aria-hidden />
               <span className="text-sm font-medium text-destructive">Recording</span>
@@ -97,11 +97,11 @@ export default function RecordSurface() {
           </div>
         )}
 
-        <div className="mb-8 min-w-0">
+        <div className="min-w-0 flex-1 overflow-y-auto">
           <RecordingSourceControls />
         </div>
 
-        <div className="mb-8">
+        <div className="mt-4 shrink-0">
           {!isCapturing ? (
             <Button
               size="lg"
@@ -127,7 +127,7 @@ export default function RecordSurface() {
         </div>
 
         {!canStartMeeting && !isCapturing && (
-          <p className="mb-6 text-xs text-sidebar-foreground/75">
+          <p className="mt-3 shrink-0 text-xs text-sidebar-foreground/75">
             {selectedModel?.isDownloaded ? (
               'Select audio sources above.'
             ) : (

@@ -32,7 +32,7 @@ export function AppSettingsModal({ onClose }: AppSettingsModalProps) {
           <Button variant="outline" onClick={onClose} className="flex-1">
             Cancel
           </Button>
-          <Button onClick={onClose} className="flex-1 bg-white font-medium text-black hover:bg-white/90">
+          <Button onClick={onClose} className="flex-1 font-medium">
             Save Settings
           </Button>
         </div>

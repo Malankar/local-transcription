@@ -3,7 +3,6 @@ import { Send, AlertCircle } from 'lucide-react'
 
 import { ASSISTANT_OLLAMA_MODEL_CHAT, ASSISTANT_OLLAMA_MODEL_TITLE } from '../../../shared/assistantModels'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 
 interface Message {
   id: string
@@ -218,7 +217,6 @@ export function ChatAssistant({ sessionTitle, transcript }: Readonly<ChatAssista
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [thinkingMode, setThinkingMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -253,7 +251,7 @@ export function ChatAssistant({ sessionTitle, transcript }: Readonly<ChatAssista
         sessionTitle,
         transcript,
         messages: convoForApi,
-        thinkingMode,
+        thinkingMode: true,
       })
       const assistantResponse: Message = {
         id: (Date.now() + 1).toString(),
@@ -325,13 +323,6 @@ export function ChatAssistant({ sessionTitle, transcript }: Readonly<ChatAssista
       </div>
 
       <div className="shrink-0 border-t border-border bg-muted/20 p-4">
-        <div className="mb-3 flex flex-col gap-2.5 rounded-md border border-border/60 bg-background/60 px-3 py-2.5 text-xs">
-          <label className="flex cursor-pointer items-center justify-between gap-3 text-foreground">
-            <span className="text-muted-foreground">Thinking mode (brief bullets + answer)</span>
-            <Switch checked={thinkingMode} onCheckedChange={setThinkingMode} disabled={isLoading} aria-label="Thinking mode" />
-          </label>
-
-        </div>
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <input
             type="text"

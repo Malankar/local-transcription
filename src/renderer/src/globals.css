@@ -40,44 +40,46 @@
 }
 
 .dark {
-  /* base: slightly deeper so card/sidebar layers have more room */
-  --background: oklch(0.13 0 0);
-  --foreground: oklch(0.97 0 0);
-  /* cards lift above background — the key fix */
-  --card: oklch(0.195 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  /* popovers/dropdowns float even higher */
-  --popover: oklch(0.225 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.97 0 0);
-  --primary-foreground: oklch(0.18 0 0);
-  --secondary: oklch(0.265 0 0);
-  --secondary-foreground: oklch(0.97 0 0);
-  /* muted surfaces clearly distinct from background */
-  --muted: oklch(0.245 0 0);
-  --muted-foreground: oklch(0.68 0 0);
-  --accent: oklch(0.245 0 0);
-  --accent-foreground: oklch(0.97 0 0);
+  /* near-pure black — the darkest anchor */
+  --background: oklch(0.02 0 0);
+  --foreground: oklch(0.88 0 0);
+  /* cards clearly lift above the black base */
+  --card: oklch(0.12 0 0);
+  --card-foreground: oklch(0.88 0 0);
+  /* popovers/dropdowns float a full step above cards */
+  --popover: oklch(0.17 0 0);
+  --popover-foreground: oklch(0.88 0 0);
+  /* primary button: near-white on black */
+  --primary: oklch(0.88 0 0);
+  --primary-foreground: oklch(0.02 0 0);
+  /* subtle surface overlays — clearly above card */
+  --secondary: oklch(0.18 0 0);
+  --secondary-foreground: oklch(0.88 0 0);
+  --muted: oklch(0.13 0 0);
+  /* muted text: readable mid-gray, not too dim */
+  --muted-foreground: oklch(0.52 0 0);
+  --accent: oklch(0.15 0 0);
+  --accent-foreground: oklch(0.88 0 0);
   --destructive: oklch(0.62 0.245 25.7);
   --destructive-foreground: oklch(0.97 0 0);
-  /* borders readable at the new base lightness */
-  --border: oklch(0.305 0 0);
-  --input: oklch(0.245 0 0);
-  --ring: oklch(0.52 0 0);
+  /* borders: visible hairlines between surfaces */
+  --border: oklch(0.22 0 0);
+  --input: oklch(0.16 0 0);
+  --ring: oklch(0.40 0 0);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  /* sidebar: sits between background and card */
-  --sidebar: oklch(0.165 0 0);
-  --sidebar-foreground: oklch(0.97 0 0);
+  /* sidebar: one step above background, below cards */
+  --sidebar: oklch(0.05 0 0);
+  --sidebar-foreground: oklch(0.88 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.97 0 0);
-  --sidebar-accent: oklch(0.245 0 0);
-  --sidebar-accent-foreground: oklch(0.97 0 0);
-  --sidebar-border: oklch(0.265 0 0);
-  --sidebar-ring: oklch(0.52 0 0);
+  --sidebar-accent: oklch(0.22 0 0);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.16 0 0);
+  --sidebar-ring: oklch(0.40 0 0);
 }
 
 @theme inline {

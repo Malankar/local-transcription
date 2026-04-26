@@ -158,7 +158,6 @@ export type AssistantProviderId =
 /** UI-only flags (ref settings modal); assistant IPC not wired yet. */
 export interface UiFeatureFlags {
   enableExternalAssistant: boolean
-  enableIntegrations: boolean
   assistantProvider: AssistantProviderId
 }
 
@@ -191,6 +190,7 @@ export interface LocalTranscribeApi {
   onTranscriptSegment: (listener: (segment: TranscriptSegment) => void) => () => void
   onStatus: (listener: (status: AppStatus) => void) => () => void
   onError: (listener: (message: string) => void) => () => void
+  onShortcutVoiceToText: (listener: () => void) => () => void
   getModels: () => Promise<TranscriptionModel[]>
   getSelectedModel: () => Promise<string | null>
   selectModel: (modelId: string) => Promise<void>

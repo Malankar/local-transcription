@@ -205,7 +205,45 @@ export function TranscriptViewer({
   )
 }
 
+function splitSummaryContent(text: string): { reasoning?: string; answer: string } {
+  const lines = text.split(/\r?\n/)
+  const reasoningStart = lines.findIndex((line) => /^#{1,6}\s*Reasoning(?:\s*\([^)]*\))?\s*$/i.test(line.trim()))
+  if (reasoningStart === -1) return { answer: text }
+
+  const answerOffset = lines
+    .slice(reasoningStart + 1)
+    .findIndex((line) => /^#{1,6}\s*Answer\s*$/i.test(line.trim()))
+
+  if (answerOffset === -1) return { answer: text }
+
+  const answerStart = reasoningStart + 1 + answerOffset
+  return {
+    reasoning: lines.slice(reasoningStart + 1, answerStart).join('\n').trim(),
+    answer: lines.slice(answerStart + 1).join('\n').trim(),
+  }
+}
+
 function SummaryBody({ text }: Readonly<{ text: string }>) {
+  const { reasoning, answer } = splitSummaryContent(text)
+
+  return (
+    <div className="space-y-2">
+      {reasoning && (
+        <details className="group rounded border border-border/50 bg-muted/20 px-2.5 py-1.5">
+          <summary className="cursor-pointer select-none text-xs text-muted-foreground/70 marker:text-muted-foreground/50">
+            Reasoning
+          </summary>
+          <p className="mt-1.5 border-t border-border/40 pt-1.5 text-xs leading-relaxed text-muted-foreground/60">
+            {reasoning}
+          </p>
+        </details>
+      )}
+      <SummaryAnswerBody text={answer} />
+    </div>
+  )
+}
+
+function SummaryAnswerBody({ text }: Readonly<{ text: string }>) {
   const legacyBullets = text
     .split(/•/)
     .map((s) => s.trim())

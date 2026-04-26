@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, Check, Mic, Square } from 'lucide-react'
+import { ArrowRight, Check, Loader2, Mic, Square } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -68,7 +68,10 @@ export default function RecordSurface() {
       setShowCompletionCard(false)
       return
     }
-    if ((status.stage === 'stopped' || status.stage === 'error') && meetingText.length > 0) {
+    if (
+      ['stopped', 'processing', 'ready', 'error'].includes(status.stage) &&
+      meetingText.length > 0
+    ) {
       setShowCompletionCard(true)
     }
   }, [isCapturing, status.stage, meetingText])
@@ -189,15 +192,27 @@ export default function RecordSurface() {
                 <Card className="shrink-0 border-border bg-muted/40 p-4 shadow-sm">
                   <div className="flex items-start gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Check className="h-5 w-5" aria-hidden />
+                      {status.stage === 'ready' ? (
+                        <Check className="h-5 w-5" aria-hidden />
+                      ) : (
+                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="mb-1 text-sm font-semibold text-foreground">Saved to library</h3>
-                      <p className="mb-3 text-xs text-muted-foreground">Transcript ready for review or export.</p>
-                      <Button variant="default" size="sm" className="h-8 gap-2 text-xs" onClick={() => setMainTab('library')}>
-                        Open in Library
-                        <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                      </Button>
+                      <h3 className="mb-1 text-sm font-semibold text-foreground">
+                        {status.stage === 'ready' ? 'Saved to library' : 'Finalizing transcript…'}
+                      </h3>
+                      <p className="mb-3 text-xs text-muted-foreground">
+                        {status.stage === 'ready'
+                          ? 'Transcript ready for review or export.'
+                          : 'Processing remaining audio…'}
+                      </p>
+                      {status.stage === 'ready' && (
+                        <Button variant="default" size="sm" className="h-8 gap-2 text-xs" onClick={() => setMainTab('library')}>
+                          Open in Library
+                          <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </Card>

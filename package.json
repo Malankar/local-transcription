@@ -41,15 +41,14 @@
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
-    "@radix-ui/react-tooltip": "^1.2.8",
+    "tailwind-merge": "^3.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.7.0",
     "nodejs-whisper": "^0.2.9",
     "postcss": "^8.5.8",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "tailwind-merge": "^3.5.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "electron": "39.8.9",

@@ -29,7 +29,7 @@ function Icon({ name, filled = false, size = 20 }: { name: string; filled?: bool
   )
 }
 
-export interface ModelLibrarySectionProps {
+interface ModelLibrarySectionProps {
   /** When true, shows the standalone page heading (for tests / legacy full-page view). */
   showLibraryHeading?: boolean
   /** `settings` = compact list for Settings sheet; `gallery` = card grid (default). */

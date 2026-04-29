@@ -27,7 +27,7 @@ export interface CaptureStartOptions {
   profile?: 'meeting' | 'live'
 }
 
-export type AppStatusStage =
+type AppStatusStage =
   | 'idle'
   | 'discovering'
   | 'ready'
@@ -70,7 +70,6 @@ export interface TranscriptionModel {
   isDownloaded: boolean
 }
 
-export type WhisperModel = TranscriptionModel
 
 export interface ModelDownloadProgress {
   modelId: string
@@ -79,7 +78,7 @@ export interface ModelDownloadProgress {
   percent: number
 }
 
-export type AssistantFieldStatus = 'pending' | 'ready' | 'error'
+type AssistantFieldStatus = 'pending' | 'ready' | 'error'
 
 export interface HistorySessionMeta {
   id: string
@@ -112,7 +111,7 @@ export interface OllamaPullProgress {
   percent: number | null
 }
 
-export interface AssistantChatMessage {
+interface AssistantChatMessage {
   role: 'user' | 'assistant'
   content: string
 }
@@ -146,7 +145,7 @@ export type HistoryAutoDelete =
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 
-export type AssistantProviderId =
+type AssistantProviderId =
   | 'local'
   | 'openai-gpt4'
   | 'openai-gpt4mini'

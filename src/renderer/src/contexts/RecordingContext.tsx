@@ -12,7 +12,6 @@ import type { AudioSource, AudioSourceMode, AppStatus } from '../types'
 import { type CaptureProfile, toMessage } from '../lib/formatters'
 import { useNavigationContext } from './NavigationContext'
 
-export type { CaptureProfile }
 
 interface RecordingContextValue {
   sources: AudioSource[]

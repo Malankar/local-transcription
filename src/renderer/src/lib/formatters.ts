@@ -2,7 +2,7 @@ import type { TranscriptionModel } from '../types'
 
 export type CaptureProfile = 'meeting' | 'live'
 
-export type CaptureProfileAppearance = {
+type CaptureProfileAppearance = {
   label: string
   icon: string
   accentDotClass: string

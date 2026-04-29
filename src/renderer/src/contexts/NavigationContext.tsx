@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 
-export type View = 'recording' | 'history' | 'settings'
+type View = 'recording' | 'history' | 'settings'
 export type MainTab = 'record' | 'library'
 
 function viewToTab(view: View): MainTab | undefined {

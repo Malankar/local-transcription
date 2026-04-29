@@ -47,7 +47,7 @@ const QUICK_PROMPTS = [
   'Draft a concise follow-up email from this transcript.',
 ] as const
 
-export interface HistorySessionAssistantProps {
+interface HistorySessionAssistantProps {
   sessionId: string
   sessionLabel: string
   transcriptPlainText: string

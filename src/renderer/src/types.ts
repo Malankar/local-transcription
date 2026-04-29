@@ -1,13 +1,8 @@
 export type {
   AppSettings,
-  AssistantChatRequest,
-  AssistantFieldStatus,
-  AssistantProviderId,
   AppStatus,
   AudioSource,
   AudioSourceMode,
-  ExportResult,
-  HistoryAutoDelete,
   HistorySession,
   HistorySessionMeta,
   OllamaPullProgress,
@@ -16,6 +11,4 @@ export type {
   ThemeMode,
   TranscriptionModel,
   TranscriptSegment,
-  UiFeatureFlags,
-  WhisperModel,
 } from '../../shared/types'

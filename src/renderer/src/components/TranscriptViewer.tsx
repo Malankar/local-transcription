@@ -4,13 +4,13 @@ import { Check, Copy, Download, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
-export interface TranscriptViewerSegment {
+interface TranscriptViewerSegment {
   timestamp: string
   speaker: string
   text: string
 }
 
-export interface TranscriptViewerProps {
+interface TranscriptViewerProps {
   title: string
   titlePending?: boolean
   date: string

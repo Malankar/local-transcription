@@ -27,6 +27,20 @@ async function openSettingsAndScrollToAssistant(window: Page) {
   return { dialog, section: assistantIntegrationsSection(dialog) }
 }
 
+async function testToggleSetting(window: Page, headingName: string) {
+  const { dialog } = await openSettingsAndScrollToAssistant(window)
+  await dialog.getByRole('heading', { level: 3, name: headingName }).scrollIntoViewIfNeeded()
+  const toggle = settingRow(dialog, headingName).getByRole('switch')
+  await expect(toggle).toBeVisible()
+  await expect(toggle).toHaveAttribute('data-state', 'unchecked')
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('data-state', 'checked')
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('data-state', 'unchecked')
+}
+
 test.describe('Settings — Assistant & integrations', () => {
   test.describe('Assistant provider select', () => {
     test('shows default and allows choosing another provider', async () => {
@@ -56,19 +70,7 @@ test.describe('Settings — Assistant & integrations', () => {
       try {
         const window = await electronApp.firstWindow()
         await window.waitForLoadState('domcontentloaded')
-
-        const { dialog } = await openSettingsAndScrollToAssistant(window)
-
-        await dialog.getByRole('heading', { level: 3, name: 'Enable external assistant' }).scrollIntoViewIfNeeded()
-        const toggle = settingRow(dialog, 'Enable external assistant').getByRole('switch')
-        await expect(toggle).toBeVisible()
-        await expect(toggle).toHaveAttribute('data-state', 'unchecked')
-
-        await toggle.click()
-        await expect(toggle).toHaveAttribute('data-state', 'checked')
-
-        await toggle.click()
-        await expect(toggle).toHaveAttribute('data-state', 'unchecked')
+        await testToggleSetting(window, 'Enable external assistant')
       } finally {
         await closeLaunchedApp(electronApp)
       }
@@ -81,19 +83,7 @@ test.describe('Settings — Assistant & integrations', () => {
       try {
         const window = await electronApp.firstWindow()
         await window.waitForLoadState('domcontentloaded')
-
-        const { dialog } = await openSettingsAndScrollToAssistant(window)
-
-        await dialog.getByRole('heading', { level: 3, name: 'Third-party integrations' }).scrollIntoViewIfNeeded()
-        const toggle = settingRow(dialog, 'Third-party integrations').getByRole('switch')
-        await expect(toggle).toBeVisible()
-        await expect(toggle).toHaveAttribute('data-state', 'unchecked')
-
-        await toggle.click()
-        await expect(toggle).toHaveAttribute('data-state', 'checked')
-
-        await toggle.click()
-        await expect(toggle).toHaveAttribute('data-state', 'unchecked')
+        await testToggleSetting(window, 'Third-party integrations')
       } finally {
         await closeLaunchedApp(electronApp)
       }

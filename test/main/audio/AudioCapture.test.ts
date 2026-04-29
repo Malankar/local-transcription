@@ -18,6 +18,26 @@ class MockProcess extends EventEmitter {
   kill = vi.fn()
 }
 
+function makeNoisePcm(seconds: number): Buffer {
+  const data = Buffer.alloc(16000 * 2 * seconds)
+  for (let i = 0; i < data.length; i += 2) {
+    data.writeInt16LE(15000, i)
+  }
+  return data
+}
+
+function makeSilencePcm(seconds: number): Buffer {
+  return Buffer.alloc(16000 * 2 * seconds)
+}
+
+function collectChunks(audioCapture: AudioCapture): any[] {
+  const chunks: any[] = []
+  audioCapture.on('chunk', (c) => chunks.push(c))
+  return chunks
+}
+
+const tick = (ms = 100) => new Promise((resolve) => setTimeout(resolve, ms))
+
 describe('AudioCapture', () => {
   let audioCapture: AudioCapture
   let mockProcess: MockProcess
@@ -56,38 +76,22 @@ describe('AudioCapture', () => {
   describe('chunking', () => {
     it('emits chunk event when enough data is received', async () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
-      
-      const chunks: any[] = []
-      audioCapture.on('chunk', (c) => chunks.push(c))
+      const chunks = collectChunks(audioCapture)
 
       // Generate 4 seconds of "noise" (non-silent PCM) to exceed maxChunkMs (3.5s)
-      const data = Buffer.alloc(16000 * 2 * 4)
-      for (let i = 0; i < data.length; i += 2) {
-        data.writeInt16LE(15000, i) // Consistent non-silent value
-      }
-
-      mockProcess.stdout.push(data)
-      
-      // Wait for async processing
-      await new Promise(resolve => setTimeout(resolve, 100))
+      mockProcess.stdout.push(makeNoisePcm(4))
+      await tick()
 
       expect(chunks.length).toBeGreaterThan(0)
     })
 
     it('retains a small overlap between consecutive forced chunks', async () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
-
-      const chunks: any[] = []
-      audioCapture.on('chunk', (c) => chunks.push(c))
+      const chunks = collectChunks(audioCapture)
 
       // Generate 8 seconds of non-silent PCM so the chunker must force multiple windows.
-      const data = Buffer.alloc(16000 * 2 * 8)
-      for (let i = 0; i < data.length; i += 2) {
-        data.writeInt16LE(15000, i)
-      }
-
-      mockProcess.stdout.push(data)
-      await new Promise(resolve => setTimeout(resolve, 100))
+      mockProcess.stdout.push(makeNoisePcm(8))
+      await tick()
       audioCapture.stop()
 
       expect(chunks.length).toBeGreaterThanOrEqual(3)
@@ -96,32 +100,25 @@ describe('AudioCapture', () => {
 
     it('does not emit chunk for digital silence', async () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default' })
-      
-      const chunks: any[] = []
-      audioCapture.on('chunk', (c) => chunks.push(c))
+      const chunks = collectChunks(audioCapture)
 
       // Generate 5 seconds of silence (zeros)
-      const data = Buffer.alloc(16000 * 2 * 5)
-      mockProcess.stdout.push(data)
-      
-      await new Promise(resolve => setTimeout(resolve, 100))
+      mockProcess.stdout.push(makeSilencePcm(5))
+      await tick()
 
       expect(chunks.length).toBe(0)
     })
 
     it('emits chunk for quiet audio that is still above the digital floor', async () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
-
-      const chunks: any[] = []
-      audioCapture.on('chunk', (c) => chunks.push(c))
+      const chunks = collectChunks(audioCapture)
 
       const data = Buffer.alloc(16000 * 2 * 2)
       for (let i = 0; i < data.length; i += 2) {
         data.writeInt16LE(200, i)
       }
       mockProcess.stdout.push(data)
-
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await tick()
 
       expect(chunks.length).toBeGreaterThan(0)
     })
@@ -130,19 +127,11 @@ describe('AudioCapture', () => {
   describe('stop', () => {
     it('kills the process and flushes remaining data', async () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default' })
-      
-      const chunks: any[] = []
-      audioCapture.on('chunk', (c) => chunks.push(c))
+      const chunks = collectChunks(audioCapture)
 
       // Push 1 second of non-silent data
-      const data = Buffer.alloc(16000 * 2 * 1)
-      for (let i = 0; i < data.length; i += 2) {
-        data.writeInt16LE(15000, i)
-      }
-      mockProcess.stdout.push(data)
-      
-      // Wait for data to be buffered
-      await new Promise(resolve => setTimeout(resolve, 50))
+      mockProcess.stdout.push(makeNoisePcm(1))
+      await tick(50)
 
       audioCapture.stop()
 
@@ -172,8 +161,7 @@ describe('AudioCapture', () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default' })
       mockProcess.emit('close')
 
-      // Give the event loop a tick
-      await new Promise(resolve => setTimeout(resolve, 0))
+      await tick(0)
       expect(stopped).toBe(true)
     })
   })

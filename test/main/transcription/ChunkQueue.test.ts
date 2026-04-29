@@ -10,13 +10,15 @@ function makeSegment(id: string, startMs: number, endMs: number, text: string): 
   return { id, startMs, endMs, text, timestamp: new Date(startMs).toISOString() }
 }
 
+const tick = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 describe('ChunkQueue', () => {
   describe('sequential processing', () => {
     it('processes chunks in FIFO order', async () => {
       const callOrder: number[] = []
       const processor = vi.fn(async (chunk: AudioChunk) => {
         callOrder.push(chunk.startMs)
-        await new Promise(resolve => setTimeout(resolve, 10))
+        await tick(10)
         return [makeSegment('1', chunk.startMs, chunk.endMs, 'test')]
       })
 
@@ -24,7 +26,7 @@ describe('ChunkQueue', () => {
       queue.enqueue(makeChunk(100, 200))
       queue.enqueue(makeChunk(200, 300))
 
-      await new Promise(resolve => setTimeout(resolve, 50))
+      await tick(50)
 
       expect(callOrder).toEqual([100, 200])
     })
@@ -40,7 +42,7 @@ describe('ChunkQueue', () => {
       queue.on('segment', (seg) => emittedSegments.push(seg))
 
       queue.enqueue(makeChunk(0, 200))
-      await new Promise(resolve => setTimeout(resolve, 30))
+      await tick(30)
 
       expect(emittedSegments).toHaveLength(2)
       expect(emittedSegments[0].text).toBe('Hello')
@@ -54,7 +56,7 @@ describe('ChunkQueue', () => {
       queue.on('drained', () => drainedEvents.push(1))
 
       queue.enqueue(makeChunk(0, 100))
-      await new Promise(resolve => setTimeout(resolve, 20))
+      await tick(20)
 
       expect(drainedEvents).toHaveLength(1)
     })
@@ -66,7 +68,7 @@ describe('ChunkQueue', () => {
       queue.on('drained', () => drainedEvents.push(1))
 
       queue.enqueue(makeChunk(0, 100))
-      await new Promise(resolve => setTimeout(resolve, 20))
+      await tick(20)
       expect(drainedEvents).toHaveLength(1)
 
       queue.notifyCaptureEnded()
@@ -91,7 +93,7 @@ describe('ChunkQueue', () => {
       queue.on('error', (err) => errors.push(err))
 
       queue.enqueue(makeChunk(0, 100))
-      await new Promise(resolve => setTimeout(resolve, 30))
+      await tick(30)
 
       expect(errors).toHaveLength(1)
       expect(errors[0].message).toBe('Processing failed')
@@ -113,7 +115,7 @@ describe('ChunkQueue', () => {
 
       queue.enqueue(makeChunk(0, 100))
       queue.enqueue(makeChunk(100, 200))
-      await new Promise(resolve => setTimeout(resolve, 60))
+      await tick(60)
 
       expect(emittedSegments).toHaveLength(1)
       expect(emittedSegments[0].text).toBe('recovered')
@@ -123,7 +125,7 @@ describe('ChunkQueue', () => {
   describe('realtime mode', () => {
     it('does not discard pending chunks when switching to realtime', async () => {
       const processor = vi.fn(async () => {
-        await new Promise(resolve => setTimeout(resolve, 20))
+        await tick(20)
         return []
       })
       const queue = new ChunkQueue(processor)
@@ -133,7 +135,7 @@ describe('ChunkQueue', () => {
       queue.enqueue(makeChunk(200, 300))
       queue.setMode('realtime')
 
-      await new Promise(resolve => setTimeout(resolve, 120))
+      await tick(120)
 
       expect(processor).toHaveBeenCalledTimes(3)
       expect(processor).toHaveBeenNthCalledWith(1, expect.objectContaining({ startMs: 0 }))
@@ -145,7 +147,7 @@ describe('ChunkQueue', () => {
       const callOrder: number[] = []
       const processor = vi.fn(async (chunk: AudioChunk) => {
         callOrder.push(chunk.startMs)
-        await new Promise(resolve => setTimeout(resolve, 30))
+        await tick(30)
         return []
       })
 
@@ -153,11 +155,11 @@ describe('ChunkQueue', () => {
       queue.setMode('realtime')
 
       queue.enqueue(makeChunk(0, 100))
-      await new Promise(resolve => setTimeout(resolve, 5))
+      await tick(5)
       queue.enqueue(makeChunk(100, 200))
       queue.enqueue(makeChunk(200, 300))
 
-      await new Promise(resolve => setTimeout(resolve, 120))
+      await tick(120)
 
       expect(callOrder).toEqual([0, 100, 200])
     })
@@ -176,14 +178,14 @@ describe('ChunkQueue', () => {
       queue.clear()
       queue.enqueue(makeChunk(100, 200))
 
-      await new Promise(resolve => setTimeout(resolve, 30))
+      await tick(30)
 
       expect(callOrder).toEqual([0, 100])
     })
 
     it('stops further processing after clearing', async () => {
       const processor = vi.fn(async () => {
-        await new Promise(resolve => setTimeout(resolve, 20))
+        await tick(20)
         return []
       })
       const queue = new ChunkQueue(processor)
@@ -192,7 +194,7 @@ describe('ChunkQueue', () => {
       queue.enqueue(makeChunk(100, 200))
       queue.clear()
 
-      await new Promise(resolve => setTimeout(resolve, 60))
+      await tick(60)
 
       expect(processor).toHaveBeenCalledTimes(1)
     })

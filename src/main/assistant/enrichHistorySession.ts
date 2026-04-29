@@ -19,6 +19,30 @@ function stubAssistantEnabled(): boolean {
   return process.env.E2E_STUB_OLLAMA === '1'
 }
 
+interface SessionContext {
+  session: NonNullable<Awaited<ReturnType<HistoryManager['getSession']>>>
+  transcriptText: string
+  fallbackTitle: string
+  fallbackSummary: string
+}
+
+async function loadSessionContext(
+  sessionId: string,
+  historyManager: HistoryManager,
+): Promise<SessionContext | null> {
+  const session = await historyManager.getSession(sessionId)
+  if (!session) return null
+  const transcriptText = session.segments
+    .map((s) => s.text.trim())
+    .filter(Boolean)
+    .join('\n\n')
+  const fallbackTitle = historyManager.generateLabel(session.segments)
+  const fallbackSummary =
+    session.preview?.trim() ||
+    (transcriptText ? clip(transcriptText, 400) : 'No transcript text for summary.')
+  return { session, transcriptText, fallbackTitle, fallbackSummary }
+}
+
 /** Prevents duplicate Ollama work if enrichment is triggered twice (e.g. save + resume). */
 const enrichmentInFlight = new Set<string>()
 
@@ -77,15 +101,9 @@ export async function regenerateHistorySessionTitle(options: {
     mainWindow?.webContents.send('history:sessionUpdated', meta)
   }
 
-  const session = await historyManager.getSession(sessionId)
-  if (!session) return
-
-  const transcriptText = session.segments
-    .map((s) => s.text.trim())
-    .filter(Boolean)
-    .join('\n\n')
-
-  const fallbackTitle = historyManager.generateLabel(session.segments)
+  const ctx = await loadSessionContext(sessionId, historyManager)
+  if (!ctx) return
+  const { transcriptText, fallbackTitle } = ctx
 
   const pendingMeta = await historyManager.patchSessionMeta(sessionId, { aiTitleStatus: 'pending' })
   if (pendingMeta) broadcast(pendingMeta)
@@ -137,17 +155,9 @@ export async function regenerateHistorySessionSummary(options: {
     mainWindow?.webContents.send('history:sessionUpdated', meta)
   }
 
-  const session = await historyManager.getSession(sessionId)
-  if (!session) return
-
-  const transcriptText = session.segments
-    .map((s) => s.text.trim())
-    .filter(Boolean)
-    .join('\n\n')
-
-  const fallbackSummary =
-    session.preview?.trim() ||
-    (transcriptText ? clip(transcriptText, 400) : 'No transcript text for summary.')
+  const ctx = await loadSessionContext(sessionId, historyManager)
+  if (!ctx) return
+  const { transcriptText, fallbackSummary } = ctx
 
   const pendingMeta = await historyManager.patchSessionMeta(sessionId, {
     aiSummaryStatus: 'pending',
@@ -186,14 +196,14 @@ export async function enrichHistorySessionAfterSave(options: {
   enrichmentInFlight.add(sessionId)
   if (enrichmentInFlight.size === sizeBefore) return
 
-  let session: Awaited<ReturnType<HistoryManager['getSession']>>
+  let ctx: SessionContext | null
   try {
-    session = await historyManager.getSession(sessionId)
+    ctx = await loadSessionContext(sessionId, historyManager)
   } catch (e) {
     enrichmentInFlight.delete(sessionId)
     throw e
   }
-  if (!session) {
+  if (!ctx) {
     enrichmentInFlight.delete(sessionId)
     return
   }
@@ -203,15 +213,7 @@ export async function enrichHistorySessionAfterSave(options: {
   }
 
   try {
-    const transcriptText = session.segments
-      .map((s) => s.text.trim())
-      .filter(Boolean)
-      .join('\n\n')
-
-    const fallbackTitle = historyManager.generateLabel(session.segments)
-    const fallbackSummary =
-      session.preview?.trim() ||
-      (transcriptText ? clip(transcriptText, 400) : 'No transcript text for summary.')
+    const { transcriptText, fallbackTitle, fallbackSummary } = ctx
 
     if (stubAssistantEnabled()) {
       const delayMs = Number(process.env.E2E_ASSISTANT_DELAY_MS ?? '0')
@@ -266,16 +268,9 @@ export async function enrichHistorySessionAfterSave(options: {
   } catch (e) {
     logger.error('History session enrichment crashed', e)
     try {
-      const latest = await historyManager.getSession(sessionId)
-      if (!latest) return
-      const transcriptText = latest.segments
-        .map((s) => s.text.trim())
-        .filter(Boolean)
-        .join('\n\n')
-      const fallbackTitle = historyManager.generateLabel(latest.segments)
-      const fallbackSummary =
-        latest.preview?.trim() ||
-        (transcriptText ? clip(transcriptText, 400) : 'No transcript text for summary.')
+      const recoveryCtx = await loadSessionContext(sessionId, historyManager)
+      if (!recoveryCtx) return
+      const { session: latest, fallbackTitle, fallbackSummary } = recoveryCtx
       const meta = await historyManager.patchSessionMeta(sessionId, {
         label: latest.label?.trim() || fallbackTitle,
         aiTitleStatus: 'ready',

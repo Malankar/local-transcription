@@ -1,19 +1,7 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 import { closeLaunchedApp, launchApp } from './fixtures/launchApp'
-
-function generalRow(page: Page, label: string) {
-  return page
-    .getByRole('dialog')
-    .locator('div.flex.items-start.justify-between')
-    .filter({ has: page.getByRole('heading', { level: 3, name: label }) })
-}
-
-async function openSettings(page: Page) {
-  await page.getByTitle('Settings').click()
-  await expect(page.getByRole('dialog')).toBeVisible()
-  await expect(page.getByRole('heading', { level: 3, name: 'Start hidden' })).toBeVisible()
-}
+import { generalRow, openSettings } from './fixtures/settingsHelpers'
 
 test.describe('Settings — General — Start hidden', () => {
   test('toggle persists switch state in UI', async () => {

@@ -1,49 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import RecordingHubView from '../../../../src/renderer/src/components/RecordingHubView'
-import { installMockApi } from '../testUtils/mockApi'
-import { flushMicrotasks, renderIntoDocument } from '../testUtils/render'
+import { installMockApi, baseDownloadedModelList } from '../testUtils/mockApi'
+import { makeListenerCapture } from '../testUtils/listenerCapture'
+import { flushMicrotasks } from '../testUtils/render'
 import { renderRendererApp } from '../testUtils/renderRenderer'
 
 describe('RecordingHubView', () => {
   it('scrolls the transcript viewport when new meeting segments arrive', async () => {
-    let statusListener: ((status: { stage: string; detail: string }) => void) | undefined
-    let transcriptListener: ((segment: { id: string; startMs: number; endMs: number; text: string; timestamp: string }) => void) | undefined
+    const lc = makeListenerCapture()
 
     installMockApi({
-      onStatus: vi.fn().mockImplementation((listener) => {
-        statusListener = listener
-        return () => undefined
-      }),
-      onTranscriptSegment: vi.fn().mockImplementation((listener) => {
-        transcriptListener = listener
-        return () => undefined
-      }),
-      getModels: vi.fn().mockResolvedValue([
-        {
-          id: 'base',
-          name: 'Base',
-          description: 'Downloaded model',
-          sizeMb: 120,
-          languages: 'en',
-          accuracy: 4,
-          speed: 4,
-          recommended: true,
-          engine: 'whisper' as const,
-          runtime: 'node',
-          runtimeModelName: 'base',
-          downloadManaged: true,
-          supportsGpuAcceleration: false,
-          isDownloaded: true,
-        },
-      ]),
+      onStatus: lc.mockOnStatus,
+      onTranscriptSegment: lc.mockOnTranscript,
+      getModels: vi.fn().mockResolvedValue(baseDownloadedModelList()),
       getSelectedModel: vi.fn().mockResolvedValue('base'),
     })
 
     const { container } = await renderRendererApp(<RecordingHubView />)
     await flushMicrotasks()
 
-    statusListener?.({ stage: 'capturing', detail: 'Recording' })
+    lc.fireStatus({ stage: 'capturing', detail: 'Recording' })
     await flushMicrotasks()
 
     const viewport = container.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement | null
@@ -60,7 +37,7 @@ describe('RecordingHubView', () => {
       value: 1234,
     })
 
-    transcriptListener?.({
+    lc.fireSegment({
       id: 'seg-1',
       startMs: 0,
       endMs: 1000,
@@ -81,24 +58,7 @@ describe('RecordingHubView', () => {
         { id: 'system-1', label: 'System Audio', isMonitor: true },
         { id: 'mic-1', label: 'Microphone', isMonitor: false },
       ]),
-      getModels: vi.fn().mockResolvedValue([
-        {
-          id: 'base',
-          name: 'Base',
-          description: 'Downloaded model',
-          sizeMb: 120,
-          languages: 'en',
-          accuracy: 4,
-          speed: 4,
-          recommended: true,
-          engine: 'whisper' as const,
-          runtime: 'node',
-          runtimeModelName: 'base',
-          downloadManaged: true,
-          supportsGpuAcceleration: false,
-          isDownloaded: true,
-        },
-      ]),
+      getModels: vi.fn().mockResolvedValue(baseDownloadedModelList()),
       getSelectedModel: vi.fn().mockResolvedValue('base'),
     })
 

@@ -97,6 +97,27 @@ export function installMockApi(overrides: Partial<LocalTranscribeApi> = {}): Loc
   return api
 }
 
+export function baseDownloadedModelList(): TranscriptionModel[] {
+  return [
+    {
+      id: 'base',
+      name: 'Base',
+      description: 'Downloaded model',
+      sizeMb: 120,
+      languages: 'en',
+      accuracy: 4,
+      speed: 4,
+      recommended: true,
+      engine: 'whisper' as const,
+      runtime: 'node',
+      runtimeModelName: 'base',
+      downloadManaged: true,
+      supportsGpuAcceleration: false,
+      isDownloaded: true,
+    },
+  ]
+}
+
 export function makeDownloadProgress(overrides: Partial<ModelDownloadProgress> = {}): ModelDownloadProgress {
   return {
     modelId: 'base.en',

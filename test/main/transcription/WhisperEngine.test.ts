@@ -22,6 +22,27 @@ class MockChildProcess extends EventEmitter {
   kill = vi.fn();
 }
 
+const tick = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function makeChunk(): AudioChunk {
+  return { audio: new Float32Array(10), startMs: 0, endMs: 100 };
+}
+
+async function initializeEngine(
+  engine: WhisperEngine,
+  mockChild: MockChildProcess,
+  model: TranscriptionModel,
+): Promise<void> {
+  engine.setModel(model);
+  const initPromise = engine.initialize();
+  mockChild.emit("spawn");
+  await tick();
+  const requestId = mockChild.send.mock.calls[0][0].requestId;
+  mockChild.emit("message", { type: "ready", requestId });
+  await initPromise;
+  mockChild.send.mockClear();
+}
+
 describe("WhisperEngine", () => {
   let engine: WhisperEngine;
   let mockChild: MockChildProcess;
@@ -61,11 +82,8 @@ describe("WhisperEngine", () => {
       engine.setModel(mockModel);
       const initPromise = engine.initialize();
 
-      // Simulate spawn event
       mockChild.emit("spawn");
-
-      // Wait for engine to send initialize request
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await tick();
       expect(fork).toHaveBeenCalled();
       expect(mockChild.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -74,7 +92,6 @@ describe("WhisperEngine", () => {
         }),
       );
 
-      // Simulate ready response
       const requestId = mockChild.send.mock.calls[0][0].requestId;
       mockChild.emit("message", { type: "ready", requestId });
 
@@ -88,7 +105,7 @@ describe("WhisperEngine", () => {
       const init2 = engine.initialize(); // Should reuse the in-flight promise
 
       mockChild.emit("spawn");
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await tick();
 
       // Only one fork and one initialize message should be sent
       expect(fork).toHaveBeenCalledTimes(1);
@@ -103,10 +120,9 @@ describe("WhisperEngine", () => {
     it("second initialize() call after first completes is a no-op (connected guard)", async () => {
       engine.setModel(mockModel);
 
-      // First init
       const init1 = engine.initialize();
       mockChild.emit("spawn");
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await tick();
       const requestId = mockChild.send.mock.calls[0][0].requestId;
       mockChild.emit("message", { type: "ready", requestId });
       await init1;
@@ -122,26 +138,15 @@ describe("WhisperEngine", () => {
 
   describe("transcription", () => {
     beforeEach(async () => {
-      engine.setModel(mockModel);
-      const initPromise = engine.initialize();
-      mockChild.emit("spawn");
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const requestId = mockChild.send.mock.calls[0][0].requestId;
-      mockChild.emit("message", { type: "ready", requestId });
-      await initPromise;
-      mockChild.send.mockClear();
+      await initializeEngine(engine, mockChild, mockModel);
     });
 
     it("sends transcribe request and returns results", async () => {
-      const chunk: AudioChunk = {
-        audio: new Float32Array(10),
-        startMs: 0,
-        endMs: 100,
-      };
+      const chunk = makeChunk();
       const transcribePromise = engine.transcribe(chunk);
 
       // Give transcribe() a chance to proceed past await this.initialize()
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await tick();
 
       expect(mockChild.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -165,14 +170,9 @@ describe("WhisperEngine", () => {
     });
 
     it("rejects if worker reports an error", async () => {
-      const chunk: AudioChunk = {
-        audio: new Float32Array(10),
-        startMs: 0,
-        endMs: 100,
-      };
-      const transcribePromise = engine.transcribe(chunk);
+      const transcribePromise = engine.transcribe(makeChunk());
 
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await tick();
 
       const requestId = mockChild.send.mock.calls[0][0].requestId;
       mockChild.emit("message", {
@@ -185,14 +185,9 @@ describe("WhisperEngine", () => {
     });
 
     it("rejects if worker exits unexpectedly", async () => {
-      const chunk: AudioChunk = {
-        audio: new Float32Array(10),
-        startMs: 0,
-        endMs: 100,
-      };
-      const transcribePromise = engine.transcribe(chunk);
+      const transcribePromise = engine.transcribe(makeChunk());
 
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await tick();
 
       mockChild.emit("exit", 1, null);
 
@@ -215,18 +210,10 @@ describe("WhisperEngine", () => {
     });
 
     it("rejects all pending requests when disposed", async () => {
-      engine.setModel(mockModel);
-      const initPromise = engine.initialize();
-      mockChild.emit("spawn");
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const requestId = mockChild.send.mock.calls[0][0].requestId;
-      mockChild.emit("message", { type: "ready", requestId });
-      await initPromise;
-      mockChild.send.mockClear();
+      await initializeEngine(engine, mockChild, mockModel);
 
-      const chunk = { audio: new Float32Array(10), startMs: 0, endMs: 100 };
-      const transcribePromise = engine.transcribe(chunk);
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      const transcribePromise = engine.transcribe(makeChunk());
+      await tick();
 
       engine.dispose();
 

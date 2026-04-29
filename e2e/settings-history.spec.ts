@@ -1,23 +1,7 @@
 import { test, expect } from '@playwright/test'
-import type { Locator, Page } from '@playwright/test'
 
 import { closeLaunchedApp, launchApp } from './fixtures/launchApp'
-
-async function openSettingsDialog(window: Page) {
-  await window.getByTitle('Settings').click()
-  const dialog = window.getByRole('dialog')
-  await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible()
-  await expect(dialog.getByRole('heading', { level: 3, name: 'Start hidden' })).toBeVisible({
-    timeout: 30_000,
-  })
-  return dialog
-}
-
-/** History block: SectionLabel `History` (h2) plus the card with session / auto-delete / keep starred controls. */
-function historyBlock(dialog: Locator) {
-  const historyHeading = dialog.getByRole('heading', { level: 2, name: 'History' })
-  return historyHeading.locator('xpath=ancestor::section[1]')
-}
+import { openSettingsDialog, historyBlock } from './fixtures/settingsHelpers'
 
 test.describe('Settings — History', () => {
   test.describe('Session limit', () => {

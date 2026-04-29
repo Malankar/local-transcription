@@ -18,6 +18,26 @@ vi.mock('node:fs', () => {
   }
 })
 
+function makeSessionRecord(
+  id: string,
+  startTime: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id,
+    startTime,
+    segments: [],
+    label: id.toUpperCase(),
+    endTime: '',
+    durationMs: 0,
+    wordCount: 0,
+    segmentCount: 0,
+    preview: '',
+    profile: 'meeting' as const,
+    ...overrides,
+  }
+}
+
 describe('HistoryManager', () => {
   const userDataPath = '/tmp/user-data'
   const historyDir = join(userDataPath, 'history')
@@ -216,14 +236,8 @@ describe('HistoryManager', () => {
       const files = ['b.json', 'a.json']
       vi.mocked(fs.readdir).mockResolvedValue(files as any)
       vi.mocked(fs.readFile)
-        .mockResolvedValueOnce(JSON.stringify({
-          id: 'b', startTime: '2023-01-09T00:00:00Z', segments: [],
-          label: 'B', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'meeting',
-        }))
-        .mockResolvedValueOnce(JSON.stringify({
-          id: 'a', startTime: '2023-01-10T00:00:00Z', segments: [],
-          label: 'A', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'meeting',
-        }))
+        .mockResolvedValueOnce(JSON.stringify(makeSessionRecord('b', '2023-01-09T00:00:00Z')))
+        .mockResolvedValueOnce(JSON.stringify(makeSessionRecord('a', '2023-01-10T00:00:00Z')))
 
       const sessions = await historyManager.listSessions()
       expect(sessions[0].id).toBe('a') // newer first
@@ -233,10 +247,7 @@ describe('HistoryManager', () => {
     it('gracefully skips corrupted json files', async () => {
       vi.mocked(fs.readdir).mockResolvedValue(['good.json', 'bad.json'] as any)
       vi.mocked(fs.readFile)
-        .mockResolvedValueOnce(JSON.stringify({
-          id: 'good', startTime: '2023-01-10T00:00:00Z', segments: [],
-          label: 'G', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'meeting',
-        }))
+        .mockResolvedValueOnce(JSON.stringify(makeSessionRecord('good', '2023-01-10T00:00:00Z')))
         .mockResolvedValueOnce('{ invalid json')
 
       const sessions = await historyManager.listSessions()
@@ -247,14 +258,8 @@ describe('HistoryManager', () => {
     it('omits live-caption sessions from the library list', async () => {
       vi.mocked(fs.readdir).mockResolvedValue(['m.json', 'l.json'] as any)
       vi.mocked(fs.readFile)
-        .mockResolvedValueOnce(JSON.stringify({
-          id: 'm', startTime: '2023-01-10T00:00:00Z', segments: [],
-          label: 'M', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'meeting',
-        }))
-        .mockResolvedValueOnce(JSON.stringify({
-          id: 'l', startTime: '2023-01-11T00:00:00Z', segments: [],
-          label: 'L', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'live',
-        }))
+        .mockResolvedValueOnce(JSON.stringify(makeSessionRecord('m', '2023-01-10T00:00:00Z')))
+        .mockResolvedValueOnce(JSON.stringify(makeSessionRecord('l', '2023-01-11T00:00:00Z', { profile: 'live' })))
 
       const sessions = await historyManager.listSessions()
       expect(sessions).toHaveLength(1)
@@ -264,11 +269,9 @@ describe('HistoryManager', () => {
 
   describe('getSession', () => {
     it('returns parsed session for a valid id', async () => {
-      const session = {
-        id: 'abc', startTime: '2023-01-10T00:00:00Z', segments: [],
-        label: 'Test', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'meeting',
-      }
-      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(session))
+      vi.mocked(fs.readFile).mockResolvedValue(
+        JSON.stringify(makeSessionRecord('abc', '2023-01-10T00:00:00Z', { label: 'Test' }))
+      )
 
       const result = await historyManager.getSession('abc')
       expect(result?.id).toBe('abc')
@@ -294,11 +297,9 @@ describe('HistoryManager', () => {
 
   describe('starSession', () => {
     it('sets starred=true and persists to disk', async () => {
-      const session = {
-        id: 's1', startTime: '2023-01-10T00:00:00Z', segments: [], starred: false,
-        label: 'S', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'meeting',
-      }
-      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(session))
+      vi.mocked(fs.readFile).mockResolvedValue(
+        JSON.stringify(makeSessionRecord('s1', '2023-01-10T00:00:00Z', { starred: false }))
+      )
       vi.mocked(fs.writeFile).mockResolvedValue(undefined)
 
       await historyManager.starSession('s1', true)
@@ -310,11 +311,9 @@ describe('HistoryManager', () => {
     })
 
     it('sets starred=false and persists to disk', async () => {
-      const session = {
-        id: 's2', startTime: '2023-01-10T00:00:00Z', segments: [], starred: true,
-        label: 'S', endTime: '', durationMs: 0, wordCount: 0, segmentCount: 0, preview: '', profile: 'meeting',
-      }
-      vi.mocked(fs.readFile).mockResolvedValue(JSON.stringify(session))
+      vi.mocked(fs.readFile).mockResolvedValue(
+        JSON.stringify(makeSessionRecord('s2', '2023-01-10T00:00:00Z', { starred: true }))
+      )
       vi.mocked(fs.writeFile).mockResolvedValue(undefined)
 
       await historyManager.starSession('s2', false)

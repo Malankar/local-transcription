@@ -72,7 +72,6 @@ export function mergeTranscriptSegments(segments: TranscriptSegment[]): Transcri
   return merged
 }
 
-export const stitchTranscriptSegments = mergeTranscriptSegments
 
 export function shouldMergeSegments(previous: TranscriptSegment, next: TranscriptSegment): boolean {
   const gapMs = Math.max(0, next.startMs - previous.endMs)

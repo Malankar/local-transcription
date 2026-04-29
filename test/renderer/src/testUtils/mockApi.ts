@@ -11,7 +11,7 @@ import type {
 } from '../../../../src/shared/types'
 import { vi } from 'vitest'
 
-export function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): LocalTranscribeApi {
+function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): LocalTranscribeApi {
   const defaultUiFeatures: UiFeatureFlags = {
     enableExternalAssistant: false,
     assistantProvider: 'local',

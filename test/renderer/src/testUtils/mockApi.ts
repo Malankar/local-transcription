@@ -61,6 +61,7 @@ function createMockApi(overrides: Partial<LocalTranscribeApi> = {}): LocalTransc
       if (channel === 'history:regenerateSummary') return undefined
       throw new Error(`ipcInvoke: unmocked channel ${channel}`)
     }),
+    onShortcutVoiceToText: vi.fn().mockReturnValue(() => undefined),
     onHistorySaved: vi.fn().mockReturnValue(() => undefined),
     onHistorySessionUpdated: vi.fn().mockReturnValue(() => undefined),
     assistantChat: vi.fn().mockImplementation(async (_req: AssistantChatRequest) => ({ text: 'mock reply' })),

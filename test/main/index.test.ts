@@ -273,7 +273,7 @@ describe('main bootstrap', () => {
         minWidth: 980,
         minHeight: 720,
         autoHideMenuBar: true,
-        show: false,
+        show: true,
         webPreferences: expect.objectContaining({
           contextIsolation: true,
           nodeIntegration: false,

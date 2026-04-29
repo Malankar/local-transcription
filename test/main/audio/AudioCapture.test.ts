@@ -205,7 +205,7 @@ describe('AudioCapture', () => {
     })
 
     it('throws when mixed mode is missing both source IDs', () => {
-      expect(() => audioCapture.start({ mode: 'mixed' })).toThrow('Both system and microphone sources are required')
+      expect(() => audioCapture.start({ mode: 'mixed' })).toThrow('At least one audio source is required for capture')
     })
   })
 })

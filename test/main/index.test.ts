@@ -5,6 +5,7 @@ const mainMocks = vi.hoisted(() => {
     webContents: {
       send: ReturnType<typeof vi.fn>
       on: ReturnType<typeof vi.fn>
+      setWindowOpenHandler: ReturnType<typeof vi.fn>
     }
     setMenuBarVisibility: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
@@ -33,6 +34,7 @@ const mainMocks = vi.hoisted(() => {
     const webContents = {
       send: vi.fn(),
       on: vi.fn(),
+      setWindowOpenHandler: vi.fn(),
     }
 
     const instance = {
@@ -170,6 +172,7 @@ const mainMocks = vi.hoisted(() => {
   })
 
   return {
+    openExternal: vi.fn(),
     app,
     BrowserWindow,
     Tray,
@@ -204,6 +207,7 @@ vi.mock('electron', () => ({
   Menu: mainMocks.Menu,
   nativeImage: mainMocks.nativeImage,
   globalShortcut: mainMocks.globalShortcut,
+  shell: { openExternal: mainMocks.openExternal },
 }))
 
 vi.mock('../../src/main/audio/AudioCapture', () => ({
@@ -256,6 +260,18 @@ describe('main bootstrap', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('opens target=_blank https links in the browser and never in an app window', async () => {
+    await importMain()
+
+    const handler = mainMocks.browserWindowInstances[0].webContents.setWindowOpenHandler.mock.calls[0][0]
+    expect(handler({ url: 'https://ollama.com/download' })).toEqual({ action: 'deny' })
+    expect(mainMocks.openExternal).toHaveBeenCalledWith('https://ollama.com/download')
+
+    mainMocks.openExternal.mockClear()
+    expect(handler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
+    expect(mainMocks.openExternal).not.toHaveBeenCalled()
   })
 
   it('applies settings, registers IPC handlers, and creates the hidden main window', async () => {

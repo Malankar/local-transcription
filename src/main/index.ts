@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut, session } from 'electron'
+import { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut, session, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -398,6 +398,12 @@ function createWindow(startHidden: boolean): void {
       line,
       sourceId,
     })
+  })
+
+  // target="_blank" links (e.g. the Ollama download page) open in the user's browser, never in-app.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) void shell.openExternal(url)
+    return { action: 'deny' }
   })
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {

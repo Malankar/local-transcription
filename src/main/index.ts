@@ -143,15 +143,14 @@ chunkQueue.on('segment', (segment) => {
   mainWindow?.webContents.send('transcript:segment', segment)
 })
 
+let lastChunkErrorDetail: string | null = null
+
 chunkQueue.on('error', (error) => {
   logger.error('Chunk queue emitted error', error)
-  const detail = error.message
-  const missingWhisperDeps =
-    detail.includes('Failed to run cmake') || detail.includes('whisper-cli executable not found')
-  if (missingWhisperDeps) {
-    // Missing local whisper.cpp dependencies is effectively fatal for transcription on this model.
-    sendError(detail)
-  }
+  // A broken model fails every chunk with the same message; surface it once, not per chunk.
+  if (error.message === lastChunkErrorDetail) return
+  lastChunkErrorDetail = error.message
+  sendError(error.message)
 })
 
 chunkQueue.on('status', (detail) => {
@@ -460,6 +459,7 @@ app.whenReady().then(() => {
     onCaptureStarted: (profile, startTime) => {
       currentCaptureProfile = profile
       captureStartTime = startTime
+      lastChunkErrorDetail = null
     },
     onSettingsChanged: (updated) => {
       applySettings(updated)

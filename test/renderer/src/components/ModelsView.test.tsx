@@ -17,7 +17,7 @@ describe('ModelsView', () => {
         accuracy: 4,
         speed: 4,
         recommended: true,
-        engine: 'whisper' as const,
+        engine: 'sherpa' as const,
         runtime: 'node',
         runtimeModelName: 'base',
         downloadManaged: true,
@@ -33,7 +33,7 @@ describe('ModelsView', () => {
         accuracy: 3,
         speed: 5,
         recommended: false,
-        engine: 'whisper' as const,
+        engine: 'sherpa' as const,
         runtime: 'node',
         runtimeModelName: 'small',
         downloadManaged: true,
@@ -66,5 +66,44 @@ describe('ModelsView', () => {
 
     expect(selectModel).toHaveBeenCalledWith('small')
     expect(container.textContent).toContain('small')
+  })
+
+  it('filters models by language', async () => {
+    const base = {
+      description: '',
+      sizeMb: 100,
+      accuracy: 3,
+      speed: 3,
+      recommended: false,
+      engine: 'sherpa' as const,
+      runtime: 'node',
+      downloadManaged: true,
+      supportsGpuAcceleration: false,
+      isDownloaded: true,
+    }
+    installMockApi({
+      getModels: vi.fn().mockResolvedValue([
+        { ...base, id: 'en', name: 'EnglishModel', languages: 'English only', runtimeModelName: 'en' },
+        { ...base, id: 'multi', name: 'MultiModel', languages: '99 languages', runtimeModelName: 'multi' },
+      ]),
+      getSelectedModel: vi.fn().mockResolvedValue(null),
+    })
+
+    const { container } = await renderRendererApp(<ModelsView />)
+    await flushMicrotasks()
+
+    const clickFilter = async (label: string): Promise<void> => {
+      const button = [...container.querySelectorAll('button')].find((b) => b.textContent === label)
+      button?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushMicrotasks()
+    }
+
+    await clickFilter('English')
+    expect(container.textContent).toContain('EnglishModel')
+    expect(container.textContent).not.toContain('MultiModel')
+
+    await clickFilter('Multilingual')
+    expect(container.textContent).not.toContain('EnglishModel')
+    expect(container.textContent).toContain('MultiModel')
   })
 })

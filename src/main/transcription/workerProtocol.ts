@@ -1,4 +1,9 @@
-import type { AudioChunk, TranscriptSegment, TranscriptionEngine } from '../../shared/types'
+import type {
+  AudioChunk,
+  SherpaModelKind,
+  TranscriptSegment,
+  TranscriptionEngine,
+} from '../../shared/types'
 
 export type WorkerRequest =
   | {
@@ -8,6 +13,7 @@ export type WorkerRequest =
       engine: TranscriptionEngine
       runtimeModelName: string
       useGpuAcceleration: boolean
+      sherpaKind?: SherpaModelKind
     }
   | {
       type: 'transcribe'

@@ -58,7 +58,7 @@ describe("WhisperEngine", () => {
     accuracy: 3,
     speed: 4,
     recommended: true,
-    engine: "whisper",
+    engine: "sherpa",
     runtime: "node",
     runtimeModelName: "base.en",
     downloadManaged: true,

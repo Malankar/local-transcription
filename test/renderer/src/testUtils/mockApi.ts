@@ -108,7 +108,7 @@ export function baseDownloadedModelList(): TranscriptionModel[] {
       accuracy: 4,
       speed: 4,
       recommended: true,
-      engine: 'whisper' as const,
+      engine: 'sherpa' as const,
       runtime: 'node',
       runtimeModelName: 'base',
       downloadManaged: true,

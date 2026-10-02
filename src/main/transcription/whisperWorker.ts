@@ -1,10 +1,11 @@
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createInterface } from 'node:readline'
 
-import type { AudioChunk, TranscriptSegment, TranscriptionEngine } from '../../shared/types'
+import type {
+  AudioChunk,
+  SherpaModelKind,
+  TranscriptSegment,
+  TranscriptionEngine,
+} from '../../shared/types'
 import type { WorkerRequest, WorkerResponse } from './workerProtocol'
 
 type ModelConfig = {
@@ -12,165 +13,24 @@ type ModelConfig = {
   engine: TranscriptionEngine
   runtimeModelName: string
   useGpuAcceleration: boolean
+  sherpaKind?: SherpaModelKind
 }
 
-type WhisperJsonSegment = {
-  timestamps: { from: string; to: string }
-  offsets: { from: number; to: number }
-  text: string
-}
-
-type WhisperJson = {
-  transcription?: WhisperJsonSegment[]
-}
-
-type ParakeetSegment = {
+type SherpaSegment = {
   start: number
   end?: number | null
   text: string
 }
 
-type ParakeetServerMessage =
-  | {
-      type: 'ready'
-      device: string
-    }
-  | {
-      type: 'result'
-      id: string
-      device: string
-      text?: string
-      segments: ParakeetSegment[]
-    }
-  | {
-      type: 'error'
-      id?: string
-      error: string
-      traceback?: string
-    }
-
-type PendingParakeetRequest = {
-  resolve: (value: ParakeetServerMessage & { type: 'result' }) => void
-  reject: (error: Error) => void
+// Minimal shape of the sherpa-onnx-node API we use (the package ships no TS types).
+type SherpaOfflineRecognizer = {
+  createStream: () => { acceptWaveform: (wave: { samples: Float32Array; sampleRate: number }) => void }
+  decodeAsync: (stream: unknown) => Promise<{ text: string; tokens: string[]; timestamps: number[] }>
 }
-
-const PARAKEET_SERVER_CODE = String.raw`
-import json
-import sys
-import traceback
-
-model_name = sys.argv[1]
-prefer_gpu = sys.argv[2] == "1"
-
-try:
-    import torch
-except Exception:
-    torch = None
-
-try:
-    from nemo.collections.asr.models import ASRModel
-
-    model = ASRModel.from_pretrained(model_name=model_name)
-    if hasattr(model, "freeze"):
-        model.freeze()
-
-    device = "cpu"
-    if prefer_gpu and torch is not None and torch.cuda.is_available():
-        model = model.cuda()
-        device = "cuda"
-
-    print(json.dumps({"type": "ready", "device": device}), flush=True)
-
-    for line in sys.stdin:
-        if not line:
-            continue
-
-        try:
-            request = json.loads(line)
-            hypotheses = model.transcribe([request["wav_path"]], batch_size=1, timestamps=True)
-            hypothesis = hypotheses[0] if hypotheses else ""
-
-            if hasattr(hypothesis, "text"):
-                text = hypothesis.text
-                timestamp = getattr(hypothesis, "timestamp", None)
-            else:
-                text = hypothesis if isinstance(hypothesis, str) else str(hypothesis)
-                timestamp = None
-
-            raw_segments = []
-            if isinstance(timestamp, dict):
-                raw_segments = timestamp.get("segment") or []
-
-            segments = []
-            for segment in raw_segments:
-                segment_text = (
-                    segment.get("segment")
-                    or segment.get("text")
-                    or segment.get("word")
-                    or ""
-                ).strip()
-                start = segment.get("start")
-                end = segment.get("end")
-
-                if segment_text:
-                    segments.append({
-                        "start": float(start or 0.0),
-                        "end": None if end is None else float(end),
-                        "text": segment_text,
-                    })
-
-            if not segments and text.strip():
-                segments.append({
-                    "start": 0.0,
-                    "end": None,
-                    "text": text.strip(),
-                })
-
-            print(
-                json.dumps(
-                    {
-                        "type": "result",
-                        "id": request["id"],
-                        "device": device,
-                        "text": text,
-                        "segments": segments,
-                    }
-                ),
-                flush=True,
-            )
-        except Exception as exc:
-            print(
-                json.dumps(
-                    {
-                        "type": "error",
-                        "id": request.get("id"),
-                        "error": str(exc),
-                        "traceback": traceback.format_exc(),
-                    }
-                ),
-                flush=True,
-            )
-except Exception as exc:
-    print(
-        json.dumps(
-            {
-                "type": "error",
-                "error": str(exc),
-                "traceback": traceback.format_exc(),
-            }
-        ),
-        flush=True,
-    )
-    sys.exit(1)
-`
 
 let currentModel: ModelConfig | null = null
 let initialized = false
-let parakeetServer: ChildProcessWithoutNullStreams | null = null
-let parakeetRequestSeq = 0
-let whisperCliReady = false
-let whisperCliInitError: Error | null = null
-const pendingParakeetRequests = new Map<string, PendingParakeetRequest>()
+let sherpaRecognizer: Promise<SherpaOfflineRecognizer> | null = null
 
 function respond(message: WorkerResponse): void {
   process.send?.(message)
@@ -188,12 +48,9 @@ async function initialize(model: ModelConfig): Promise<void> {
   if (initialized) return
   currentModel = model
 
-  if (model.engine === 'parakeet') {
-    sendStatus('Preparing NVIDIA Parakeet v3. First run may download Python model weights...')
-    await ensureParakeetServer(model)
-  } else {
-    sendStatus('Whisper (whisper.cpp) ready')
-  }
+  sendStatus('Loading transcription model...')
+  await loadSherpaRecognizer(model)
+  sendStatus('Transcription model ready')
 
   log('Transcription worker initialized', {
     modelId: model.id,
@@ -204,364 +61,116 @@ async function initialize(model: ModelConfig): Promise<void> {
   initialized = true
 }
 
-function float32ToWav(samples: Float32Array, sampleRate: number): Buffer {
-  const numSamples = samples.length
-  const dataSize = numSamples * 2
-  const buffer = Buffer.alloc(44 + dataSize)
-
-  buffer.write('RIFF', 0)
-  buffer.writeUInt32LE(36 + dataSize, 4)
-  buffer.write('WAVE', 8)
-  buffer.write('fmt ', 12)
-  buffer.writeUInt32LE(16, 16)
-  buffer.writeUInt16LE(1, 20)
-  buffer.writeUInt16LE(1, 22)
-  buffer.writeUInt32LE(sampleRate, 24)
-  buffer.writeUInt32LE(sampleRate * 2, 28)
-  buffer.writeUInt16LE(2, 32)
-  buffer.writeUInt16LE(16, 34)
-  buffer.write('data', 36)
-  buffer.writeUInt32LE(dataSize, 40)
-
-  for (let i = 0; i < numSamples; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]))
-    buffer.writeInt16LE(s < 0 ? Math.ceil(s * 32768) : Math.round(s * 32767), 44 + i * 2)
-  }
-
-  return buffer
-}
-
 async function transcribe(chunk: AudioChunk): Promise<TranscriptSegment[]> {
   if (!currentModel) {
     throw new Error('Worker not initialized with a model. Call initialize first.')
   }
 
-  if (currentModel.engine === 'parakeet') {
-    return transcribeWithParakeet(currentModel, chunk)
-  }
-
-  return transcribeWithWhisper(currentModel.runtimeModelName, chunk)
+  return transcribeWithSherpa(currentModel, chunk)
 }
 
-async function transcribeWithWhisper(
-  modelName: string,
-  chunk: AudioChunk
-): Promise<TranscriptSegment[]> {
-  await ensureWhisperCliReady()
-  const { nodewhisper } = await import('nodejs-whisper')
-
-  const tmpDir = tmpdir()
-  const baseName = `whisper_${Date.now()}_${process.pid}`
-  const wavPath = join(tmpDir, `${baseName}.wav`)
-  const jsonPath = join(tmpDir, `${baseName}.wav.json`)
-
-  try {
-    writeFileSync(wavPath, float32ToWav(chunk.audio, 16_000))
-
-    log('Transcribing audio chunk with whisper.cpp', {
-      startMs: chunk.startMs,
-      endMs: chunk.endMs,
-      sampleCount: chunk.audio.length,
-      modelName,
-    })
-
-    await nodewhisper(wavPath, {
-      modelName,
-      removeWavFileAfterTranscription: false,
-      withCuda: false,
-      whisperOptions: {
-        outputInJson: true,
-        outputInText: false,
-        outputInSrt: false,
-        outputInCsv: false,
-      },
-    })
-
-    if (!existsSync(jsonPath)) {
-      log('Whisper produced no JSON output', { baseName })
-      return []
-    }
-
-    const whisperOutput: WhisperJson = JSON.parse(readFileSync(jsonPath, 'utf-8'))
-    const segments = (whisperOutput.transcription ?? [])
-      .map((seg, index) => toWhisperTranscriptSegment(seg, index, chunk))
-      .filter((segment): segment is TranscriptSegment => segment !== null)
-
-    log('Whisper returned segments', { segmentCount: segments.length })
-    return segments
-  } finally {
-    cleanupFiles(wavPath, jsonPath)
-  }
-}
-
-function getWhisperExecutablePath(whisperCppPath: string): string | null {
-  const executable = process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli'
-  const candidates = [
-    join(whisperCppPath, 'build', 'bin', executable),
-    join(whisperCppPath, 'build', 'bin', 'Release', executable),
-    join(whisperCppPath, 'build', 'bin', 'Debug', executable),
-    join(whisperCppPath, 'build', executable),
-    join(whisperCppPath, executable),
-  ]
-
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate
-  }
-  return null
-}
-
-function runCmake(args: string[], cwd: string): void {
-  const result = spawnSync('cmake', args, {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-
-  if (result.error) {
-    throw new Error(
-      `Failed to run cmake (${args.join(' ')}): ${result.error.message}. Install cmake and C/C++ build tools.`
-    )
-  }
-
-  if (result.status !== 0) {
-    const stderr = result.stderr?.trim()
-    const stdout = result.stdout?.trim()
-    const details = stderr || stdout || 'No output'
-    throw new Error(`cmake ${args.join(' ')} failed: ${details}`)
-  }
-}
-
-async function ensureWhisperCliReady(): Promise<void> {
-  if (whisperCliReady) return
-  if (whisperCliInitError) {
-    throw whisperCliInitError
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const constants = require('nodejs-whisper/dist/constants') as { WHISPER_CPP_PATH: string }
-  const whisperCppPath = constants.WHISPER_CPP_PATH
-
-  const existing = getWhisperExecutablePath(whisperCppPath)
-  if (existing) {
-    whisperCliReady = true
-    return
-  }
-
-  sendStatus('Preparing whisper.cpp executable (first run may compile native binary)...')
-  log('whisper-cli not found. Building whisper.cpp executable.', { whisperCppPath })
-
-  const cachePath = join(whisperCppPath, 'build', 'CMakeCache.txt')
-  try {
-    if (!existsSync(cachePath)) {
-      runCmake(['-B', 'build'], whisperCppPath)
-    }
-    runCmake(['--build', 'build', '--config', 'Release'], whisperCppPath)
-  } catch (error) {
-    const normalized = error instanceof Error ? error : new Error(String(error))
-    if (normalized.message.includes('Failed to run cmake')) {
-      whisperCliInitError = new Error(
-        `${normalized.message} Install dependencies (Ubuntu/Debian: sudo apt install cmake build-essential).`
-      )
-    } else {
-      whisperCliInitError = normalized
-    }
-    throw whisperCliInitError
-  }
-
-  const built = getWhisperExecutablePath(whisperCppPath)
-  if (!built) {
-    whisperCliInitError = new Error(
-      'whisper.cpp build completed but whisper-cli executable is still missing. Verify cmake output and build dependencies.'
-    )
-    throw whisperCliInitError
-  }
-
-  whisperCliReady = true
-  whisperCliInitError = null
-  log('whisper.cpp executable ready', { path: built })
-}
-
-async function transcribeWithParakeet(
+async function transcribeWithSherpa(
   model: ModelConfig,
   chunk: AudioChunk
 ): Promise<TranscriptSegment[]> {
-  await ensureParakeetServer(model)
+  const recognizer = await loadSherpaRecognizer(model)
 
-  const tmpDir = tmpdir()
-  const baseName = `parakeet_${Date.now()}_${process.pid}`
-  const wavPath = join(tmpDir, `${baseName}.wav`)
-
-  try {
-    writeFileSync(wavPath, float32ToWav(chunk.audio, 16_000))
-
-    log('Transcribing audio chunk with Parakeet', {
-      startMs: chunk.startMs,
-      endMs: chunk.endMs,
-      sampleCount: chunk.audio.length,
-      runtimeModelName: model.runtimeModelName,
-      useGpuAcceleration: model.useGpuAcceleration,
-    })
-
-    const response = await requestParakeetTranscription(wavPath)
-    const segments = normalizeParakeetSegments(response.segments, chunk)
-    log('Parakeet returned segments', {
-      segmentCount: segments.length,
-      device: response.device,
-    })
-    return segments
-  } finally {
-    cleanupFiles(wavPath)
-  }
-}
-
-async function ensureParakeetServer(model: ModelConfig): Promise<void> {
-  if (parakeetServer) {
-    return
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      'python3',
-      ['-u', '-c', PARAKEET_SERVER_CODE, model.runtimeModelName, model.useGpuAcceleration ? '1' : '0'],
-      {
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }
-    )
-
-    let settled = false
-    let stdoutBuffer = ''
-
-    const settleResolve = (): void => {
-      if (settled) return
-      settled = true
-      resolve()
-    }
-
-    const settleReject = (error: Error): void => {
-      if (settled) return
-      settled = true
-      reject(error)
-    }
-
-    const handleServerMessage = (message: ParakeetServerMessage): void => {
-      if (message.type === 'ready') {
-        sendStatus(
-          message.device === 'cuda'
-            ? 'Parakeet v3 ready with NVIDIA CUDA acceleration'
-            : 'Parakeet v3 ready (CPU mode)'
-        )
-        log('Parakeet Python server ready', {
-          device: message.device,
-          runtimeModelName: model.runtimeModelName,
-        })
-        settleResolve()
-        return
-      }
-
-      if (message.type === 'result') {
-        const pending = pendingParakeetRequests.get(message.id)
-        if (!pending) return
-        pendingParakeetRequests.delete(message.id)
-        pending.resolve(message)
-        return
-      }
-
-      const error = new Error(message.error)
-      if (message.traceback) {
-        error.stack = message.traceback
-      }
-
-      if (message.id) {
-        const pending = pendingParakeetRequests.get(message.id)
-        if (pending) {
-          pendingParakeetRequests.delete(message.id)
-          pending.reject(error)
-          return
-        }
-      }
-
-      settleReject(error)
-    }
-
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdoutBuffer += chunk.toString('utf8')
-      let newlineIndex = stdoutBuffer.indexOf('\n')
-
-      while (newlineIndex >= 0) {
-        const line = stdoutBuffer.slice(0, newlineIndex).trim()
-        stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1)
-
-        if (line) {
-          try {
-            handleServerMessage(JSON.parse(line) as ParakeetServerMessage)
-          } catch (error) {
-            log('Failed to parse Parakeet server stdout', {
-              line,
-              error: normalizeError(error),
-            })
-          }
-        }
-
-        newlineIndex = stdoutBuffer.indexOf('\n')
-      }
-    })
-
-    createInterface({ input: child.stderr }).on('line', (line) => {
-      const detail = line.trim()
-      if (detail) {
-        log('Parakeet Python stderr', { detail })
-      }
-    })
-
-    child.once('error', (error) => {
-      settleReject(
-        new Error(`Failed to start Python for Parakeet. Ensure python3 is available. ${error.message}`)
-      )
-    })
-
-    child.once('exit', (code, signal) => {
-      const details = { code, signal }
-      log('Parakeet Python server exited', details)
-      parakeetServer = null
-      rejectPendingParakeetRequests(
-        new Error(`Parakeet Python server exited unexpectedly (code: ${code ?? 'null'}, signal: ${signal ?? 'none'})`)
-      )
-      if (!settled) {
-        settleReject(
-          new Error(
-            'Parakeet initialization failed. Install NVIDIA NeMo ASR dependencies in your Python environment.'
-          )
-        )
-      }
-    })
-
-    parakeetServer = child
+  log('Transcribing audio chunk with sherpa-onnx', {
+    modelId: model.id,
+    startMs: chunk.startMs,
+    endMs: chunk.endMs,
+    sampleCount: chunk.audio.length,
   })
+
+  const stream = recognizer.createStream()
+  stream.acceptWaveform({ samples: chunk.audio, sampleRate: 16_000 })
+  const result = await recognizer.decodeAsync(stream)
+
+  // Whisper emits bracket tokens like [BLANK_AUDIO] for silence; harmless for other kinds.
+  const text = stripWhisperTokens(result.text)
+  const segments = normalizeSherpaSegments(
+    text ? [{ start: result.timestamps?.[0] ?? 0, end: null, text }] : [],
+    chunk
+  )
+  log('sherpa-onnx returned segments', { segmentCount: segments.length })
+  return segments
 }
 
-async function requestParakeetTranscription(
-  wavPath: string
-): Promise<ParakeetServerMessage & { type: 'result' }> {
-  if (!parakeetServer) {
-    throw new Error('Parakeet server is not running')
+/** Maps a model kind to sherpa-onnx's modelConfig; file names match the catalog's HF files. */
+export function buildSherpaModelConfig(kind: SherpaModelKind, dir: string): Record<string, unknown> {
+  const file = (name: string): string => join(dir, name)
+  const common = { tokens: file('tokens.txt'), numThreads: 2, provider: 'cpu' }
+
+  switch (kind) {
+    case 'whisper':
+      // Empty language = auto-detect on multilingual models; English-only models ignore it.
+      return {
+        ...common,
+        whisper: {
+          encoder: file('encoder.int8.onnx'),
+          decoder: file('decoder.int8.onnx'),
+          language: '',
+          task: 'transcribe',
+        },
+      }
+    case 'nemo-transducer':
+      return {
+        ...common,
+        modelType: 'nemo_transducer',
+        transducer: {
+          encoder: file('encoder.int8.onnx'),
+          decoder: file('decoder.int8.onnx'),
+          joiner: file('joiner.int8.onnx'),
+        },
+      }
+    case 'moonshine':
+      return {
+        ...common,
+        moonshine: { encoder: file('encoder_model.ort'), mergedDecoder: file('decoder_model_merged.ort') },
+      }
+    case 'sense-voice':
+      return { ...common, senseVoice: { model: file('model.int8.onnx'), useInverseTextNormalization: 1 } }
+    case 'canary':
+      // ponytail: fixed to English; expose srcLang once the app has a language setting.
+      return {
+        ...common,
+        canary: {
+          encoder: file('encoder.int8.onnx'),
+          decoder: file('decoder.int8.onnx'),
+          srcLang: 'en',
+          tgtLang: 'en',
+          usePnc: 1,
+        },
+      }
+  }
+}
+
+/** runtimeModelName is the absolute directory holding the downloaded sherpa-onnx model files. */
+function loadSherpaRecognizer(model: ModelConfig): Promise<SherpaOfflineRecognizer> {
+  if (!sherpaRecognizer) {
+    if (!model.sherpaKind) {
+      return Promise.reject(new Error(`Model ${model.id} is missing its sherpa-onnx model kind`))
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const sherpa = require('sherpa-onnx-node') as {
+      OfflineRecognizer: { createAsync: (config: unknown) => Promise<SherpaOfflineRecognizer> }
+    }
+
+    sherpaRecognizer = sherpa.OfflineRecognizer.createAsync({
+      featConfig: { sampleRate: 16_000, featureDim: 80 },
+      modelConfig: buildSherpaModelConfig(model.sherpaKind, model.runtimeModelName),
+    }).catch((error: unknown) => {
+      sherpaRecognizer = null
+      throw error
+    })
   }
 
-  return new Promise((resolve, reject) => {
-    parakeetRequestSeq += 1
-    const id = `parakeet-${parakeetRequestSeq}`
-    pendingParakeetRequests.set(id, { resolve, reject })
-
-    try {
-      parakeetServer?.stdin.write(`${JSON.stringify({ id, wav_path: wavPath })}\n`)
-    } catch (error) {
-      pendingParakeetRequests.delete(id)
-      reject(error instanceof Error ? error : new Error(String(error)))
-    }
-  })
+  return sherpaRecognizer
 }
 
-export function normalizeParakeetSegments(
-  segments: ParakeetSegment[],
+export function normalizeSherpaSegments(
+  segments: SherpaSegment[],
   chunk: AudioChunk
 ): TranscriptSegment[] {
   const chunkDurationMs = Math.max(0, chunk.endMs - chunk.startMs)
@@ -590,66 +199,11 @@ function clampMs(value: number, max: number): number {
   return Math.max(0, Math.min(value, max))
 }
 
-function cleanupFiles(...paths: string[]): void {
-  for (const path of paths) {
-    if (existsSync(path)) {
-      try {
-        unlinkSync(path)
-      } catch {
-        // ignore cleanup errors
-      }
-    }
-  }
-}
-
-// Whisper.cpp emits special bracket tokens for silence/noise — strip them before storing.
+// Whisper emits special bracket tokens for silence/noise — strip them before storing.
 const WHISPER_TOKEN_PATTERN = /\[[A-Z_]+\]/g
 
 export function stripWhisperTokens(raw: string): string {
   return raw.replaceAll(WHISPER_TOKEN_PATTERN, '').replaceAll(/\s{2,}/g, ' ').trim()
-}
-
-function toWhisperTranscriptSegment(
-  segment: WhisperJsonSegment,
-  index: number,
-  chunk: AudioChunk
-): TranscriptSegment | null {
-  const text = stripWhisperTokens(segment.text?.trim() ?? '')
-  if (!text) return null
-
-  return {
-    id: `${chunk.startMs}-${index}`,
-    startMs: chunk.startMs + segment.offsets.from,
-    endMs: chunk.startMs + segment.offsets.to,
-    text,
-    timestamp: new Date().toISOString(),
-  }
-}
-
-function rejectPendingParakeetRequests(error: Error): void {
-  for (const pending of pendingParakeetRequests.values()) {
-    pending.reject(error)
-  }
-  pendingParakeetRequests.clear()
-}
-
-function shutdownParakeetServer(): void {
-  if (!parakeetServer) {
-    return
-  }
-
-  const child = parakeetServer
-  parakeetServer = null
-
-  try {
-    child.stdin.end()
-  } catch {
-    // ignore shutdown errors
-  }
-
-  if (!child.killed) {
-    child.kill()
-  }
 }
 
 function normalizeError(error: unknown): { message: string; stack?: string } {
@@ -666,6 +220,7 @@ process.on('message', async (message: WorkerRequest) => {
           engine: message.engine,
           runtimeModelName: message.runtimeModelName,
           useGpuAcceleration: message.useGpuAcceleration,
+          sherpaKind: message.sherpaKind,
         })
         respond({ type: 'ready', requestId: message.requestId })
         break
@@ -675,7 +230,6 @@ process.on('message', async (message: WorkerRequest) => {
         break
       }
       case 'shutdown':
-        shutdownParakeetServer()
         respond({ type: 'ready', requestId: message.requestId })
         process.exit(0)
       default:
@@ -694,12 +248,10 @@ process.on('message', async (message: WorkerRequest) => {
 
 process.on('uncaughtException', (error) => {
   log('Transcription worker uncaught exception', normalizeError(error))
-  shutdownParakeetServer()
   process.exit(1)
 })
 
 process.on('unhandledRejection', (reason) => {
   log('Transcription worker unhandled rejection', normalizeError(reason))
-  shutdownParakeetServer()
   process.exit(1)
 })

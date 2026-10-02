@@ -71,6 +71,7 @@ export class WhisperEngine {
         engine: model.engine,
         runtimeModelName: model.runtimeModelName,
         useGpuAcceleration: model.supportsGpuAcceleration,
+        sherpaKind: model.sherpaKind,
       });
     })();
 

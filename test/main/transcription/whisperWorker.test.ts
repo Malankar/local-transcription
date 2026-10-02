@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  normalizeParakeetSegments,
+  buildSherpaModelConfig,
+  normalizeSherpaSegments,
   stripWhisperTokens,
 } from '../../../src/main/transcription/whisperWorker'
 
@@ -26,11 +27,11 @@ describe('whisperWorker helpers', () => {
     expect(stripWhisperTokens('  hello [BLANK_AUDIO] world   [MUSIC]  ')).toBe('hello world')
   })
 
-  it('normalizes Parakeet segments relative to the chunk window', () => {
+  it('normalizes sherpa-onnx segments relative to the chunk window', () => {
     const chunk = { audio: new Float32Array(4), startMs: 1_000, endMs: 2_000 }
 
     expect(
-      normalizeParakeetSegments(
+      normalizeSherpaSegments(
         [
           { start: 0.25, end: 1.5, text: '  hello world  ' },
           { start: 1.75, end: null, text: '   ' },
@@ -49,37 +50,45 @@ describe('whisperWorker helpers', () => {
   })
 })
 
+describe('buildSherpaModelConfig', () => {
+  it.each([
+    ['whisper', 'whisper', ['encoder.int8.onnx', 'decoder.int8.onnx']],
+    ['nemo-transducer', 'transducer', ['encoder.int8.onnx', 'decoder.int8.onnx', 'joiner.int8.onnx']],
+    ['moonshine', 'moonshine', ['encoder_model.ort', 'decoder_model_merged.ort']],
+    ['sense-voice', 'senseVoice', ['model.int8.onnx']],
+    ['canary', 'canary', ['encoder.int8.onnx', 'decoder.int8.onnx']],
+  ] as const)('%s points %s at the downloaded files', (kind, key, files) => {
+    const config = buildSherpaModelConfig(kind, '/models/x')
+    const section = JSON.stringify(config[key])
+
+    expect(config.tokens).toBe('/models/x/tokens.txt')
+    for (const file of files) {
+      expect(section).toContain(`/models/x/${file}`)
+    }
+  })
+})
+
 describe('whisperWorker runtime protocol', () => {
-  it('responds to initialize messages', async () => {
+  it('reports a load error when initialize is missing the sherpa model kind', async () => {
     process.emit('message', {
       type: 'initialize',
       requestId: 'req-1',
       modelId: 'base.en',
-      engine: 'whisper',
-      runtimeModelName: 'base.en',
+      engine: 'sherpa',
+      runtimeModelName: '/models/base.en',
       useGpuAcceleration: false,
     } as const)
 
     await new Promise((resolve) => setImmediate(resolve))
 
-    expect(sendMock).toHaveBeenCalledWith({
-      type: 'status',
-      detail: 'Whisper (whisper.cpp) ready',
-    })
-    expect(sendMock).toHaveBeenCalledWith({
-      type: 'log',
-      message: 'Transcription worker initialized',
-      context: {
-        modelId: 'base.en',
-        engine: 'whisper',
-        runtimeModelName: 'base.en',
-        useGpuAcceleration: false,
-      },
-    })
-    expect(sendMock).toHaveBeenCalledWith({
-      type: 'ready',
-      requestId: 'req-1',
-    })
+    expect(sendMock).toHaveBeenCalledWith({ type: 'status', detail: 'Loading transcription model...' })
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        requestId: 'req-1',
+        message: 'Model base.en is missing its sherpa-onnx model kind',
+      })
+    )
   })
 
   it('returns an error for unsupported messages', async () => {

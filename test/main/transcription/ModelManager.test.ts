@@ -20,6 +20,11 @@ vi.mock('node:fs', () => {
   return { ...mod, default: mod }
 })
 
+vi.mock('node:https', () => {
+  const mod = { get: vi.fn() }
+  return { ...mod, default: mod }
+})
+
 vi.mock('node:fs/promises', () => {
   const mod = {
     readFile: vi.fn(),
@@ -28,17 +33,13 @@ vi.mock('node:fs/promises', () => {
   return { ...mod, default: mod }
 })
 
-// nodejs-whisper/dist/constants is CommonJS-required inside ModelManager's module scope.
-vi.mock('nodejs-whisper/dist/constants', () => ({
-  WHISPER_CPP_PATH: '/fake/whisper-cpp',
-}))
-
 // ──────────────────────────────────────────────────────────────────────────────
 // Import units under test after mock registration.
 // ──────────────────────────────────────────────────────────────────────────────
 import { ModelManager, MODEL_CATALOG } from '../../../src/main/transcription/ModelManager'
 import { existsSync, unlinkSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
+import { get as httpsGet } from 'node:https'
 
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -79,9 +80,21 @@ describe('ModelManager', () => {
       expect(recommended.length).toBeGreaterThanOrEqual(1)
     })
 
-    it('all engine values are either "whisper" or "parakeet"', () => {
+    it('every model runs on sherpa-onnx', () => {
       for (const entry of MODEL_CATALOG) {
-        expect(['whisper', 'parakeet']).toContain(entry.engine)
+        expect(entry.engine).toBe('sherpa')
+      }
+    })
+
+    it('saves Whisper files under fixed local names', () => {
+      const tiny = MODEL_CATALOG.find((m) => m.id === 'tiny.en')!
+      expect(tiny.sherpa.files.map((f) => f.as)).toEqual(['encoder.int8.onnx', 'decoder.int8.onnx', 'tokens.txt'])
+    })
+
+    it('every sherpa model declares its kind and files, including tokens.txt', () => {
+      for (const entry of MODEL_CATALOG.filter((m) => m.engine === 'sherpa')) {
+        expect(entry.sherpa.kind).toBeTruthy()
+        expect(entry.sherpa.files.map((f) => f.as ?? f.name)).toContain('tokens.txt')
       }
     })
   })
@@ -110,8 +123,20 @@ describe('ModelManager', () => {
       }
     })
 
+    it('marks a sherpa model downloaded only when all its files exist, and points it at the model dir', () => {
+      const dir = join('/fake/user-data', 'models', 'sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8')
+      vi.mocked(existsSync).mockImplementation((p) => String(p).startsWith(dir) && !String(p).endsWith('tokens.txt'))
+      expect(manager.getModel('canary-180m-flash')?.isDownloaded).toBe(false)
+
+      vi.mocked(existsSync).mockImplementation((p) => String(p).startsWith(dir))
+      const model = manager.getModel('canary-180m-flash')
+      expect(model?.isDownloaded).toBe(true)
+      expect(model?.runtimeModelName).toBe(dir)
+      expect(model?.sherpaKind).toBe('canary')
+    })
+
     it('uses existsSync to resolve download status for managed models', () => {
-      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('ggml-tiny.en.bin'))
+      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('sherpa-onnx-whisper-tiny.en/'))
       const models = manager.getModels()
       expect(models.find((m) => m.id === 'tiny.en')?.isDownloaded).toBe(true)
       expect(models.find((m) => m.id === 'base.en')?.isDownloaded).toBe(false)
@@ -157,18 +182,6 @@ describe('ModelManager', () => {
     })
   })
 
-  // ── modelFilePath ─────────────────────────────────────────────────────────
-
-  describe('modelFilePath', () => {
-    it('returns a path ending with ggml-<id>.bin', () => {
-      expect(manager.modelFilePath('tiny.en')).toMatch(/ggml-tiny\.en\.bin$/)
-    })
-
-    it('path sits inside a directory named "models"', () => {
-      expect(manager.modelFilePath('base.en')).toMatch(/models[/\\]ggml-base\.en\.bin$/)
-    })
-  })
-
   // ── getSelectedModel ──────────────────────────────────────────────────────
 
   describe('getSelectedModel', () => {
@@ -209,7 +222,7 @@ describe('ModelManager', () => {
       vi.mocked(readFile).mockResolvedValue(
         JSON.stringify({ selectedModel: 'small.en' })
       )
-      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('ggml-small.en.bin'))
+      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('sherpa-onnx-whisper-small.en/'))
 
       expect(await manager.getSelectedModel()).toBe('small.en')
     })
@@ -219,14 +232,14 @@ describe('ModelManager', () => {
         JSON.stringify({ selectedModel: 'large-v3-turbo' })
       )
       // Only tiny.en present
-      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('ggml-tiny.en.bin'))
+      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('sherpa-onnx-whisper-tiny.en/'))
 
       expect(await manager.getSelectedModel()).toBe('tiny.en')
     })
 
     it('falls back correctly even when readFile itself rejects', async () => {
       vi.mocked(readFile).mockRejectedValue(new Error('ENOENT'))
-      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('ggml-base.en.bin'))
+      vi.mocked(existsSync).mockImplementation((p) => String(p).includes('sherpa-onnx-whisper-base.en/'))
 
       expect(await manager.getSelectedModel()).toBe('base.en')
     })
@@ -301,6 +314,28 @@ describe('ModelManager', () => {
 
       await expect(manager.downloadModel(managedId)).rejects.toThrow('already downloading')
     })
+
+    it('follows relative redirects (HuggingFace does this for small non-LFS files)', async () => {
+      const responses = [
+        { statusCode: 307, headers: { location: '/api/resolve-cache/x/tokens.txt' }, resume: vi.fn() },
+        { statusCode: 200, headers: {} },
+      ]
+      vi.mocked(httpsGet).mockImplementation(((_url: string, cb: (r: unknown) => void) => {
+        cb(responses.shift())
+        return { on: vi.fn() }
+      }) as any)
+
+      const final = await new Promise<unknown>((resolve, reject) => {
+        ;(manager as any).fetchFollowingRedirects(
+          'https://huggingface.co/repo/resolve/main/tokens.txt',
+          5,
+          (err: Error | null, res: unknown) => (err ? reject(err) : resolve(res))
+        )
+      })
+
+      expect(vi.mocked(httpsGet).mock.calls[1][0]).toBe('https://huggingface.co/api/resolve-cache/x/tokens.txt')
+      expect(final).toMatchObject({ statusCode: 200 })
+    })
   })
 
   // ── cancelDownload ────────────────────────────────────────────────────────
@@ -344,11 +379,11 @@ describe('ModelManager', () => {
       await expect(manager.removeDownloadedModel(managedId)).rejects.toThrow('not installed')
     })
 
-    it('unlinks the ggml file and updates settings when removing the selected model', async () => {
+    it('unlinks the model files and updates settings when removing the selected model', async () => {
       const managedId = MODEL_CATALOG.find((m) => m.downloadManaged)!.id
       let filePresent = true
       vi.mocked(existsSync).mockImplementation((p) => {
-        if (String(p).includes(`ggml-${managedId}.bin`) && !String(p).endsWith('.part')) {
+        if (String(p).includes(`sherpa-onnx-whisper-${managedId}/`) && !String(p).endsWith('.part')) {
           return filePresent
         }
         return false
@@ -363,7 +398,7 @@ describe('ModelManager', () => {
 
       expect(unlinkSync).toHaveBeenCalled()
       const unlinkedPath = vi.mocked(unlinkSync).mock.calls[0][0] as string
-      expect(unlinkedPath).toContain(`ggml-${managedId}.bin`)
+      expect(unlinkedPath).toContain(`sherpa-onnx-whisper-${managedId}/`)
       expect(writeFile).toHaveBeenCalled()
       const written = JSON.parse(vi.mocked(writeFile).mock.calls[0][1] as string)
       expect(written.selectedModel).not.toBe(managedId)

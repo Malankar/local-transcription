@@ -6,12 +6,11 @@ files:
   - out/**/*
   - package.json
 
-# nodejs-whisper bundles whisper.cpp .node files — must live outside ASAR
+# Native addons, executables and dylibs can't be loaded from inside ASAR.
 asarUnpack:
-  - "node_modules/nodejs-whisper/**"
   - "**/*.node"
-  # Executables can't be spawned from inside ASAR.
   - "node_modules/ffmpeg-static/**"
+  - "node_modules/sherpa-onnx-*/**"
   - "node_modules/audiotee/bin/**"
 
 directories:
@@ -42,7 +41,7 @@ linux:
 
 # ── macOS ──────────────────────────────────────────────────────────────────
 # Arch is driven by the CLI flag (--x64 or --arm64) passed per CI job so
-# that each runner compiles nodejs-whisper natively for its own arch.
+# that each runner installs the native sherpa-onnx/ffmpeg binaries for its own arch.
 mac:
   icon: build/icon.png
   target:

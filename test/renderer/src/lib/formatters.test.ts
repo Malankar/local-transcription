@@ -24,7 +24,7 @@ function makeModel(overrides: Partial<TranscriptionModel> = {}): TranscriptionMo
     accuracy: 3,
     speed: 3,
     recommended: false,
-    engine: 'whisper',
+    engine: 'sherpa',
     runtime: 'node',
     runtimeModelName: 'test',
     downloadManaged: true,

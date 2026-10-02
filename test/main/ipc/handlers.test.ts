@@ -38,7 +38,7 @@ function makeOptions() {
     whisperEngine: { setModel: vi.fn() } as any,
     modelManager: {
       getSelectedModel: vi.fn().mockResolvedValue('base.en'),
-      getModel: vi.fn(() => ({ id: 'base.en', engine: 'whisper' })),
+      getModel: vi.fn(() => ({ id: 'base.en', engine: 'sherpa' })),
       getModels: vi.fn(() => []),
       selectModel: vi.fn().mockResolvedValue(undefined),
       downloadModel: vi.fn().mockResolvedValue(undefined),
@@ -97,7 +97,7 @@ describe('registerIpcHandlers', () => {
     const startCapture = getHandler('capture:start')
     await startCapture({}, { mode: 'mixed', systemSourceId: 'sys', micSourceId: 'mic', profile: 'live' })
 
-    expect(options.whisperEngine.setModel).toHaveBeenCalledWith({ id: 'base.en', engine: 'whisper' })
+    expect(options.whisperEngine.setModel).toHaveBeenCalledWith({ id: 'base.en', engine: 'sherpa' })
     expect(options.chunkQueue.setMode).toHaveBeenCalledWith('realtime')
     expect(options.audioCapture.start).toHaveBeenCalledWith({
       mode: 'mixed',

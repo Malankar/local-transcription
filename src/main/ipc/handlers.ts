@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, shell, systemPreferences, BrowserWindow } from 'electron'
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -118,6 +118,7 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
         modelId: selectedModel.id,
         engine: selectedModel.engine,
       })
+      await ensureMicrophoneAccess()
       whisperEngine.setModel(selectedModel)
       resetTranscriptSegments()
       chunkQueue.setMode(captureOptions.profile === 'live' ? 'realtime' : 'default')
@@ -417,6 +418,22 @@ async function exportTranscript(
 }
 
 
+
+/**
+ * macOS gives ffmpeg pure silence (no error) without mic permission, so ask before capturing.
+ * Loopback devices like BlackHole count as microphones too, so this covers every capture mode.
+ */
+async function ensureMicrophoneAccess(): Promise<void> {
+  if (process.platform !== 'darwin') return
+  if (systemPreferences.getMediaAccessStatus('microphone') === 'granted') return
+  // Shows the system prompt the first time; after a denial it resolves false without a prompt.
+  if (await systemPreferences.askForMediaAccess('microphone')) return
+
+  void shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone')
+  throw new Error(
+    'Microphone access is turned off. Enable LocalTranscribe in System Settings → Privacy & Security → Microphone, then restart the app.'
+  )
+}
 
 function toMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)

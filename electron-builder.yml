@@ -10,6 +10,9 @@ files:
 asarUnpack:
   - "node_modules/nodejs-whisper/**"
   - "**/*.node"
+  # Executables can't be spawned from inside ASAR.
+  - "node_modules/ffmpeg-static/**"
+  - "node_modules/audiotee/bin/**"
 
 directories:
   buildResources: build
@@ -48,6 +51,10 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: LocalTranscribe records audio from your microphone or loopback device to transcribe it on this Mac.
+    # Required for system audio via Core Audio taps (macOS 14.2+); without it the tap records silence.
+    NSAudioCaptureUsageDescription: LocalTranscribe records the audio playing on this Mac (meetings, videos) to transcribe it locally.
   # notarize: true requires APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER secrets.
   # Set to false until those secrets are configured; flip to true when ready.
   notarize: false

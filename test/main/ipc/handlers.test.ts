@@ -1,14 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { handle, showSaveDialog, writeFile } = vi.hoisted(() => ({
-  handle: vi.fn(),
-  showSaveDialog: vi.fn(),
-  writeFile: vi.fn(),
-}))
+const { handle, showSaveDialog, writeFile, openExternal, getMediaAccessStatus, askForMediaAccess } =
+  vi.hoisted(() => ({
+    handle: vi.fn(),
+    showSaveDialog: vi.fn(),
+    writeFile: vi.fn(),
+    openExternal: vi.fn(),
+    getMediaAccessStatus: vi.fn(),
+    askForMediaAccess: vi.fn(),
+  }))
 
 vi.mock('electron', () => ({
   ipcMain: { handle },
   dialog: { showSaveDialog },
+  shell: { openExternal },
+  systemPreferences: { getMediaAccessStatus, askForMediaAccess },
   BrowserWindow: vi.fn(),
 }))
 
@@ -71,6 +77,7 @@ function makeOptions() {
 describe('registerIpcHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getMediaAccessStatus.mockReturnValue('granted')
   })
 
   it('registers handlers and serves source discovery', async () => {
@@ -99,6 +106,20 @@ describe('registerIpcHandlers', () => {
       profile: 'live',
     })
     expect(options.onCaptureStarted).toHaveBeenCalled()
+  })
+
+  it.runIf(process.platform === 'darwin')('refuses to capture when macOS mic access is denied', async () => {
+    getMediaAccessStatus.mockReturnValue('denied')
+    askForMediaAccess.mockResolvedValue(false)
+    const options = makeOptions()
+    registerIpcHandlers(options)
+
+    const startCapture = getHandler('capture:start')
+    await expect(startCapture({}, { mode: 'mic', micSourceId: 'mic' })).rejects.toThrow(/Microphone access/)
+
+    expect(askForMediaAccess).toHaveBeenCalledWith('microphone')
+    expect(openExternal).toHaveBeenCalled()
+    expect(options.audioCapture.start).not.toHaveBeenCalled()
   })
 
   it('prunes history when history-related settings change', async () => {

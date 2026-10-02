@@ -23,3 +23,8 @@ declare module 'nodejs-whisper' {
 
   export function nodewhisper(filePath: string, options: NodeWhisperOptions): Promise<string>
 }
+
+declare module 'ffmpeg-static' {
+  const ffmpegPath: string | null
+  export default ffmpegPath
+}

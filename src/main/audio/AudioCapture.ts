@@ -1,8 +1,11 @@
 import { EventEmitter } from 'node:events'
-import { spawn, type ChildProcessByStdio } from 'node:child_process'
-import type { Readable } from 'node:stream'
+import { spawn, type ChildProcessByStdio, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { createInterface } from 'node:readline'
+import type { Readable, Writable } from 'node:stream'
 
 import type { AudioChunk, CaptureStartOptions } from '../../shared/types'
+import { FFMPEG_PATH } from './ffmpegPath'
+import { getAudioTeeCommand, MAC_SYSTEM_AUDIO_ID } from './systemAudioTap'
 
 const SAMPLE_RATE = 16_000
 const CHANNELS = 1
@@ -48,7 +51,8 @@ interface AudioCaptureEvents {
 }
 
 export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
-  private process: ChildProcessByStdio<null, Readable, Readable> | null = null
+  private process: ChildProcessWithoutNullStreams | null = null
+  private tapProcess: ChildProcessByStdio<null, Readable, Readable> | null = null
   private buffer = Buffer.alloc(0)
   private bufferStartMs = 0
   private chunkingProfile: ChunkingProfile = CHUNKING_PROFILES.meeting
@@ -77,10 +81,14 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     const args = buildFfmpegArgs(effectiveOptions)
     this.buffer = Buffer.alloc(0)
     this.bufferStartMs = 0
-    const process = spawn('ffmpeg', args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
+    const process = spawn(FFMPEG_PATH, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
     })
     this.process = process
+
+    if (effectiveOptions.mode !== 'mic' && effectiveOptions.systemSourceId === MAC_SYSTEM_AUDIO_ID) {
+      this.startSystemAudioTap(process.stdin)
+    }
 
     this.emit('status', 'Audio capture started')
 
@@ -101,6 +109,7 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     })
 
     process.on('close', () => {
+      this.stopSystemAudioTap()
       this.process = null
       this.buffer = Buffer.alloc(0)
       this.bufferStartMs = 0
@@ -120,6 +129,34 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     this.process.stdout.removeAllListeners('data')
     this.process.kill('SIGTERM')
     this.process = null
+    this.stopSystemAudioTap()
+  }
+
+  /** Feeds macOS system audio (audiotee PCM) into ffmpeg's stdin, read there as `pipe:0`. */
+  private startSystemAudioTap(sink: Writable): void {
+    const { path, args } = getAudioTeeCommand()
+    const tap = spawn(path, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    this.tapProcess = tap
+
+    // ffmpeg exiting first closes the pipe; that's a normal shutdown, not an error.
+    sink.on('error', () => {})
+    tap.stdout.pipe(sink)
+
+    // audiotee logs JSON lines to stderr; only surface its errors.
+    createInterface({ input: tap.stderr }).on('line', (line) => {
+      if (line.includes('"message_type":"error"')) {
+        this.emit('status', `System audio capture error: ${line}`)
+      }
+    })
+
+    tap.on('error', (error) => {
+      this.emit('error', new Error(`Failed to start system audio capture: ${error.message}`))
+    })
+  }
+
+  private stopSystemAudioTap(): void {
+    this.tapProcess?.kill('SIGTERM')
+    this.tapProcess = null
   }
 
   isRunning(): boolean {
@@ -285,10 +322,7 @@ function buildFfmpegArgs(options: CaptureStartOptions): string[] {
 
       return [
         ...baseArgs,
-        '-f',
-        pulse,
-        '-i',
-        options.systemSourceId,
+        ...inputArgs(options.systemSourceId),
         '-ac',
         String(CHANNELS),
         '-ar',
@@ -304,10 +338,7 @@ function buildFfmpegArgs(options: CaptureStartOptions): string[] {
 
       return [
         ...baseArgs,
-        '-f',
-        pulse,
-        '-i',
-        options.micSourceId,
+        ...inputArgs(options.micSourceId),
         '-ac',
         String(CHANNELS),
         '-ar',
@@ -323,14 +354,8 @@ function buildFfmpegArgs(options: CaptureStartOptions): string[] {
 
       return [
         ...baseArgs,
-        '-f',
-        pulse,
-        '-i',
-        options.systemSourceId,
-        '-f',
-        pulse,
-        '-i',
-        options.micSourceId,
+        ...inputArgs(options.systemSourceId),
+        ...inputArgs(options.micSourceId),
         '-filter_complex',
         'amix=inputs=2:duration=longest:dropout_transition=0',
         '-ac',
@@ -344,6 +369,13 @@ function buildFfmpegArgs(options: CaptureStartOptions): string[] {
     default:
       throw new Error(`Unsupported capture mode: ${String(options.mode)}`)
   }
+}
+
+function inputArgs(sourceId: string): string[] {
+  if (sourceId === MAC_SYSTEM_AUDIO_ID) {
+    return ['-f', 's16le', '-ar', String(SAMPLE_RATE), '-ac', String(CHANNELS), '-i', 'pipe:0']
+  }
+  return ['-f', inputFormat, '-i', sourceId]
 }
 
 /** True when every sample is tiny (~-72 dBFS or lower), i.e. true silence or dither only. */
@@ -390,7 +422,8 @@ function calculateRms(buffer: Buffer): number {
   return Math.sqrt(sumSquares / sampleCount)
 }
 
-const pulse = 'pulse'
+// avfoundation on macOS; PulseAudio elsewhere (Windows capture isn't implemented yet).
+const inputFormat = process.platform === 'darwin' ? 'avfoundation' : 'pulse'
 
 function toCaptureError(error: Error): Error {
   const systemError = error as NodeJS.ErrnoException

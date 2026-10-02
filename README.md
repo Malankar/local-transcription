@@ -18,14 +18,11 @@ Captures system audio and/or microphone input, transcribes it using OpenAI Whisp
 
 - Node.js 20+
 - pnpm
-- FFmpeg
 - PulseAudio or PipeWire with `pactl` (Linux)
+- [BlackHole](https://github.com/ExistentialAudio/BlackHole) (macOS 14.1 or older, optional — macOS 14.2+ captures system audio natively)
 - [Ollama](https://ollama.com) (optional — for AI title/summary generation)
 
-```bash
-# Ubuntu/Debian
-sudo apt install ffmpeg
-```
+FFmpeg ships inside the app via `ffmpeg-static`.
 
 ## Getting Started
 

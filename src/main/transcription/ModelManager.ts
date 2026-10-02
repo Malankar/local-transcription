@@ -3,10 +3,10 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { get as httpsGet } from 'node:https'
 import { get as httpGet } from 'node:http'
 import { URL as NodeURL } from 'node:url'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { IncomingMessage } from 'node:http'
 
-import type { TranscriptionModel, ModelDownloadProgress } from '../../shared/types'
+import type { TranscriptionModel, ModelDownloadProgress, SherpaModelKind } from '../../shared/types'
 
 interface CatalogEntry {
   id: string
@@ -17,133 +17,265 @@ interface CatalogEntry {
   accuracy: number // 1–5
   speed: number    // 1–5 (5 = fastest)
   recommended: boolean
-  engine: 'whisper' | 'parakeet'
+  engine: 'sherpa'
   runtime: string
   runtimeModelName: string
   downloadManaged: boolean
   supportsGpuAcceleration: boolean
   gpuAccelerationLabel?: string
   setupHint?: string
+  sherpa: SherpaSpec
 }
 
-// IDs must match nodejs-whisper's MODELS_LIST
+/**
+ * sherpa-onnx model hosted as individual files on HuggingFace. The worker maps `kind` to the
+ * expected file names (see buildSherpaModelConfig in whisperWorker.ts).
+ * Sizes come from the HF repo listing and drive the overall progress total.
+ */
+interface SherpaSpec {
+  kind: SherpaModelKind
+  repo: string
+  /** `as` renames the file locally so each kind has a fixed on-disk layout. */
+  files: { name: string; sizeBytes: number; as?: string }[]
+}
+
+/** Whisper int8 ONNX exports; HF files are prefixed with the model name, so rename on download. */
+function whisperSherpa(prefix: string, sizes: [encoder: number, decoder: number, tokens: number]): SherpaSpec {
+  const [encoder, decoder, tokens] = sizes
+  return {
+    kind: 'whisper',
+    repo: `csukuangfj/sherpa-onnx-whisper-${prefix}`,
+    files: [
+      { name: `${prefix}-encoder.int8.onnx`, sizeBytes: encoder, as: 'encoder.int8.onnx' },
+      { name: `${prefix}-decoder.int8.onnx`, sizeBytes: decoder, as: 'decoder.int8.onnx' },
+      { name: `${prefix}-tokens.txt`, sizeBytes: tokens, as: 'tokens.txt' },
+    ],
+  }
+}
+
 export const MODEL_CATALOG: CatalogEntry[] = [
   {
     id: 'tiny.en',
     name: 'Tiny · English-only',
     description: 'Ultra-fast, minimal RAM. Good for quick tests or very low-end hardware.',
-    sizeMb: 75,
+    sizeMb: 99,
     languages: 'English only',
     accuracy: 2,
     speed: 5,
     recommended: false,
-    engine: 'whisper',
-    runtime: 'whisper.cpp',
-    runtimeModelName: 'tiny.en',
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-whisper-tiny.en',
     downloadManaged: true,
     supportsGpuAcceleration: false,
+    sherpa: whisperSherpa('tiny.en', [12_937_772, 89_853_865, 835_554]),
   },
   {
     id: 'base.en',
     name: 'Base · English-only',
     description: 'Fast with reasonable accuracy for English speech.',
-    sizeMb: 142,
+    sizeMb: 154,
     languages: 'English only',
     accuracy: 3,
     speed: 4,
     recommended: false,
-    engine: 'whisper',
-    runtime: 'whisper.cpp',
-    runtimeModelName: 'base.en',
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-whisper-base.en',
     downloadManaged: true,
     supportsGpuAcceleration: false,
+    sherpa: whisperSherpa('base.en', [29_120_534, 130_669_978, 835_554]),
   },
   {
     id: 'small.en',
     name: 'Small · English-only',
     description: 'Best balance of speed and accuracy for English. Great for most users.',
-    sizeMb: 466,
+    sizeMb: 358,
     languages: 'English only',
     accuracy: 4,
     speed: 3,
     recommended: true,
-    engine: 'whisper',
-    runtime: 'whisper.cpp',
-    runtimeModelName: 'small.en',
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-whisper-small.en',
     downloadManaged: true,
     supportsGpuAcceleration: false,
+    sherpa: whisperSherpa('small.en', [112_442_483, 262_223_042, 835_554]),
   },
   {
     id: 'medium.en',
     name: 'Medium · English-only',
     description: 'High accuracy for English. Noticeably slower; requires more RAM.',
-    sizeMb: 1533,
+    sizeMb: 902,
     languages: 'English only',
     accuracy: 5,
     speed: 2,
     recommended: false,
-    engine: 'whisper',
-    runtime: 'whisper.cpp',
-    runtimeModelName: 'medium.en',
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-whisper-medium.en',
     downloadManaged: true,
     supportsGpuAcceleration: false,
+    sherpa: whisperSherpa('medium.en', [374_196_283, 571_055_161, 835_554]),
   },
   {
     id: 'large-v3-turbo',
     name: 'Large v3 Turbo · Multilingual',
-    description: 'Near-large accuracy with 99-language support at roughly half the size.',
-    sizeMb: 874,
+    description: 'Near-large accuracy with 99-language support. Slowest option on CPU.',
+    sizeMb: 988,
     languages: '99 languages',
     accuracy: 5,
     speed: 2,
     recommended: false,
-    engine: 'whisper',
-    runtime: 'whisper.cpp',
-    runtimeModelName: 'large-v3-turbo',
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-whisper-turbo',
     downloadManaged: true,
     supportsGpuAcceleration: false,
+    sherpa: whisperSherpa('turbo', [674_716_297, 361_080_764, 816_730]),
   },
   {
     id: 'parakeetv3',
     name: 'Parakeet v3 · Multilingual',
-    description: 'NVIDIA Parakeet v3 via NeMo. Loads through Python, caches on first run, and prefers CUDA on NVIDIA GPUs when available.',
-    sizeMb: 2560,
-    languages: 'Multilingual',
+    description: 'NVIDIA Parakeet TDT 0.6B v3. Fast and accurate across 25 European languages.',
+    sizeMb: 639,
+    languages: '25 European languages',
     accuracy: 5,
-    speed: 3,
+    speed: 4,
     recommended: false,
-    engine: 'parakeet',
-    runtime: 'Python + NVIDIA NeMo',
-    runtimeModelName: 'nvidia/parakeet-tdt-0.6b-v3',
-    downloadManaged: false,
-    supportsGpuAcceleration: true,
-    gpuAccelerationLabel: 'CUDA / NVIDIA GPU',
-    setupHint: 'Requires Python 3 plus NeMo ASR dependencies. The model is cached by the Python runtime on first use.',
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
+    sherpa: {
+      kind: 'nemo-transducer',
+      repo: 'csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8',
+      files: [
+        { name: 'encoder.int8.onnx', sizeBytes: 652_184_281 },
+        { name: 'decoder.int8.onnx', sizeBytes: 11_845_275 },
+        { name: 'joiner.int8.onnx', sizeBytes: 6_355_277 },
+        { name: 'tokens.txt', sizeBytes: 93_939 },
+      ],
+    },
+  },
+  {
+    id: 'parakeetv2',
+    name: 'Parakeet v2 · English-only',
+    description: 'NVIDIA Parakeet TDT 0.6B v2. Top-tier English accuracy at high speed.',
+    sizeMb: 631,
+    languages: 'English only',
+    accuracy: 5,
+    speed: 4,
+    recommended: false,
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
+    sherpa: {
+      kind: 'nemo-transducer',
+      repo: 'csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8',
+      files: [
+        { name: 'encoder.int8.onnx', sizeBytes: 652_184_296 },
+        { name: 'decoder.int8.onnx', sizeBytes: 7_257_753 },
+        { name: 'joiner.int8.onnx', sizeBytes: 1_739_080 },
+        { name: 'tokens.txt', sizeBytes: 9_384 },
+      ],
+    },
+  },
+  {
+    id: 'moonshine-base-en',
+    name: 'Moonshine Base · English-only',
+    description: 'Tiny and very fast. Good for low-end hardware and quick dictation.',
+    sizeMb: 135,
+    languages: 'English only',
+    accuracy: 3,
+    speed: 5,
+    recommended: false,
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-moonshine-base-en-quantized-2026-02-27',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
+    sherpa: {
+      kind: 'moonshine',
+      repo: 'csukuangfj2/sherpa-onnx-moonshine-base-en-quantized-2026-02-27',
+      files: [
+        { name: 'encoder_model.ort', sizeBytes: 31_326_816 },
+        { name: 'decoder_model_merged.ort', sizeBytes: 109_424_400 },
+        { name: 'tokens.txt', sizeBytes: 549_350 },
+      ],
+    },
+  },
+  {
+    id: 'sense-voice',
+    name: 'SenseVoice · Asian languages',
+    description: 'Very fast. Chinese, English, Japanese, Korean and Cantonese with auto language detection.',
+    sizeMb: 226,
+    languages: 'Chinese, English, Japanese, Korean, Cantonese',
+    accuracy: 4,
+    speed: 5,
+    recommended: false,
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
+    sherpa: {
+      kind: 'sense-voice',
+      repo: 'csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09',
+      files: [
+        { name: 'model.int8.onnx', sizeBytes: 237_115_547 },
+        { name: 'tokens.txt', sizeBytes: 315_894 },
+      ],
+    },
+  },
+  {
+    id: 'canary-180m-flash',
+    name: 'Canary 180M Flash · English',
+    description: 'NVIDIA Canary 180M Flash. Very fast with punctuation and capitalization.',
+    sizeMb: 198,
+    languages: 'English only',
+    accuracy: 4,
+    speed: 5,
+    recommended: false,
+    engine: 'sherpa',
+    runtime: 'sherpa-onnx',
+    runtimeModelName: 'sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8',
+    downloadManaged: true,
+    supportsGpuAcceleration: false,
+    sherpa: {
+      kind: 'canary',
+      repo: 'csukuangfj/sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8',
+      files: [
+        { name: 'encoder.int8.onnx', sizeBytes: 132_678_643 },
+        { name: 'decoder.int8.onnx', sizeBytes: 74_437_848 },
+        { name: 'tokens.txt', sizeBytes: 53_555 },
+      ],
+    },
   },
 ]
 
-const HF_BASE = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main'
+interface DownloadFile {
+  url: string
+  destPath: string
+  sizeBytes?: number
+}
 
 interface ActiveDownload {
   abort: () => void
 }
 
-function resolveNodejsWhisperModelsDir(): string {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const constants = require('nodejs-whisper/dist/constants') as { WHISPER_CPP_PATH: string }
-  return join(constants.WHISPER_CPP_PATH, 'models')
-}
-
 export class ModelManager {
-  private readonly modelsDir: string
+  private readonly sherpaModelsDir: string
   private readonly settingsPath: string
   private readonly activeDownloads = new Map<string, ActiveDownload>()
   private progressListener: ((p: ModelDownloadProgress) => void) | null = null
 
   constructor(userDataPath: string) {
-    this.modelsDir = resolveNodejsWhisperModelsDir()
+    this.sherpaModelsDir = join(userDataPath, 'models')
     this.settingsPath = join(userDataPath, 'settings.json')
-    mkdirSync(this.modelsDir, { recursive: true })
   }
 
   setProgressListener(listener: (p: ModelDownloadProgress) => void): void {
@@ -151,28 +283,44 @@ export class ModelManager {
   }
 
   getModels(): TranscriptionModel[] {
-    return MODEL_CATALOG.map((entry) => ({
-      ...entry,
-      isDownloaded: entry.downloadManaged ? this.isDownloaded(entry.id) : true,
-    }))
+    return MODEL_CATALOG.map((entry) => this.toModel(entry))
   }
 
   getModel(modelId: string): TranscriptionModel | null {
     const entry = MODEL_CATALOG.find((model) => model.id === modelId)
-    if (!entry) return null
+    return entry ? this.toModel(entry) : null
+  }
 
+  private toModel({ sherpa, ...entry }: CatalogEntry): TranscriptionModel {
     return {
       ...entry,
+      // sherpa-onnx loads from a directory, so the worker gets the absolute model dir.
+      runtimeModelName: this.sherpaModelDir(entry),
+      sherpaKind: sherpa.kind,
       isDownloaded: entry.downloadManaged ? this.isDownloaded(entry.id) : true,
     }
   }
 
   isDownloaded(modelId: string): boolean {
-    return existsSync(this.modelFilePath(modelId))
+    const files = this.filesForModel(modelId)
+    return files.length > 0 && files.every((file) => existsSync(file.destPath))
   }
 
-  modelFilePath(modelId: string): string {
-    return join(this.modelsDir, `ggml-${modelId}.bin`)
+  private sherpaModelDir(entry: Pick<CatalogEntry, 'runtimeModelName'>): string {
+    return join(this.sherpaModelsDir, entry.runtimeModelName)
+  }
+
+  private filesForModel(modelId: string): DownloadFile[] {
+    const entry = MODEL_CATALOG.find((m) => m.id === modelId)
+    if (!entry) return []
+
+    const { repo, files } = entry.sherpa
+    const dir = this.sherpaModelDir(entry)
+    return files.map((file) => ({
+      url: `https://huggingface.co/${repo}/resolve/main/${file.name}`,
+      destPath: join(dir, file.as ?? file.name),
+      sizeBytes: file.sizeBytes,
+    }))
   }
 
   async getSelectedModel(): Promise<string | null> {
@@ -231,19 +379,15 @@ export class ModelManager {
       throw new Error(`Model ${modelId} is not installed.`)
     }
 
-    const destPath = this.modelFilePath(modelId)
-    const tmpPath = `${destPath}.part`
+    for (const { destPath } of this.filesForModel(modelId)) {
+      if (existsSync(destPath)) unlinkSync(destPath)
 
-    try {
-      unlinkSync(destPath)
-    } catch (error) {
-      throw error instanceof Error ? error : new Error(String(error))
-    }
-
-    try {
-      if (existsSync(tmpPath)) unlinkSync(tmpPath)
-    } catch {
-      /* ignore */
+      try {
+        const tmpPath = `${destPath}.part`
+        if (existsSync(tmpPath)) unlinkSync(tmpPath)
+      } catch {
+        /* ignore */
+      }
     }
 
     await this.reconcileSettingsAfterRemove(modelId)
@@ -291,30 +435,74 @@ export class ModelManager {
       return Promise.reject(new Error(`Model ${modelId} is already downloading`))
     }
 
-    const destPath = this.modelFilePath(modelId)
-    const tmpPath = `${destPath}.part`
-    const url = `${HF_BASE}/ggml-${modelId}.bin`
+    const files = this.filesForModel(modelId).filter((file) => !existsSync(file.destPath))
+    const knownTotal = files.every((file) => file.sizeBytes)
+      ? files.reduce((sum, file) => sum + (file.sizeBytes ?? 0), 0)
+      : 0
 
-    return new Promise<void>((resolve, reject) => {
+    let aborted = false
+    let abortCurrent: (() => void) | null = null
+    this.activeDownloads.set(modelId, {
+      abort: () => {
+        aborted = true
+        abortCurrent?.()
+      },
+    })
+
+    return (async () => {
+      let completedBytes = 0
+      try {
+        for (const file of files) {
+          if (aborted) throw new Error('Download canceled')
+          mkdirSync(dirname(file.destPath), { recursive: true })
+          completedBytes += await this.downloadFile(
+            file,
+            (abort) => {
+              abortCurrent = abort
+            },
+            (downloadedBytes, fileTotalBytes) => {
+              const totalBytes = knownTotal || fileTotalBytes
+              const overall = completedBytes + downloadedBytes
+              this.progressListener?.({
+                modelId,
+                downloadedBytes: overall,
+                totalBytes,
+                percent: totalBytes > 0 ? Math.round((overall / totalBytes) * 100) : 0,
+              })
+            }
+          )
+        }
+      } finally {
+        this.activeDownloads.delete(modelId)
+      }
+    })()
+  }
+
+  /** Downloads one file via a `.part` temp file; resolves with the byte count written. */
+  private downloadFile(
+    file: DownloadFile,
+    registerAbort: (abort: () => void) => void,
+    onProgress: (downloadedBytes: number, totalBytes: number) => void
+  ): Promise<number> {
+    const { url, destPath } = file
+    const tmpPath = `${destPath}.part`
+
+    return new Promise<number>((resolve, reject) => {
       let cleanupCalled = false
       let aborted = false
 
       const cleanup = (err?: Error): void => {
         if (cleanupCalled) return
         cleanupCalled = true
-        this.activeDownloads.delete(modelId)
         try {
           if (existsSync(tmpPath)) unlinkSync(tmpPath)
         } catch { /* ignore */ }
         if (err) reject(err)
-        else resolve()
       }
 
-      this.activeDownloads.set(modelId, {
-        abort: () => {
-          aborted = true
-          cleanup(new Error('Download canceled'))
-        },
+      registerAbort(() => {
+        aborted = true
+        cleanup(new Error('Download canceled'))
       })
 
       this.fetchFollowingRedirects(url, 5, (err, response) => {
@@ -342,12 +530,7 @@ export class ModelManager {
             return
           }
           downloadedBytes += chunk.length
-          this.progressListener?.({
-            modelId,
-            downloadedBytes,
-            totalBytes,
-            percent: totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0,
-          })
+          onProgress(downloadedBytes, totalBytes)
         })
 
         response.pipe(fileStream)
@@ -356,9 +539,8 @@ export class ModelManager {
           if (aborted) return
           try {
             renameSync(tmpPath, destPath)
-            this.activeDownloads.delete(modelId)
             cleanupCalled = true
-            resolve()
+            resolve(downloadedBytes)
           } catch (renameErr) {
             cleanup(renameErr instanceof Error ? renameErr : new Error(String(renameErr)))
           }
@@ -395,7 +577,9 @@ export class ModelManager {
           return
         }
         response.resume()
-        this.fetchFollowingRedirects(response.headers.location, maxRedirects - 1, callback)
+        // HF redirects non-LFS files (e.g. tokens.txt) with a relative Location header.
+        const next = new NodeURL(response.headers.location, url).toString()
+        this.fetchFollowingRedirects(next, maxRedirects - 1, callback)
         return
       }
       callback(null, response)

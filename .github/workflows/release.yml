@@ -20,28 +20,28 @@ jobs:
         include:
           # ── macOS Intel (x64) ───────────────────────────────────────────
           # macos-13 is the last Intel GitHub-hosted runner.
-          # nodejs-whisper compiles whisper.cpp natively here → Mach-O x64 .node
+          # Per-arch runner so pnpm installs the matching sherpa-onnx + ffmpeg-static binaries.
           - name: mac-x64
             os: macos-13
             eb_args: --mac --x64
             release_script: release:mac:x64
 
           # ── macOS Apple Silicon (arm64) ─────────────────────────────────
-          # macos-latest is M-series; whisper.cpp compiles → Mach-O arm64 .node
+          # macos-latest is M-series → arm64 sherpa-onnx + ffmpeg-static binaries
           - name: mac-arm64
             os: macos-latest
             eb_args: --mac --arm64
             release_script: release:mac:arm64
 
           # ── Linux x64 ───────────────────────────────────────────────────
-          # whisper.cpp compiles → ELF x64 .node; outputs AppImage + deb
+          # Outputs AppImage + deb
           - name: linux
             os: ubuntu-latest
             eb_args: --linux
             release_script: release:linux
 
           # ── Windows x64 ─────────────────────────────────────────────────
-          # whisper.cpp compiles → PE x64 .node; outputs NSIS installer
+          # Outputs NSIS installer
           - name: windows
             os: windows-latest
             eb_args: --win
@@ -82,9 +82,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # electron-builder automatically calls @electron/rebuild internally, which
-      # recompiles nodejs-whisper against Electron's Node ABI (not the system's).
-      # No manual rebuild step is needed here.
+      # Native deps (sherpa-onnx, ffmpeg-static, audiotee) ship prebuilt per platform,
+      # so nothing is compiled here.
       - name: Build & package (${{ matrix.name }})
         run: pnpm run ${{ matrix.release_script }}
         env:

@@ -33,8 +33,8 @@ pnpm dist:mac:arm64    # DMG for Apple Silicon (must run on macOS)
 pnpm dist:win          # NSIS installer (must run on Windows or macOS)
 ```
 
-> `nodejs-whisper` is a native module — local packaging only works on the
-> platform you are currently running on.
+> `sherpa-onnx-node` and `ffmpeg-static` install platform-specific binaries — local
+> packaging only works on the platform you are currently running on.
 
 ---
 

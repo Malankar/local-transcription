@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AudioCapture } from '../../../src/main/audio/AudioCapture'
 import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { Readable } from 'node:stream'
+import { Readable, Writable } from 'node:stream'
+
+vi.mock('../../../src/main/audio/ffmpegPath', () => ({ FFMPEG_PATH: '/bundled/ffmpeg' }))
+vi.mock('../../../src/main/audio/systemAudioTap', () => ({
+  MAC_SYSTEM_AUDIO_ID: 'macos-system-audio',
+  getAudioTeeCommand: () => ({ path: '/bundled/audiotee', args: ['--sample-rate', '16000'] }),
+}))
 
 vi.mock('node:child_process', () => {
   const spawn = vi.fn()
@@ -13,6 +19,7 @@ vi.mock('node:child_process', () => {
 })
 
 class MockProcess extends EventEmitter {
+  stdin = new Writable({ write(_chunk, _enc, cb) { cb() } })
   stdout = new Readable({ read() {} })
   stderr = new Readable({ read() {} })
   kill = vi.fn()
@@ -57,19 +64,52 @@ describe('AudioCapture', () => {
 
     it('spawns ffmpeg with correct arguments for mic mode', () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'mic-id' })
-      expect(spawn).toHaveBeenCalledWith('ffmpeg', expect.arrayContaining(['-i', 'mic-id']), expect.anything())
+      expect(spawn).toHaveBeenCalledWith('/bundled/ffmpeg', expect.arrayContaining(['-i', 'mic-id']), expect.anything())
     })
 
     it('spawns ffmpeg with correct arguments for system mode', () => {
       audioCapture.start({ mode: 'system', systemSourceId: 'sys-id' })
-      expect(spawn).toHaveBeenCalledWith('ffmpeg', expect.arrayContaining(['-i', 'sys-id']), expect.anything())
+      expect(spawn).toHaveBeenCalledWith('/bundled/ffmpeg', expect.arrayContaining(['-i', 'sys-id']), expect.anything())
     })
 
     it('spawns ffmpeg with correct arguments for mixed mode', () => {
       audioCapture.start({ mode: 'mixed', systemSourceId: 'sys-id', micSourceId: 'mic-id' })
-      expect(spawn).toHaveBeenCalledWith('ffmpeg', expect.arrayContaining([
+      expect(spawn).toHaveBeenCalledWith('/bundled/ffmpeg', expect.arrayContaining([
         expect.stringContaining('amix=inputs=2')
       ]), expect.anything())
+    })
+  })
+
+  describe('macOS system audio tap', () => {
+    beforeEach(() => {
+      vi.mocked(spawn).mockImplementation((() => new MockProcess()) as any)
+    })
+
+    it('pipes audiotee into ffmpeg stdin for system mode', () => {
+      audioCapture.start({ mode: 'system', systemSourceId: 'macos-system-audio' })
+
+      expect(spawn).toHaveBeenCalledWith('/bundled/ffmpeg', expect.arrayContaining(['-f', 's16le', '-i', 'pipe:0']), expect.anything())
+      expect(spawn).toHaveBeenCalledWith('/bundled/audiotee', ['--sample-rate', '16000'], expect.anything())
+    })
+
+    it('mixes the tap with the mic in mixed mode', () => {
+      audioCapture.start({ mode: 'mixed', systemSourceId: 'macos-system-audio', micSourceId: 'mic-id' })
+
+      const ffmpegArgs = vi.mocked(spawn).mock.calls.find(([cmd]) => cmd === '/bundled/ffmpeg')?.[1]
+      expect(ffmpegArgs).toEqual(expect.arrayContaining(['pipe:0', 'mic-id']))
+      expect(spawn).toHaveBeenCalledWith('/bundled/audiotee', expect.anything(), expect.anything())
+    })
+
+    it('does not start the tap for mic-only capture', () => {
+      audioCapture.start({ mode: 'mic', systemSourceId: 'macos-system-audio', micSourceId: 'mic-id' })
+      expect(spawn).not.toHaveBeenCalledWith('/bundled/audiotee', expect.anything(), expect.anything())
+    })
+
+    it('kills the tap when capture stops', () => {
+      audioCapture.start({ mode: 'system', systemSourceId: 'macos-system-audio' })
+      const tap = vi.mocked(spawn).mock.results.find((_, i) => vi.mocked(spawn).mock.calls[i][0] === '/bundled/audiotee')?.value
+      audioCapture.stop()
+      expect(tap.kill).toHaveBeenCalledWith('SIGTERM')
     })
   })
 

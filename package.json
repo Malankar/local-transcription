@@ -1,7 +1,7 @@
 {
   "name": "local-transcription",
   "version": "0.1.3",
-  "description": "Local-first Electron transcription app using Whisper via transformers.js",
+  "description": "Local-first Electron transcription app using Whisper, Parakeet and more via sherpa-onnx",
   "main": "./out/main/index.js",
   "type": "commonjs",
   "author": {
@@ -35,23 +35,25 @@
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
     "@fontsource-variable/geist-mono": "^5.2.7",
+    "@fontsource-variable/material-symbols-outlined": "^5.3.8",
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
-    "tailwind-merge": "^3.5.0",
+    "audiotee": "^0.0.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "ffmpeg-static": "^5.3.0",
     "lucide-react": "^1.7.0",
-    "nodejs-whisper": "^0.2.9",
     "postcss": "^8.5.8",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "sherpa-onnx-node": "^1.13.8",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
-    "electron": "39.8.9",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^24.0.0",
@@ -59,20 +61,21 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "4.1.2",
+    "electron": "39.8.9",
     "electron-builder": "^26.0.0",
     "electron-vite": "5.0.0",
     "jsdom": "^29.0.1",
-    "vitest": "^4.1.2",
     "tailwindcss": "^4.2.2",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5.6.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.1.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "electron",
       "esbuild",
-      "nodejs-whisper",
+      "ffmpeg-static",
       "protobufjs",
       "sharp"
     ]

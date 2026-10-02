@@ -6,7 +6,7 @@ Captures system audio and/or microphone input, transcribes it using OpenAI Whisp
 
 ## Features
 
-- **Local transcription** — Whisper runs entirely on-device via `nodejs-whisper`
+- **Local transcription** — Whisper, Parakeet, Moonshine, SenseVoice and Canary run entirely on-device via `sherpa-onnx`
 - **Multi-source audio** — system audio, microphone, or both simultaneously
 - **Live and meeting modes** — streaming output or 4-second chunked capture
 - **Transcript history** — persistent sessions with search and export (TXT, SRT)
@@ -18,14 +18,11 @@ Captures system audio and/or microphone input, transcribes it using OpenAI Whisp
 
 - Node.js 20+
 - pnpm
-- FFmpeg
 - PulseAudio or PipeWire with `pactl` (Linux)
+- [BlackHole](https://github.com/ExistentialAudio/BlackHole) (macOS 14.1 or older, optional — macOS 14.2+ captures system audio natively)
 - [Ollama](https://ollama.com) (optional — for AI title/summary generation)
 
-```bash
-# Ubuntu/Debian
-sudo apt install ffmpeg
-```
+FFmpeg (via `ffmpeg-static`) and the speech engine (via `sherpa-onnx-node`) ship inside the app; models download from the in-app model picker.
 
 ## Getting Started
 
@@ -74,7 +71,7 @@ src/
 
 - Transcription runs in a dedicated worker thread to keep the UI responsive.
 - Audio chunks are processed through a sequential queue — parallel inference is avoided because ONNX/Whisper workers are not thread-safe.
-- `nodejs-whisper` and native `.node` files are unpacked from ASAR at runtime so the native binaries remain accessible.
+- Native binaries (`sherpa-onnx`, `ffmpeg-static`, `audiotee`) are unpacked from ASAR so they can be loaded at runtime.
 - The renderer communicates with the main process exclusively through the typed IPC bridge in `src/preload/`.
 
 ## Tech Stack
@@ -82,6 +79,6 @@ src/
 - **Electron 35** + **electron-vite**
 - **React 18** + **TypeScript**
 - **Tailwind CSS 4** + **shadcn/ui** + **Radix UI**
-- **nodejs-whisper** (Whisper transcription)
+- **sherpa-onnx** (speech recognition: Whisper, Parakeet, Moonshine, SenseVoice, Canary)
 - **Ollama** (optional local LLM)
 - **Vitest** (unit tests) + **Playwright** (E2E tests)

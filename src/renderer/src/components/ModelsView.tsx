@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { formatSize } from '../lib/formatters'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,15 @@ import { useModelsContext } from '../contexts/ModelsContext'
 import { useRecordingContext } from '../contexts/RecordingContext'
 
 type ModelLibraryLayout = 'gallery' | 'settings'
+
+const LANGUAGE_FILTERS = ['All', 'English', 'Multilingual'] as const
+type LanguageFilter = (typeof LANGUAGE_FILTERS)[number]
+
+function matchesLanguageFilter(languages: string, filter: LanguageFilter): boolean {
+  if (filter === 'All') return true
+  const englishOnly = languages === 'English only'
+  return filter === 'English' ? englishOnly : !englishOnly
+}
 
 function Icon({ name, filled = false, size = 20 }: { name: string; filled?: boolean; size?: number }) {
   return (
@@ -110,6 +119,8 @@ export function ModelLibrarySection({
     removeModel: onRemoveModel,
   } = useModelsContext()
   const { isCapturing } = useRecordingContext()
+  const [languageFilter, setLanguageFilter] = useState<LanguageFilter>('All')
+  const visibleModels = models.filter((model) => matchesLanguageFilter(model.languages, languageFilter))
   const listDisabled = isCapturing || !!downloadingId
   const gridClass =
     layout === 'settings'
@@ -134,12 +145,27 @@ export function ModelLibrarySection({
         </div>
       ) : null}
 
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter models by language">
+        {LANGUAGE_FILTERS.map((filter) => (
+          <Button
+            key={filter}
+            type="button"
+            size="sm"
+            variant={languageFilter === filter ? 'secondary' : 'ghost'}
+            aria-pressed={languageFilter === filter}
+            onClick={() => setLanguageFilter(filter)}
+          >
+            {filter}
+          </Button>
+        ))}
+      </div>
+
       <div
         className={gridClass}
         role={layout === 'settings' ? 'radiogroup' : undefined}
         aria-label={layout === 'settings' ? 'Transcription model' : undefined}
       >
-        {models.map((model) => {
+        {visibleModels.map((model) => {
           const isSelected = model.id === selectedModelId
           const isDownloading = model.id === downloadingId
 

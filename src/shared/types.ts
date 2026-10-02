@@ -49,7 +49,10 @@ export interface ExportResult {
   path?: string
 }
 
-export type TranscriptionEngine = 'whisper' | 'parakeet'
+export type TranscriptionEngine = 'sherpa'
+
+/** Model architecture for sherpa-onnx; tells the worker which config/file layout to load. */
+export type SherpaModelKind = 'whisper' | 'nemo-transducer' | 'moonshine' | 'sense-voice' | 'canary'
 
 export interface TranscriptionModel {
   id: string
@@ -67,6 +70,7 @@ export interface TranscriptionModel {
   supportsGpuAcceleration: boolean
   gpuAccelerationLabel?: string
   setupHint?: string
+  sherpaKind?: SherpaModelKind
   isDownloaded: boolean
 }
 

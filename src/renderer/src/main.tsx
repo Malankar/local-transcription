@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
+import '@fontsource-variable/material-symbols-outlined/full.css'
 import './globals.css'
 import { App } from './App'
 

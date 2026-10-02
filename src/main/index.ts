@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut, session } from 'electron'
+import { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut, session, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -143,15 +143,14 @@ chunkQueue.on('segment', (segment) => {
   mainWindow?.webContents.send('transcript:segment', segment)
 })
 
+let lastChunkErrorDetail: string | null = null
+
 chunkQueue.on('error', (error) => {
   logger.error('Chunk queue emitted error', error)
-  const detail = error.message
-  const missingWhisperDeps =
-    detail.includes('Failed to run cmake') || detail.includes('whisper-cli executable not found')
-  if (missingWhisperDeps) {
-    // Missing local whisper.cpp dependencies is effectively fatal for transcription on this model.
-    sendError(detail)
-  }
+  // A broken model fails every chunk with the same message; surface it once, not per chunk.
+  if (error.message === lastChunkErrorDetail) return
+  lastChunkErrorDetail = error.message
+  sendError(error.message)
 })
 
 chunkQueue.on('status', (detail) => {
@@ -401,6 +400,12 @@ function createWindow(startHidden: boolean): void {
     })
   })
 
+  // target="_blank" links (e.g. the Ollama download page) open in the user's browser, never in-app.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     logger.error('Renderer process exited unexpectedly', details)
   })
@@ -460,6 +465,7 @@ app.whenReady().then(() => {
     onCaptureStarted: (profile, startTime) => {
       currentCaptureProfile = profile
       captureStartTime = startTime
+      lastChunkErrorDetail = null
     },
     onSettingsChanged: (updated) => {
       applySettings(updated)

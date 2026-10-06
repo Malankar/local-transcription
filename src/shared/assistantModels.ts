@@ -42,6 +42,8 @@ export const ASSISTANT_OLLAMA_SUMMARY_OPTIONS = {
   num_predict: 900,
   top_p: 0.9,
   repeat_penalty: 1.1,
+  /** Qwen3 thinks by default when `think` is omitted (~5x slower for summaries). */
+  think: false,
   timeoutMs: 240_000,
 } as const
 

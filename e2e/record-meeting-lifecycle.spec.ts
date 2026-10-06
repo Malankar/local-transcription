@@ -10,7 +10,7 @@ test.describe('record meeting lifecycle @slow', () => {
       const window = await electronApp.firstWindow()
       await window.waitForLoadState('domcontentloaded')
 
-      await window.getByRole('button', { name: 'Mic' }).click()
+      await window.getByRole('button', { name: /^Microphone/ }).click()
       await assertMeetingLifecycle(window, 'microphone source')
     } finally {
       await closeLaunchedApp(electronApp)

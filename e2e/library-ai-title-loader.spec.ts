@@ -22,7 +22,7 @@ test.describe('Library AI title loader @slow', () => {
 
       await expect(async () => {
         const labels = await window.evaluate(() => window.api.listHistory().then((h) => h.map((s) => s.label)))
-        return labels[0]?.startsWith('E2E ') ?? false
+        expect(labels[0]).toMatch(/^E2E /)
       }).toPass({ timeout: 30_000 })
 
       await expect(window.getByRole('status', { name: 'Generating recording title' })).toHaveCount(0, {

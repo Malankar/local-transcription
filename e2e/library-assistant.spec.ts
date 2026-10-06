@@ -18,13 +18,13 @@ test.describe('Library assistant', () => {
       await window.evaluate(async (t) => window.api.e2eSeedHistoryMeeting(t), textA)
 
       let metas = await window.evaluate(() => window.api.listHistory())
+      // toPass only retries on a thrown assertion, so assert (don't return a boolean) until the
+      // stub AI titles have replaced the placeholder labels.
       await expect(async () => {
         metas = await window.evaluate(() => window.api.listHistory())
-        return (
-          metas.length >= 2 &&
-          (metas[0]?.label?.startsWith('E2E ') ?? false) &&
-          (metas[1]?.label?.startsWith('E2E ') ?? false)
-        )
+        expect(metas.length).toBeGreaterThanOrEqual(2)
+        expect(metas[0]?.label).toMatch(/^E2E /)
+        expect(metas[1]?.label).toMatch(/^E2E /)
       }).toPass({ timeout: 30_000 })
 
       const newer = metas[0]!
@@ -33,10 +33,12 @@ test.describe('Library assistant', () => {
       await window.getByRole('button', { name: 'Library', exact: true }).click()
       await expect(window.getByRole('heading', { name: 'Transcriptions' })).toBeVisible()
 
+      // Innermost div holding both the Assistant heading and the chat input = the chat panel.
       const assistant = window
         .locator('div')
-        .filter({ has: window.getByText('Ask about this transcript') })
-        .first()
+        .filter({ has: window.getByRole('heading', { name: 'Assistant', exact: true }) })
+        .filter({ has: window.getByPlaceholder('Ask a question...') })
+        .last()
 
       await expect(assistant.getByText(`"${newer.label}"`, { exact: false })).toBeVisible()
 

@@ -2,7 +2,15 @@ import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
 import { closeLaunchedApp, launchApp } from './fixtures/launchApp'
-import { openSettingsDialog, historyBlock } from './fixtures/settingsHelpers'
+import type { AppSettings } from '../src/shared/types'
+
+/** History retention has no settings UI anymore (removed from SettingsView); drive it via the settings IPC. */
+async function setHistorySettings(
+  window: Page,
+  partial: Partial<Pick<AppSettings, 'historyLimit' | 'autoDeleteRecordings' | 'keepStarredUntilDeleted'>>,
+) {
+  await window.evaluate(async (p) => window.api.setSettings(p), partial)
+}
 
 function librarySidebarSessionButtons(window: Page) {
   const section = window.getByRole('heading', { name: 'Transcriptions' }).locator('xpath=..')
@@ -41,21 +49,8 @@ test.describe('Library history prune', () => {
         .poll(async () => (await window.evaluate(() => window.api.listHistory())).length)
         .toBe(7)
 
-      const dialog = await openSettingsDialog(window)
-      const section = historyBlock(dialog)
-      await section.getByRole('heading', { level: 2, name: 'History' }).scrollIntoViewIfNeeded()
-
-      const sessionLimit = section.getByRole('combobox').first()
-      await sessionLimit.click()
-      await window.getByRole('option', { name: '10 sessions', exact: true }).click()
-      await expect(sessionLimit).toContainText('10 sessions')
-
-      await sessionLimit.click()
-      await window.getByRole('option', { name: '5 sessions', exact: true }).click()
-      await expect(sessionLimit).toContainText('5 sessions')
-
-      await dialog.getByTitle('Close').click()
-      await expect(window.getByRole('dialog')).toHaveCount(0)
+      await setHistorySettings(window, { historyLimit: 10 })
+      await setHistorySettings(window, { historyLimit: 5 })
 
       await expect
         .poll(async () => (await window.evaluate(() => window.api.listHistory())).length)
@@ -82,17 +77,7 @@ test.describe('Library history prune', () => {
       const window = await electronApp.firstWindow()
       await window.waitForLoadState('domcontentloaded')
 
-      const dialog0 = await openSettingsDialog(window)
-      const section0 = historyBlock(dialog0)
-      await section0.getByRole('heading', { level: 2, name: 'History' }).scrollIntoViewIfNeeded()
-
-      const sessionLimit0 = section0.getByRole('combobox').first()
-      await sessionLimit0.click()
-      await window.getByRole('option', { name: 'Unlimited', exact: true }).click()
-      await expect(sessionLimit0).toContainText('Unlimited')
-
-      await dialog0.getByTitle('Close').click()
-      await expect(window.getByRole('dialog')).toHaveCount(0)
+      await setHistorySettings(window, { historyLimit: 0 })
 
       const markers: string[] = []
       for (let i = 0; i < 8; i++) {
@@ -105,17 +90,7 @@ test.describe('Library history prune', () => {
         .poll(async () => (await window.evaluate(() => window.api.listHistory())).length)
         .toBe(8)
 
-      const dialog = await openSettingsDialog(window)
-      const section = historyBlock(dialog)
-      await section.getByRole('heading', { level: 2, name: 'History' }).scrollIntoViewIfNeeded()
-
-      const autoDelete = section.getByRole('combobox').nth(1)
-      await autoDelete.click()
-      await window.getByRole('option', { name: 'Keep latest 5', exact: true }).click()
-      await expect(autoDelete).toContainText('Keep latest 5')
-
-      await dialog.getByTitle('Close').click()
-      await expect(window.getByRole('dialog')).toHaveCount(0)
+      await setHistorySettings(window, { autoDeleteRecordings: 'keep-latest-5' })
 
       await expect
         .poll(async () => (await window.evaluate(() => window.api.listHistory())).length)
@@ -140,12 +115,7 @@ test.describe('Library history prune', () => {
       const window = await electronApp.firstWindow()
       await window.waitForLoadState('domcontentloaded')
 
-      const dialog0 = await openSettingsDialog(window)
-      const section0 = historyBlock(dialog0)
-      await section0.getByRole('heading', { level: 2, name: 'History' }).scrollIntoViewIfNeeded()
-      await expect(section0.getByRole('switch')).toBeChecked()
-      await dialog0.getByTitle('Close').click()
-      await expect(window.getByRole('dialog')).toHaveCount(0)
+      expect((await window.evaluate(() => window.api.getSettings())).keepStarredUntilDeleted).toBe(true)
 
       const markers: string[] = []
       for (let i = 0; i < 7; i++) {
@@ -162,21 +132,8 @@ test.describe('Library history prune', () => {
       if (!oldestId) throw new Error('expected seeded oldest session id')
       await window.evaluate(async ({ id }) => window.api.starHistorySession(id, true), { id: oldestId })
 
-      const dialog = await openSettingsDialog(window)
-      const section = historyBlock(dialog)
-      await section.getByRole('heading', { level: 2, name: 'History' }).scrollIntoViewIfNeeded()
-
-      const sessionLimit = section.getByRole('combobox').first()
-      await sessionLimit.click()
-      await window.getByRole('option', { name: '10 sessions', exact: true }).click()
-      await expect(sessionLimit).toContainText('10 sessions')
-
-      await sessionLimit.click()
-      await window.getByRole('option', { name: '5 sessions', exact: true }).click()
-      await expect(sessionLimit).toContainText('5 sessions')
-
-      await dialog.getByTitle('Close').click()
-      await expect(window.getByRole('dialog')).toHaveCount(0)
+      await setHistorySettings(window, { historyLimit: 10 })
+      await setHistorySettings(window, { historyLimit: 5 })
 
       await expect
         .poll(async () => (await window.evaluate(() => window.api.listHistory())).length)

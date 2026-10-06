@@ -12,7 +12,7 @@ test.describe('@slow Settings transcription models', () => {
     })
     const page = await electronApp.firstWindow()
     await page.waitForLoadState('domcontentloaded')
-    await page.getByRole('navigation').getByTitle('Settings').click()
+    await page.getByRole('navigation').getByRole('button', { name: 'Open settings' }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible()
     await expect(dialog.getByRole('heading', { level: 3, name: 'Start hidden' })).toBeVisible({

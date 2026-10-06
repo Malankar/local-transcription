@@ -1,8 +1,11 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, globalShortcut, session, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { AppSettings, AppStatus, ModelDownloadProgress, TranscriptSegment } from '../shared/types'
+import { isNoiseTranscriptText } from '../shared/transcriptSegments'
+import { applySubstitutions, BUILT_IN_SUBSTITUTIONS } from '../shared/wordSubstitutions'
 import { AudioCapture } from './audio/AudioCapture'
 import { SourceDiscovery } from './audio/SourceDiscovery'
 import {
@@ -13,7 +16,6 @@ import { HistoryManager } from './history/HistoryManager'
 import { registerIpcHandlers } from './ipc/handlers'
 import { AppLogger } from './logging/AppLogger'
 import { SettingsManager } from './settings/SettingsManager'
-import { ChunkQueue } from './transcription/ChunkQueue'
 import { ModelManager } from './transcription/ModelManager'
 import { WhisperEngine } from './transcription/WhisperEngine'
 
@@ -25,6 +27,8 @@ const transcriptSegments: TranscriptSegment[] = []
 const logger = new AppLogger()
 
 let captureStartTime: string | null = null
+/** True from capture:start until the session's last phrase is transcribed and saved. */
+let captureSessionOpen = false
 let currentCaptureProfile: 'meeting' | 'live' = 'meeting'
 let modelUnloadTimer: ReturnType<typeof setTimeout> | null = null
 let registeredShortcut: string | null = null
@@ -84,6 +88,11 @@ modelManager.setProgressListener((progress: ModelDownloadProgress) => {
   mainWindow?.webContents.send('models:downloadProgress', progress)
 })
 
+/** Bundled Silero VAD model (see extraResources in electron-builder.yml). */
+const vadModelPath = app.isPackaged
+  ? join(process.resourcesPath, 'silero_vad.onnx')
+  : join(__dirname, '../../build/silero_vad.onnx')
+
 const whisperEngine = new WhisperEngine(
   (detail) => {
     sendStatus({
@@ -93,25 +102,16 @@ const whisperEngine = new WhisperEngine(
   },
   (message, context) => {
     logger.info(message, context)
-  }
+  },
+  vadModelPath,
 )
-
-const chunkQueue = new ChunkQueue(async (chunk) => {
-  sendStatus({ stage: 'processing', detail: 'Transcribing queued audio...' })
-  return whisperEngine.transcribe(chunk)
-})
 
 const audioCapture = new AudioCapture()
 const sourceDiscovery = new SourceDiscovery()
 
 audioCapture.on('chunk', (chunk) => {
   cancelModelUnload()
-  logger.debug('Audio chunk captured', {
-    startMs: chunk.startMs,
-    endMs: chunk.endMs,
-    sampleCount: chunk.audio.length,
-  })
-  chunkQueue.enqueue(chunk)
+  whisperEngine.pushAudio(chunk)
 })
 
 audioCapture.on('error', (error) => {
@@ -126,13 +126,14 @@ audioCapture.on('status', (detail) => {
 
 audioCapture.on('stopped', () => {
   logger.info('Audio capture stopped')
-  // Do not send a 'stopped' status here. All stop call-sites (IPC handler,
-  // shortcut, tray) already send it immediately for snappy UI feedback.
-  // Sending it again on process 'close' (which fires after 'ready') would
-  // override the 'ready' state that follows chunk processing.
+  // ffmpeg exiting on its own (device unplugged, crash) still has to finish and save the session;
+  // after a normal stop the session is already closed and this is a no-op.
+  void stopCaptureAndFinish('Capture ended')
 })
 
-chunkQueue.on('segment', (segment) => {
+whisperEngine.on('segment', (raw) => {
+  if (isNoiseTranscriptText(raw.text)) return
+  const segment = { ...raw, text: applySubstitutions(raw.text, BUILT_IN_SUBSTITUTIONS) }
   logger.info('Transcript segment emitted', {
     id: segment.id,
     startMs: segment.startMs,
@@ -143,61 +144,66 @@ chunkQueue.on('segment', (segment) => {
   mainWindow?.webContents.send('transcript:segment', segment)
 })
 
-let lastChunkErrorDetail: string | null = null
+whisperEngine.on('partial', (text) => {
+  mainWindow?.webContents.send('transcript:partial', text)
+})
 
-chunkQueue.on('error', (error) => {
-  logger.error('Chunk queue emitted error', error)
-  // A broken model fails every chunk with the same message; surface it once, not per chunk.
-  if (error.message === lastChunkErrorDetail) return
-  lastChunkErrorDetail = error.message
+whisperEngine.on('lag', (behindMs) => {
+  if (behindMs > 3_000) logger.info('Transcription is behind live audio', { behindMs })
+  mainWindow?.webContents.send('transcription:lag', behindMs)
+})
+
+let lastTranscriptionErrorDetail: string | null = null
+
+whisperEngine.on('error', (error) => {
+  logger.error('Transcription engine emitted error', error)
+  // A broken model fails every phrase with the same message; surface it once, not per phrase.
+  if (error.message === lastTranscriptionErrorDetail) return
+  lastTranscriptionErrorDetail = error.message
   sendError(error.message)
 })
 
-chunkQueue.on('status', (detail) => {
-  logger.info('Chunk queue status', { detail })
-  sendStatus({ stage: 'processing', detail })
-})
+/** Stops capture, lets the worker transcribe what's left, then saves the session to history. */
+async function stopCaptureAndFinish(detail: string): Promise<void> {
+  audioCapture.stop()
+  if (!captureSessionOpen) return
+  captureSessionOpen = false
+  sendStatus({ stage: 'stopped', detail })
 
-chunkQueue.on('drained', () => {
-  logger.info('Chunk queue drained', { isCapturing: audioCapture.isRunning() })
-  if (!audioCapture.isRunning()) {
-    sendStatus({ stage: 'ready', detail: 'Waiting for the next capture' })
-
-    if (transcriptSegments.length > 0 && captureStartTime !== null) {
-      const segmentsToSave = [...transcriptSegments]
-      const profile = currentCaptureProfile
-      const startTime = captureStartTime
-      captureStartTime = null
-      void (async () => {
-        try {
-          const settings = await settingsManager.getSettings()
-          // History stores meeting transcriptions only; live captions stay in-session until copied/exported.
-          if (profile === 'meeting') {
-            const meta = await historyManager.saveSession(segmentsToSave, profile, startTime)
-            logger.info('Session saved to history', { id: meta.id, label: meta.label })
-            mainWindow?.webContents.send('history:saved', meta)
-            void enrichHistorySessionAfterSave({
-              sessionId: meta.id,
-              historyManager,
-              mainWindow,
-              logger,
-            })
-            await historyManager.pruneHistory({
-              historyLimit: settings.historyLimit,
-              autoDeleteRecordings: settings.autoDeleteRecordings,
-              keepStarredUntilDeleted: settings.keepStarredUntilDeleted,
-            })
-          }
-          scheduleModelUnload(settings.unloadModelAfterMinutes)
-        } catch (error) {
-          logger.error('Failed to save session to history', error)
-        }
-      })()
-    } else {
-      void settingsManager.getSettings().then((s) => scheduleModelUnload(s.unloadModelAfterMinutes))
-    }
+  try {
+    await whisperEngine.endSession()
+  } catch (error) {
+    logger.error('Failed to finish transcription session', error)
   }
-})
+  mainWindow?.webContents.send('transcript:partial', '')
+  sendStatus({ stage: 'ready', detail: 'Waiting for the next capture' })
+
+  try {
+    const settings = await settingsManager.getSettings()
+    const startTime = captureStartTime
+    captureStartTime = null
+    // History stores meeting transcriptions only; live captions stay in-session until copied/exported.
+    if (currentCaptureProfile === 'meeting' && startTime !== null && transcriptSegments.length > 0) {
+      const meta = await historyManager.saveSession([...transcriptSegments], 'meeting', startTime)
+      logger.info('Session saved to history', { id: meta.id, label: meta.label })
+      mainWindow?.webContents.send('history:saved', meta)
+      void enrichHistorySessionAfterSave({
+        sessionId: meta.id,
+        historyManager,
+        mainWindow,
+        logger,
+      })
+      await historyManager.pruneHistory({
+        historyLimit: settings.historyLimit,
+        autoDeleteRecordings: settings.autoDeleteRecordings,
+        keepStarredUntilDeleted: settings.keepStarredUntilDeleted,
+      })
+    }
+    scheduleModelUnload(settings.unloadModelAfterMinutes)
+  } catch (error) {
+    logger.error('Failed to save session to history', error)
+  }
+}
 
 function scheduleModelUnload(minutes: number): void {
   if (modelUnloadTimer) {
@@ -230,9 +236,7 @@ function applyVoiceShortcut(shortcut: string): void {
   if (!shortcut) return
   const ok = globalShortcut.register(shortcut, () => {
     if (audioCapture.isRunning()) {
-      audioCapture.stop()
-      chunkQueue.notifyCaptureEnded()
-      sendStatus({ stage: 'stopped', detail: 'Capture stopped via shortcut' })
+      void stopCaptureAndFinish('Capture stopped via shortcut')
     } else {
       // Trigger start with last-used profile via renderer (or default to meeting)
       mainWindow?.webContents.send('shortcut:voice-to-text')
@@ -253,9 +257,7 @@ function buildTrayMenu(): Menu {
       label: capturing ? 'Stop Recording' : 'Start Recording',
       click: () => {
         if (audioCapture.isRunning()) {
-          audioCapture.stop()
-          chunkQueue.notifyCaptureEnded()
-          sendStatus({ stage: 'stopped', detail: 'Capture stopped via tray' })
+          void stopCaptureAndFinish('Capture stopped via tray')
         } else {
           mainWindow?.show()
           mainWindow?.focus()
@@ -367,6 +369,20 @@ function applySettings(settings: AppSettings): void {
   }
 }
 
+/**
+ * Checks GitHub Releases on launch, downloads in the background, installs on next quit.
+ * macOS is skipped: Squirrel.Mac rejects updates for unsigned apps. ponytail: drop the darwin
+ * check (and add a `zip` mac target) once builds are signed + notarized.
+ */
+function setupAutoUpdates(): void {
+  if (!app.isPackaged || process.platform === 'darwin') return
+  autoUpdater.logger = logger
+  autoUpdater.on('error', (error) => logger.error('Auto-update failed', error))
+  autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
+    logger.error('Auto-update check failed', error)
+  })
+}
+
 function createWindow(startHidden: boolean): void {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -448,9 +464,10 @@ app.whenReady().then(() => {
     })
   }
 
+  setupAutoUpdates()
+
   registerIpcHandlers({
     audioCapture,
-    chunkQueue,
     sourceDiscovery,
     whisperEngine,
     modelManager,
@@ -463,9 +480,15 @@ app.whenReady().then(() => {
       transcriptSegments.length = 0
     },
     onCaptureStarted: (profile, startTime) => {
+      cancelModelUnload()
       currentCaptureProfile = profile
       captureStartTime = startTime
-      lastChunkErrorDetail = null
+      captureSessionOpen = true
+      lastTranscriptionErrorDetail = null
+    },
+    stopCaptureAndFinish,
+    onModelWarmedUp: () => {
+      void settingsManager.getSettings().then((s) => scheduleModelUnload(s.unloadModelAfterMinutes))
     },
     onSettingsChanged: (updated) => {
       applySettings(updated)
@@ -521,7 +544,6 @@ const quitAfterLastWindowClosed =
 app.on('window-all-closed', () => {
   logger.info('All windows closed')
   audioCapture.stop()
-  chunkQueue.notifyCaptureEnded()
   whisperEngine.dispose()
   if (quitAfterLastWindowClosed) {
     logger.info('Quitting application after last window closed', {

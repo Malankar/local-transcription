@@ -21,6 +21,9 @@ const api: LocalTranscribeApi = {
   exportSrt: (): Promise<ExportResult> => ipcRenderer.invoke('export:srt'),
   onTranscriptSegment: (listener: (segment: TranscriptSegment) => void) =>
     subscribe('transcript:segment', listener),
+  onTranscriptPartial: (listener: (text: string) => void) => subscribe('transcript:partial', listener),
+  onTranscriptionLag: (listener: (behindMs: number) => void) => subscribe('transcription:lag', listener),
+  warmupModel: () => ipcRenderer.invoke('transcription:warmup'),
   onStatus: (listener: (status: AppStatus) => void) => subscribe('status', listener),
   onError: (listener: (message: string) => void) => subscribe('capture:error', listener),
   onShortcutVoiceToText: (listener: () => void) => subscribe('shortcut:voice-to-text', listener),

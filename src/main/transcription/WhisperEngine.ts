@@ -1,4 +1,5 @@
 import { fork, type ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { join } from "node:path";
 
 import type {
@@ -12,34 +13,57 @@ import type {
   WorkerResponse,
 } from "./workerProtocol";
 
-export class WhisperEngine {
+interface WhisperEngineEvents {
+  segment: [TranscriptSegment];
+  partial: [string];
+  lag: [number];
+  error: [Error];
+}
+
+/**
+ * Owns the transcription worker process. A capture is one session: `startSession()`, then
+ * `pushAudio()` per frame, then `endSession()` once capture stops. Audio pushed while the model
+ * is still loading is buffered, so nothing recorded during warm-up is lost.
+ */
+export class WhisperEngine extends EventEmitter<WhisperEngineEvents> {
   private child: ChildProcess | null = null;
   private initializing: Promise<void> | null = null;
   private nextRequestId = 0;
   private readonly pending = new Map<
     string,
     {
-      resolve: (value: TranscriptSegment[] | void) => void;
+      resolve: (value: void) => void;
       reject: (error: Error) => void;
     }
   >();
   private currentModel: TranscriptionModel | null = null;
+  private currentLanguage: string | undefined;
+  private sessionActive = false;
+  private sessionReady = false;
+  private sessionStarting: Promise<void> | null = null;
+  private pendingAudio: { chunk: AudioChunk; sentAt: number }[] = [];
 
   constructor(
     private readonly onStatus: (detail: string) => void,
     private readonly onLog: (message: string, context?: unknown) => void,
-  ) {}
+    private readonly vadModelPath: string,
+  ) {
+    super();
+  }
 
-  setModel(model: TranscriptionModel): void {
+  /** `language` is already resolved for this model (see resolveModelLanguage). */
+  setModel(model: TranscriptionModel, language?: string): void {
     if (
       this.currentModel?.id === model.id &&
-      this.currentModel.runtimeModelName === model.runtimeModelName
+      this.currentModel.runtimeModelName === model.runtimeModelName &&
+      this.currentLanguage === language
     ) {
       return;
     }
 
     this.dispose();
     this.currentModel = model;
+    this.currentLanguage = language;
   }
 
   /** Model id currently configured for the worker, if any (may not be initialized yet). */
@@ -72,6 +96,8 @@ export class WhisperEngine {
         runtimeModelName: model.runtimeModelName,
         useGpuAcceleration: model.supportsGpuAcceleration,
         sherpaKind: model.sherpaKind,
+        language: this.currentLanguage,
+        vadModelPath: this.vadModelPath,
       });
     })();
 
@@ -82,12 +108,58 @@ export class WhisperEngine {
     }
   }
 
-  async transcribe(chunk: AudioChunk): Promise<TranscriptSegment[]> {
-    await this.initialize();
-    return this.sendRequest<TranscriptSegment[]>({ type: "transcribe", chunk });
+  /** Loads the model (if needed) and opens a session; audio pushed meanwhile is buffered. */
+  async startSession(): Promise<void> {
+    this.sessionActive = true;
+    this.sessionReady = false;
+    this.pendingAudio = [];
+
+    this.sessionStarting = (async () => {
+      await this.initialize();
+      await this.sendRequest<void>({ type: "session-start" });
+      if (!this.sessionActive) return;
+      this.sessionReady = true;
+      for (const { chunk, sentAt } of this.pendingAudio) {
+        this.post({ type: "audio", chunk, sentAt });
+      }
+      this.pendingAudio = [];
+    })();
+
+    try {
+      await this.sessionStarting;
+    } catch (error) {
+      this.sessionActive = false;
+      this.pendingAudio = [];
+      throw error;
+    } finally {
+      this.sessionStarting = null;
+    }
+  }
+
+  pushAudio(chunk: AudioChunk): void {
+    if (!this.sessionActive) return;
+    const sentAt = Date.now();
+    if (this.sessionReady) {
+      this.post({ type: "audio", chunk, sentAt });
+    } else {
+      this.pendingAudio.push({ chunk, sentAt });
+    }
+  }
+
+  /** Resolves once every buffered phrase has been transcribed and emitted. */
+  async endSession(): Promise<void> {
+    if (!this.sessionActive) return;
+    await this.sessionStarting?.catch(() => {});
+    this.sessionActive = false;
+    if (!this.sessionReady) return;
+    this.sessionReady = false;
+    await this.sendRequest<void>({ type: "session-end" });
   }
 
   dispose(): void {
+    this.sessionActive = false;
+    this.sessionReady = false;
+    this.pendingAudio = [];
     if (!this.child) {
       return;
     }
@@ -175,6 +247,11 @@ export class WhisperEngine {
         const exitedChild = this.child === child;
         if (exitedChild) {
           this.child = null;
+          if (this.sessionActive) {
+            this.sessionActive = false;
+            this.sessionReady = false;
+            this.emitError(new Error("Transcription stopped: the transcription engine exited unexpectedly."));
+          }
         }
 
         const codePart = code === null ? "" : ` with code ${code}`;
@@ -207,7 +284,25 @@ export class WhisperEngine {
     });
   }
 
-  private sendRequest<T extends TranscriptSegment[] | void>(
+  /** Fire-and-forget message (audio frames); failures come back as `error` events. */
+  private post(message: WorkerRequestPayload): void {
+    try {
+      this.child?.send(message as WorkerRequest);
+    } catch (error) {
+      this.emitError(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /** EventEmitter throws on `error` without listeners; don't let that crash main. */
+  private emitError(error: Error): void {
+    if (this.listenerCount("error") > 0) {
+      this.emit("error", error);
+    } else {
+      this.onLog("Transcription error with no listener", error);
+    }
+  }
+
+  private sendRequest<T extends void>(
     message: WorkerRequestPayload,
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
@@ -218,7 +313,7 @@ export class WhisperEngine {
 
       const requestId = this.createRequestId();
       this.pending.set(requestId, {
-        resolve: resolve as (value: TranscriptSegment[] | void) => void,
+        resolve: resolve as (value: void) => void,
         reject,
       });
 
@@ -248,19 +343,19 @@ export class WhisperEngine {
         pending.resolve();
         break;
       }
-      case "result": {
-        const pending = this.pending.get(message.requestId);
-        if (!pending) {
-          return;
-        }
-        this.pending.delete(message.requestId);
-        pending.resolve(message.segments);
+      case "segment":
+        this.emit("segment", message.segment);
         break;
-      }
+      case "partial":
+        this.emit("partial", message.text);
+        break;
+      case "lag":
+        this.emit("lag", message.behindMs);
+        break;
       case "error": {
-        const pending = this.pending.get(message.requestId);
-        if (!pending) {
-          this.onLog("Whisper worker reported untracked error", message);
+        const pending = message.requestId ? this.pending.get(message.requestId) : undefined;
+        if (!pending || !message.requestId) {
+          this.emitError(new Error(message.message));
           return;
         }
         this.pending.delete(message.requestId);

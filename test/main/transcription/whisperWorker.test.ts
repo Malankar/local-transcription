@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   buildSherpaModelConfig,
+  defaultNumThreads,
   normalizeSherpaSegments,
   stripWhisperTokens,
 } from '../../../src/main/transcription/whisperWorker'
@@ -66,6 +67,32 @@ describe('buildSherpaModelConfig', () => {
       expect(section).toContain(`/models/x/${file}`)
     }
   })
+
+  it('passes the language through per model kind', () => {
+    expect(buildSherpaModelConfig('whisper', '/m').whisper).toMatchObject({ language: '' })
+    expect(buildSherpaModelConfig('whisper', '/m', 'auto').whisper).toMatchObject({ language: '' })
+    expect(buildSherpaModelConfig('whisper', '/m', 'de').whisper).toMatchObject({ language: 'de' })
+    expect(buildSherpaModelConfig('sense-voice', '/m').senseVoice).toMatchObject({ language: 'auto' })
+    expect(buildSherpaModelConfig('sense-voice', '/m', 'zh').senseVoice).toMatchObject({ language: 'zh' })
+    expect(buildSherpaModelConfig('canary', '/m').canary).toMatchObject({ srcLang: 'en', tgtLang: 'en' })
+    expect(buildSherpaModelConfig('canary', '/m', 'fr').canary).toMatchObject({ srcLang: 'fr', tgtLang: 'fr' })
+  })
+
+  it('uses the given thread count', () => {
+    expect(buildSherpaModelConfig('moonshine', '/m', undefined, 3).numThreads).toBe(3)
+  })
+})
+
+describe('defaultNumThreads', () => {
+  it.each([
+    [1, 1],
+    [2, 1],
+    [8, 4],
+    [9, 4],
+    [32, 8],
+  ])('uses half of %i cores, clamped to 1..8 -> %i', (cores, expected) => {
+    expect(defaultNumThreads(cores)).toBe(expected)
+  })
 })
 
 describe('whisperWorker runtime protocol', () => {
@@ -81,7 +108,7 @@ describe('whisperWorker runtime protocol', () => {
 
     await new Promise((resolve) => setImmediate(resolve))
 
-    expect(sendMock).toHaveBeenCalledWith({ type: 'status', detail: 'Loading transcription model...' })
+    expect(sendMock).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'status' }))
     expect(sendMock).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'error',

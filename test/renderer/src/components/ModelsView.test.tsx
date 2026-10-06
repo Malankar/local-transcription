@@ -22,6 +22,7 @@ describe('ModelsView', () => {
         runtimeModelName: 'base',
         downloadManaged: true,
         supportsGpuAcceleration: false,
+        streaming: false,
         isDownloaded: true,
       },
       {
@@ -38,6 +39,7 @@ describe('ModelsView', () => {
         runtimeModelName: 'small',
         downloadManaged: true,
         supportsGpuAcceleration: false,
+        streaming: false,
         isDownloaded: false,
       },
     ]
@@ -79,6 +81,7 @@ describe('ModelsView', () => {
       runtime: 'node',
       downloadManaged: true,
       supportsGpuAcceleration: false,
+      streaming: false,
       isDownloaded: true,
     }
     installMockApi({

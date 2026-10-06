@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { DEFAULT_TRANSCRIPTION_LANGUAGE } from '../../shared/modelLanguage'
 import type { AppSettings } from '../../shared/types'
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -9,7 +10,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   showTrayIcon: true,
   unloadModelAfterMinutes: 5,
   voiceToTextShortcut: process.platform === 'darwin' ? 'Command+Control+V' : 'Meta+V',
-  muteWhileRecording: false,
+  transcriptionLanguage: DEFAULT_TRANSCRIPTION_LANGUAGE,
   themeMode: 'system',
   historyLimit: 5,
   autoDeleteRecordings: 'never',

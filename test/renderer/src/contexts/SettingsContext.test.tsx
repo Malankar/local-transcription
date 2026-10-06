@@ -27,7 +27,7 @@ function settingsWithTheme(themeMode: ThemeMode): AppSettings {
     showTrayIcon: true,
     unloadModelAfterMinutes: 5,
     voiceToTextShortcut: 'Control+Shift+T',
-    muteWhileRecording: false,
+    transcriptionLanguage: 'en',
     themeMode,
     historyLimit: 10,
     autoDeleteRecordings: 'never',

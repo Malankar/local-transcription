@@ -10,38 +10,9 @@ import { getAudioTeeCommand, MAC_SYSTEM_AUDIO_ID } from './systemAudioTap'
 const SAMPLE_RATE = 16_000
 const CHANNELS = 1
 const BYTES_PER_SAMPLE = 2
-const ANALYSIS_WINDOW_MS = 100
-const SILENCE_RMS_THRESHOLD = 0.015
-const ANALYSIS_WINDOW_BYTE_SIZE =
-  SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (ANALYSIS_WINDOW_MS / 1_000)
-
-interface ChunkingProfile {
-  minChunkMs: number
-  targetChunkMs: number
-  maxChunkMs: number
-  minSilenceMs: number
-  speechPadMs: number
-  overlapMs: number
-}
-
-const CHUNKING_PROFILES: Record<'meeting' | 'live', ChunkingProfile> = {
-  meeting: {
-    minChunkMs: 2_500,
-    targetChunkMs: 4_000,
-    maxChunkMs: 4_000,
-    minSilenceMs: 400,
-    speechPadMs: 200,
-    overlapMs: 350,
-  },
-  live: {
-    minChunkMs: 1_200,
-    targetChunkMs: 2_000,
-    maxChunkMs: 3_500,
-    minSilenceMs: 250,
-    speechPadMs: 100,
-    overlapMs: 200,
-  },
-}
+/** Small frames keep streaming models responsive; the worker's VAD decides where phrases end. */
+const FRAME_MS = 100
+const FRAME_BYTE_SIZE = SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (FRAME_MS / 1_000)
 
 interface AudioCaptureEvents {
   chunk: [AudioChunk]
@@ -55,14 +26,11 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
   private tapProcess: ChildProcessByStdio<null, Readable, Readable> | null = null
   private buffer = Buffer.alloc(0)
   private bufferStartMs = 0
-  private chunkingProfile: ChunkingProfile = CHUNKING_PROFILES.meeting
 
   start(options: CaptureStartOptions): void {
     if (this.process) {
       throw new Error('Capture is already running')
     }
-
-    this.chunkingProfile = CHUNKING_PROFILES[options.profile ?? 'meeting']
 
     let effectiveOptions = options
     if (options.mode === 'mixed') {
@@ -94,7 +62,7 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
 
     process.stdout.on('data', (chunk: Buffer) => {
       this.buffer = Buffer.concat([this.buffer, chunk])
-      this.flushAvailableChunks()
+      this.flushFrames()
     })
 
     process.stderr.on('data', (chunk: Buffer) => {
@@ -109,6 +77,8 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     })
 
     process.on('close', () => {
+      // A previous ffmpeg can close after stop() + a new start(); don't tear down the new one.
+      if (this.process !== process && this.process !== null) return
       this.stopSystemAudioTap()
       this.process = null
       this.buffer = Buffer.alloc(0)
@@ -163,21 +133,11 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     return this.process !== null
   }
 
-  private flushAvailableChunks(): void {
-    let nextChunkByteSize = this.findChunkByteSize()
-
-    while (nextChunkByteSize !== null) {
-      const chunk = this.buffer.subarray(0, nextChunkByteSize)
-      const overlapByteSize = Math.min(
-        toByteSize(this.chunkingProfile.overlapMs),
-        Math.max(0, nextChunkByteSize - ANALYSIS_WINDOW_BYTE_SIZE),
-      )
-      const consumeByteSize = Math.max(BYTES_PER_SAMPLE, nextChunkByteSize - overlapByteSize)
-
-      this.emitChunk(chunk, this.bufferStartMs)
-      this.buffer = this.buffer.subarray(consumeByteSize)
-      this.bufferStartMs += byteSizeToDurationMs(consumeByteSize)
-      nextChunkByteSize = this.findChunkByteSize()
+  private flushFrames(): void {
+    while (this.buffer.length >= FRAME_BYTE_SIZE) {
+      this.emitChunk(this.buffer.subarray(0, FRAME_BYTE_SIZE), this.bufferStartMs)
+      this.buffer = this.buffer.subarray(FRAME_BYTE_SIZE)
+      this.bufferStartMs += FRAME_MS
     }
   }
 
@@ -199,112 +159,16 @@ export class AudioCapture extends EventEmitter<AudioCaptureEvents> {
     this.bufferStartMs += byteSizeToDurationMs(remainingByteLength)
   }
 
-  private findChunkByteSize(): number | null {
-    const minChunkByteSize = toByteSize(this.chunkingProfile.minChunkMs)
-    const targetChunkByteSize = toByteSize(this.chunkingProfile.targetChunkMs)
-    const maxChunkByteSize = toByteSize(this.chunkingProfile.maxChunkMs)
-    const availableByteLength = this.buffer.length - (this.buffer.length % BYTES_PER_SAMPLE)
-    if (availableByteLength < minChunkByteSize) {
-      return null
-    }
-
-    const silenceBoundary = this.findSilenceBoundary(availableByteLength, minChunkByteSize)
-    if (silenceBoundary !== null) {
-      return this.extendBoundaryWithSpeechPadding(silenceBoundary, availableByteLength)
-    }
-
-    if (availableByteLength < maxChunkByteSize) {
-      return null
-    }
-
-    const quietBoundary = this.findQuietBoundary(
-      targetChunkByteSize,
-      Math.min(availableByteLength, maxChunkByteSize)
-    )
-
-    return quietBoundary ?? maxChunkByteSize
-  }
-
-  private extendBoundaryWithSpeechPadding(boundaryByteSize: number, availableByteLength: number): number {
-    const paddedBoundary = Math.min(
-      availableByteLength,
-      boundaryByteSize + toByteSize(this.chunkingProfile.speechPadMs),
-    )
-
-    return paddedBoundary - (paddedBoundary % BYTES_PER_SAMPLE)
-  }
-
-  private findSilenceBoundary(availableByteLength: number, minChunkByteSize: number): number | null {
-    const requiredSilenceWindows = Math.ceil(this.chunkingProfile.minSilenceMs / ANALYSIS_WINDOW_MS)
-    let silentWindows = 0
-
-    for (
-      let windowEnd = ANALYSIS_WINDOW_BYTE_SIZE;
-      windowEnd <= availableByteLength;
-      windowEnd += ANALYSIS_WINDOW_BYTE_SIZE
-    ) {
-      const windowStart = windowEnd - ANALYSIS_WINDOW_BYTE_SIZE
-      const rms = calculateRms(this.buffer.subarray(windowStart, windowEnd))
-
-      silentWindows = rms <= SILENCE_RMS_THRESHOLD ? silentWindows + 1 : 0
-
-      const hasEnoughAudio = windowEnd >= minChunkByteSize
-      if (hasEnoughAudio && silentWindows >= requiredSilenceWindows) {
-        return windowEnd
-      }
-    }
-
-    return null
-  }
-
-  private findQuietBoundary(searchStart: number, searchEnd: number): number | null {
-    const alignedStart = Math.max(
-      ANALYSIS_WINDOW_BYTE_SIZE,
-      searchStart - (searchStart % ANALYSIS_WINDOW_BYTE_SIZE)
-    )
-    const alignedEnd = searchEnd - (searchEnd % ANALYSIS_WINDOW_BYTE_SIZE)
-
-    let quietestBoundary: number | null = null
-    let quietestRms = Number.POSITIVE_INFINITY
-
-    for (
-      let windowEnd = alignedStart;
-      windowEnd <= alignedEnd;
-      windowEnd += ANALYSIS_WINDOW_BYTE_SIZE
-    ) {
-      const windowStart = windowEnd - ANALYSIS_WINDOW_BYTE_SIZE
-      const rms = calculateRms(this.buffer.subarray(windowStart, windowEnd))
-
-      if (rms < quietestRms) {
-        quietestRms = rms
-        quietestBoundary = windowEnd
-      }
-    }
-
-    return quietestBoundary
-  }
-
   private emitChunk(chunk: Buffer, chunkStartMs: number): void {
-    const durationMs = byteSizeToDurationMs(chunk.length)
-    const chunkEndMs = chunkStartMs + durationMs
-
-    // Only skip near–digital silence (do not use RMS here: quiet real audio and many
-    // monitor captures sit below the chunking silence threshold and were being dropped
-    // entirely, so nothing ever reached the transcriber).
-    if (isNearDigitalSilencePcm16(chunk)) {
-      return
-    }
-
+    // Every frame is emitted, silence included: VAD and streaming models need the pauses,
+    // and the worker derives timestamps from the sample count.
+    const chunkEndMs = chunkStartMs + byteSizeToDurationMs(chunk.length)
     this.emit('chunk', {
       audio: pcm16ToFloat32(chunk),
       startMs: chunkStartMs,
       endMs: chunkEndMs,
     })
   }
-}
-
-function toByteSize(durationMs: number): number {
-  return SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * (durationMs / 1_000)
 }
 
 function byteSizeToDurationMs(byteSize: number): number {
@@ -378,22 +242,6 @@ function inputArgs(sourceId: string): string[] {
   return ['-f', inputFormat, '-i', sourceId]
 }
 
-/** True when every sample is tiny (~-72 dBFS or lower), i.e. true silence or dither only. */
-function isNearDigitalSilencePcm16(buffer: Buffer): boolean {
-  const sampleCount = Math.floor(buffer.length / BYTES_PER_SAMPLE)
-  if (sampleCount === 0) {
-    return true
-  }
-
-  for (let index = 0; index < sampleCount; index += 1) {
-    if (Math.abs(buffer.readInt16LE(index * BYTES_PER_SAMPLE)) > 8) {
-      return false
-    }
-  }
-
-  return true
-}
-
 function pcm16ToFloat32(buffer: Buffer): Float32Array {
   const sampleCount = buffer.length / BYTES_PER_SAMPLE
   const result = new Float32Array(sampleCount)
@@ -404,22 +252,6 @@ function pcm16ToFloat32(buffer: Buffer): Float32Array {
   }
 
   return result
-}
-
-function calculateRms(buffer: Buffer): number {
-  const sampleCount = Math.floor(buffer.length / BYTES_PER_SAMPLE)
-  if (sampleCount === 0) {
-    return 0
-  }
-
-  let sumSquares = 0
-
-  for (let index = 0; index < sampleCount; index += 1) {
-    const sample = buffer.readInt16LE(index * BYTES_PER_SAMPLE) / 32_768
-    sumSquares += sample * sample
-  }
-
-  return Math.sqrt(sumSquares / sampleCount)
 }
 
 // avfoundation on macOS; PulseAudio elsewhere (Windows capture isn't implemented yet).

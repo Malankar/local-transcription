@@ -9,6 +9,12 @@ import { useRecordingContext } from '../contexts/RecordingContext'
 import { useTranscriptContext } from '../contexts/TranscriptContext'
 import { useModelsContext } from '../contexts/ModelsContext'
 import { RecordingSourceControls } from './recording/RecordingSourceControls'
+import { TranscriptionLanguageSelect } from './recording/TranscriptionLanguageSelect'
+
+/** Catalog id of the streaming model we nudge users toward for word-by-word text. */
+const STREAMING_MODEL_ID = 'nemotron-streaming-en'
+/** Below this, a little delay is normal phrase-by-phrase behavior, not falling behind. */
+const LAG_WARNING_MS = 3_000
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60)
@@ -34,8 +40,11 @@ export default function RecordSurface() {
     systemSourceId,
     micSourceId,
   } = useRecordingContext()
-  const { mergedMeetingSegments } = useTranscriptContext()
-  const { selectedModel } = useModelsContext()
+  const { mergedMeetingSegments, partialText, lagMs } = useTranscriptContext()
+  const { selectedModel, models, selectModel } = useModelsContext()
+  const streamingModel = models.find((m) => m.id === STREAMING_MODEL_ID)
+  const showStreamingNudge =
+    !isCapturing && selectedModel?.isDownloaded === true && !selectedModel.streaming && !!streamingModel
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const [elapsedSec, setElapsedSec] = useState(0)
@@ -44,6 +53,11 @@ export default function RecordSurface() {
   const meetingText = mergedMeetingSegments.map((s) => s.text).join(' ').trim()
   const showTranscriptWorkspace =
     isCapturing || showCompletionCard || mergedMeetingSegments.length > 0
+
+  // Load the model while the user picks sources so the first words don't wait on it.
+  useEffect(() => {
+    if (selectedModel?.isDownloaded) void window.api.warmupModel()
+  }, [selectedModel?.id, selectedModel?.isDownloaded])
 
   const canStartMeeting =
     !isBusy &&
@@ -83,7 +97,7 @@ export default function RecordSurface() {
     if (viewport) {
       viewport.scrollTop = viewport.scrollHeight
     }
-  }, [mergedMeetingSegments])
+  }, [mergedMeetingSegments, partialText])
 
   return (
     <div className="flex h-full min-h-0 bg-background">
@@ -97,6 +111,12 @@ export default function RecordSurface() {
             <div className="font-mono text-2xl tabular-nums tracking-tight text-foreground">
               {formatTime(elapsedSec)}
             </div>
+            {lagMs > LAG_WARNING_MS && (
+              <p className="mt-2 text-xs text-muted-foreground" role="status">
+                Transcription is running {Math.round(lagMs / 1000)}s behind. Nothing is lost; text will catch up.
+                A faster model helps.
+              </p>
+            )}
           </div>
         )}
 
@@ -149,7 +169,25 @@ export default function RecordSurface() {
           </p>
         )}
 
+        {showStreamingNudge && streamingModel ? (
+          <div className="mt-3 shrink-0 rounded-lg border border-sidebar-border p-3 text-xs text-sidebar-foreground/80">
+            <p className="mb-2">
+              Want words to appear as you speak? {streamingModel.name} transcribes live, with punctuation.
+            </p>
+            {streamingModel.isDownloaded ? (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => void selectModel(streamingModel.id)}>
+                Switch to {streamingModel.name}
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSettingsOpen(true)}>
+                Download it ({streamingModel.sizeMb} MB)
+              </Button>
+            )}
+          </div>
+        ) : null}
+
         <div className="mt-auto space-y-2 border-t border-sidebar-border pt-4 text-xs text-sidebar-foreground/80">
+          <TranscriptionLanguageSelect disabled={isCapturing} />
           {selectedModel ? (
             <p>
               <span className="font-medium text-sidebar-foreground">Model</span>
@@ -172,7 +210,7 @@ export default function RecordSurface() {
               <Card className="mb-4 flex h-0 min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-border bg-card p-0 shadow-sm">
                 <ScrollArea className="h-full min-h-0 flex-1" ref={scrollRef}>
                   <div className="space-y-2 p-4 text-sm">
-                    {!meetingText ? (
+                    {!meetingText && !partialText ? (
                       <p className="text-muted-foreground">Transcript will appear here...</p>
                     ) : (
                       mergedMeetingSegments.map((seg) => (
@@ -184,6 +222,12 @@ export default function RecordSurface() {
                         </div>
                       ))
                     )}
+                    {partialText ? (
+                      <div className="flex gap-3" aria-live="polite">
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">[{formatTime(elapsedSec)}]</span>
+                        <span className="min-w-0 break-words text-muted-foreground">{partialText}</span>
+                      </div>
+                    ) : null}
                   </div>
                 </ScrollArea>
               </Card>

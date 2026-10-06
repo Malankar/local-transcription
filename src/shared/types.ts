@@ -52,7 +52,20 @@ export interface ExportResult {
 export type TranscriptionEngine = 'sherpa'
 
 /** Model architecture for sherpa-onnx; tells the worker which config/file layout to load. */
-export type SherpaModelKind = 'whisper' | 'nemo-transducer' | 'moonshine' | 'sense-voice' | 'canary'
+export type SherpaModelKind =
+  | 'whisper'
+  | 'nemo-transducer'
+  | 'moonshine'
+  | 'sense-voice'
+  | 'canary'
+  /** Online (streaming) transducer, e.g. Nemotron Streaming: emits words while you speak. */
+  | 'streaming-transducer'
+
+/** Language picker entry; `code` is an ISO 639-1 code or 'auto' for auto-detect. */
+export interface TranscriptionLanguage {
+  code: string
+  label: string
+}
 
 export interface TranscriptionModel {
   id: string
@@ -71,6 +84,10 @@ export interface TranscriptionModel {
   gpuAccelerationLabel?: string
   setupHint?: string
   sherpaKind?: SherpaModelKind
+  /** Streaming models show words while you speak; others transcribe each detected phrase. */
+  streaming: boolean
+  /** Languages the user can pick; absent = fixed language (e.g. English-only), so no picker. */
+  languageOptions?: TranscriptionLanguage[]
   isDownloaded: boolean
 }
 
@@ -171,7 +188,8 @@ export interface AppSettings {
   showTrayIcon: boolean
   unloadModelAfterMinutes: number  // 0 = never, default 5
   voiceToTextShortcut: string      // Electron accelerator string
-  muteWhileRecording: boolean
+  /** Preferred transcription language code; models that don't offer it fall back to their default. */
+  transcriptionLanguage: string
   themeMode: ThemeMode
   // History
   historyLimit: number             // max sessions to keep, 0 = unlimited, default 5
@@ -191,6 +209,12 @@ export interface LocalTranscribeApi {
   exportTxt: () => Promise<ExportResult>
   exportSrt: () => Promise<ExportResult>
   onTranscriptSegment: (listener: (segment: TranscriptSegment) => void) => () => void
+  /** In-progress words from a streaming model; replaced on every update, '' once finalized. */
+  onTranscriptPartial: (listener: (text: string) => void) => () => void
+  /** How far transcription trails the live audio, in ms (0 = caught up). */
+  onTranscriptionLag: (listener: (behindMs: number) => void) => () => void
+  /** Loads the selected model ahead of recording; best effort, never rejects for a missing model. */
+  warmupModel: () => Promise<void>
   onStatus: (listener: (status: AppStatus) => void) => () => void
   onError: (listener: (message: string) => void) => () => void
   onShortcutVoiceToText: (listener: () => void) => () => void

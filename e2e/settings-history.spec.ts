@@ -3,7 +3,9 @@ import { test, expect } from '@playwright/test'
 import { closeLaunchedApp, launchApp } from './fixtures/launchApp'
 import { openSettingsDialog, historyBlock } from './fixtures/settingsHelpers'
 
-test.describe('Settings — History', () => {
+// The History section (session limit, auto-delete, keep starred) was removed from SettingsView in
+// f2dbbd5; there is no UI to drive. Retention logic is still covered via IPC in library-history-prune.spec.ts.
+test.describe.skip('Settings — History', () => {
   test.describe('Session limit', () => {
     test('select updates the session limit value', async () => {
       const { electronApp } = await launchApp()

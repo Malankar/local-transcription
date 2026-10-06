@@ -19,8 +19,13 @@ git push origin --tags
 ```
 
 The workflow builds on four parallel runners (mac-x64, mac-arm64, linux, windows),
-uploads artifacts to a **draft** GitHub Release, and you publish it manually after
-reviewing the artifacts.
+uploads artifacts to a draft GitHub Release, then publishes it with auto-generated notes
+once every build succeeds.
+
+Installed apps check that release feed on launch (electron-updater) and install the update
+on the next quit. This works for the Windows installer and the Linux AppImage/deb today;
+macOS auto-update stays off until builds are signed and notarized (Apple requirement), see
+`setupAutoUpdates` in `src/main/index.ts`.
 
 ---
 
@@ -86,7 +91,7 @@ base64 -i certificate.p12 | pbcopy   # copies to clipboard (macOS)
 | `CSC_LINK` | Base64-encoded content of `certificate.p12` |
 | `CSC_KEY_PASSWORD` | Password you set when exporting the `.p12` |
 
-#### 3. Notarization (flip `notarize: false → true` in `electron-builder.yml`)
+#### 3. Notarization (turns on automatically once these secrets exist)
 
 Create an App Store Connect API key:
 
@@ -126,11 +131,7 @@ and export it as a `.p12`.
 
 ## Enabling notarization
 
-In `electron-builder.yml`, change:
-
-```yaml
-mac:
-  notarize: false   # → true
-```
-
-All three `APPLE_API_KEY*` secrets must be set before flipping this switch.
+Nothing to edit: once `APPLE_API_KEY`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` are all set,
+the workflow's "Prepare macOS notarization" step writes the key to disk and passes
+`-c.mac.notarize=true` to electron-builder. Without them, macOS builds are unsigned and users
+have to approve the app in System Settings → Privacy & Security → "Open Anyway".

@@ -3,36 +3,45 @@ import { test, expect } from '@playwright/test'
 import { closeLaunchedApp, launchApp } from './fixtures/launchApp'
 
 test.describe('Record surface — audio sources', () => {
-  test('System / Mic / Mixed toggles show matching device selects', async () => {
+  test('System Audio / Microphone / Mix toggles show matching device selects', async () => {
     const { electronApp } = await launchApp()
 
     try {
       const window = await electronApp.firstWindow()
       await window.waitForLoadState('domcontentloaded')
 
-      await expect(window.getByText('Audio Input', { exact: true })).toBeVisible()
+      await expect(window.getByText('Source type', { exact: true })).toBeVisible()
 
-      const systemBtn = window.getByRole('button', { name: 'System' })
-      const micBtn = window.getByRole('button', { name: 'Mic' })
-      const mixedBtn = window.getByRole('button', { name: 'Mixed' })
+      const systemBtn = window.getByRole('button', { name: /^System Audio/ })
+      const micBtn = window.getByRole('button', { name: /^Microphone/ })
+      const mixedBtn = window.getByRole('button', { name: /^Mix\b/ })
+      // Scope to the source controls so the model language select (multilingual models) isn't counted.
+      const sourceControls = window
+        .locator('div')
+        .filter({ has: window.getByText('Source type', { exact: true }) })
+        .filter({ has: window.getByTitle('Refresh audio sources') })
+        .last()
+      const deviceSelects = sourceControls.getByRole('combobox')
+      const systemLabel = window.getByText('System audio device', { exact: true })
+      const micLabel = window.getByText('Microphone device', { exact: true })
 
       await mixedBtn.click()
-      await expect(window.getByText('System Source', { exact: true })).toBeVisible()
-      await expect(window.getByText('Microphone', { exact: true })).toBeVisible()
-      await expect(window.getByRole('combobox')).toHaveCount(2)
+      await expect(systemLabel).toBeVisible()
+      await expect(micLabel).toBeVisible()
+      await expect(deviceSelects).toHaveCount(2)
 
       await systemBtn.click()
-      await expect(window.getByText('System Source', { exact: true })).toBeVisible()
-      await expect(window.getByText('Microphone', { exact: true })).toHaveCount(0)
-      await expect(window.getByRole('combobox')).toHaveCount(1)
+      await expect(systemLabel).toBeVisible()
+      await expect(micLabel).toHaveCount(0)
+      await expect(deviceSelects).toHaveCount(1)
 
       await micBtn.click()
-      await expect(window.getByText('Microphone', { exact: true })).toBeVisible()
-      await expect(window.getByText('System Source', { exact: true })).toHaveCount(0)
-      await expect(window.getByRole('combobox')).toHaveCount(1)
+      await expect(micLabel).toBeVisible()
+      await expect(systemLabel).toHaveCount(0)
+      await expect(deviceSelects).toHaveCount(1)
 
       await mixedBtn.click()
-      await expect(window.getByRole('combobox')).toHaveCount(2)
+      await expect(deviceSelects).toHaveCount(2)
     } finally {
       await closeLaunchedApp(electronApp)
     }

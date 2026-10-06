@@ -75,7 +75,7 @@ describe('SettingsManager', () => {
       expect(settings.launchOnStartup).toBe(true)
       // Keys absent from stored file should fall back to defaults
       expect(settings.showTrayIcon).toBe(true)
-      expect(settings.muteWhileRecording).toBe(false)
+      expect(settings.transcriptionLanguage).toBe('en')
     })
 
     it('merges partial uiFeatures with defaults', async () => {
@@ -137,11 +137,11 @@ describe('SettingsManager', () => {
 
       await settingsManager.updateSettings({ historyLimit: 10 })
       await settingsManager.updateSettings({ launchOnStartup: true })
-      const final = await settingsManager.updateSettings({ muteWhileRecording: true })
+      const final = await settingsManager.updateSettings({ transcriptionLanguage: 'fr' })
 
       expect(final.historyLimit).toBe(10)
       expect(final.launchOnStartup).toBe(true)
-      expect(final.muteWhileRecording).toBe(true)
+      expect(final.transcriptionLanguage).toBe('fr')
     })
 
     it('writes valid JSON to the settings file', async () => {

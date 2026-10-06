@@ -34,7 +34,7 @@ export async function assertMeetingLifecycle(window: Page, sourceLabel: string) 
     const transcriptions = window.getByRole('heading', { name: 'Transcriptions' })
     const listVisible = await transcriptions.isVisible().catch(() => false)
     const stillEmpty = await window.getByText('No saved sessions yet.').isVisible().catch(() => false)
-    return cardVisible || (listVisible && !stillEmpty)
+    expect(cardVisible || (listVisible && !stillEmpty)).toBe(true)
   }).toPass({ timeout: 180_000 })
 
   if (await recordingSaved.isVisible().catch(() => false)) {

@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 export async function openSettingsDialog(window: Page) {
-  await window.getByTitle('Settings').click()
+  await window.getByRole('button', { name: 'Open settings' }).click()
   const dialog = window.getByRole('dialog')
   await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible()
   await expect(dialog.getByRole('heading', { level: 3, name: 'Start hidden' })).toBeVisible({
@@ -23,7 +23,7 @@ export function generalRow(page: Page, label: string) {
 }
 
 export async function openSettings(page: Page) {
-  await page.getByTitle('Settings').click()
+  await page.getByRole('button', { name: 'Open settings' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await expect(page.getByRole('heading', { level: 3, name: 'Start hidden' })).toBeVisible()
 }

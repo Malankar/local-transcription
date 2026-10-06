@@ -96,29 +96,7 @@ test.describe('Settings — General — Show tray icon', () => {
   })
 })
 
-test.describe('Settings — General — Unload model after idle', () => {
-  test('select changes displayed idle unload option', async () => {
-    const { electronApp } = await launchApp()
-    try {
-      const page = await electronApp.firstWindow()
-      await page.waitForLoadState('domcontentloaded')
-      await openSettings(page)
-
-      const row = generalRow(page, 'Unload model after idle')
-      const trigger = row.getByRole('combobox')
-      await expect(trigger).toBeVisible()
-      await expect(trigger).toContainText('5 minutes')
-
-      await trigger.click()
-      await page.getByRole('option', { name: '10 minutes' }).click()
-      await expect(trigger).toContainText('10 minutes')
-    } finally {
-      await closeLaunchedApp(electronApp)
-    }
-  })
-})
-
-test.describe('Settings — General — Voice-to-text shortcut', () => {
+test.describe('Settings — General — Start and stop recording shortcut', () => {
   test('shortcut input captures a new key combination', async () => {
     const { electronApp } = await launchApp()
     try {
@@ -126,32 +104,13 @@ test.describe('Settings — General — Voice-to-text shortcut', () => {
       await page.waitForLoadState('domcontentloaded')
       await openSettings(page)
 
-      const row = generalRow(page, 'Voice-to-text shortcut')
+      const row = generalRow(page, 'Start and stop recording shortcut')
       const input = row.getByRole('textbox')
       await input.click()
       await expect(input).toHaveValue('Press keys…')
 
       await page.keyboard.press('Control+Shift+KeyB')
       await expect(input).toHaveValue('Control+Shift+B')
-    } finally {
-      await closeLaunchedApp(electronApp)
-    }
-  })
-})
-
-test.describe('Settings — General — Mute while recording', () => {
-  test('toggle updates mute switch', async () => {
-    const { electronApp } = await launchApp()
-    try {
-      const page = await electronApp.firstWindow()
-      await page.waitForLoadState('domcontentloaded')
-      await openSettings(page)
-
-      const row = generalRow(page, 'Mute while recording')
-      const sw = row.getByRole('switch')
-      await expect(sw).not.toBeChecked()
-      await sw.click()
-      await expect(sw).toBeChecked()
     } finally {
       await closeLaunchedApp(electronApp)
     }

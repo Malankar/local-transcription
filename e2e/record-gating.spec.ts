@@ -2,20 +2,25 @@ import { test, expect, type Page } from '@playwright/test'
 
 import { closeLaunchedApp, launchApp } from './fixtures/launchApp'
 
-/** Whisper.cpp catalog IDs (download-managed). First not present on disk yields no-model gating. */
-const MANAGED_MODEL_IDS = ['tiny.en', 'base.en', 'small.en', 'medium.en', 'large-v3-turbo'] as const
+/** Catalog IDs (download-managed). First not present on disk yields no-model gating. */
+const MANAGED_MODEL_IDS = [
+  'nemotron-streaming-en',
+  'tiny.en',
+  'base.en',
+  'small.en',
+  'medium.en',
+  'large-v3-turbo',
+] as const
 
 async function ensureTinyModelDownloaded(window: Page) {
-  await window.getByTitle('Settings').click()
+  await window.getByRole('button', { name: 'Open settings' }).click()
   const modal = window.getByRole('dialog')
   await expect(modal.getByRole('heading', { name: 'Settings' })).toBeVisible()
   await expect(modal.getByRole('heading', { level: 3, name: 'Start hidden' })).toBeVisible({
     timeout: 30_000,
   })
   await modal.getByText('Transcription models').scrollIntoViewIfNeeded()
-  const tinyCard = modal
-    .getByText('tiny.en', { exact: true })
-    .locator('xpath=ancestor::div[@role="button"][1]')
+  const tinyCard = modal.getByTestId('model-card-tiny.en')
   await expect(tinyCard).toBeVisible()
   await tinyCard.click()
   if (await tinyCard.getByText('Ready', { exact: true }).isVisible()) {
@@ -52,15 +57,12 @@ test.describe('Record surface gating', () => {
 
       await expect(window.getByText('Select audio sources above.')).toBeVisible()
       await expect(window.getByRole('button', { name: /start recording/i })).toBeDisabled()
-      const importBtn = window.getByRole('button', { name: /import file/i })
-      await expect(importBtn).toBeDisabled()
-      await expect(importBtn).toHaveAttribute('title', 'Import file is not available in this build')
     } finally {
       await closeLaunchedApp(electronApp)
     }
   })
 
-  test('shows no-model copy; inline Settings opens modal; Import File stays disabled', async () => {
+  test('shows no-model copy; inline Settings opens modal', async () => {
     const { electronApp } = await launchApp()
 
     try {
@@ -69,11 +71,11 @@ test.describe('Record surface gating', () => {
 
       let gating = window.locator('p').filter({ hasText: /Download a transcription model/ })
       for (const modelId of MANAGED_MODEL_IDS) {
-        await window.locator('nav').getByTitle('Settings').click()
+        await window.locator('nav').getByRole('button', { name: 'Open settings' }).click()
         const modal = window.getByRole('dialog')
         await expect(modal.getByRole('heading', { name: 'Settings' })).toBeVisible()
         await modal.getByText('Transcription models').scrollIntoViewIfNeeded()
-        const card = modal.locator('[role="button"]').filter({ hasText: modelId }).first()
+        const card = modal.getByTestId(`model-card-${modelId}`)
         await expect(card).toBeVisible()
         await card.click()
         await modal.getByRole('button', { name: 'Cancel' }).click()
@@ -88,10 +90,6 @@ test.describe('Record surface gating', () => {
       await gating.getByRole('button', { name: 'Settings' }).click()
       await expect(window.getByRole('dialog')).toBeVisible()
       await expect(window.getByRole('heading', { name: 'Settings' })).toBeVisible()
-
-      const importBtn = window.getByRole('button', { name: /import file/i })
-      await expect(importBtn).toBeDisabled()
-      await expect(importBtn).toHaveAttribute('title', 'Import file is not available in this build')
     } finally {
       await closeLaunchedApp(electronApp)
     }

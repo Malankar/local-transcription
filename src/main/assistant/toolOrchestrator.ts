@@ -78,7 +78,7 @@ export async function orchestrateAssistantChat(options: {
   // in `options` causes Ollama to silently ignore it and burn the token budget on hidden reasoning.
   const thinkingTweaks: Partial<OllamaChatOptions> = thinkingMode
     ? { think: true, temperature: 0.6, repeat_penalty: 1, top_p: 0.95 }
-    : {}
+    : { think: false } // Qwen3 thinks by default when `think` is omitted
 
   const model = thinkingMode ? ASSISTANT_OLLAMA_MODEL_CHAT_THINKING : ASSISTANT_OLLAMA_MODEL_CHAT
 

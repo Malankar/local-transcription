@@ -10,7 +10,7 @@ test.describe('record system lifecycle @slow', () => {
       const window = await electronApp.firstWindow()
       await window.waitForLoadState('domcontentloaded')
 
-      await window.getByRole('button', { name: 'System' }).click()
+      await window.getByRole('button', { name: /^System Audio/ }).click()
       await assertMeetingLifecycle(window, 'system audio source')
     } finally {
       await closeLaunchedApp(electronApp)
@@ -25,7 +25,7 @@ test.describe('record mixed lifecycle @slow', () => {
       const window = await electronApp.firstWindow()
       await window.waitForLoadState('domcontentloaded')
 
-      await window.getByRole('button', { name: 'Mixed' }).click()
+      await window.getByRole('button', { name: /^Mix\b/ }).click()
       await assertMeetingLifecycle(window, 'system + microphone sources')
     } finally {
       await closeLaunchedApp(electronApp)

@@ -80,6 +80,24 @@ describe('AudioCapture', () => {
     })
   })
 
+  describe('restart', () => {
+    it("ignores a stale ffmpeg 'close' after stop() and a quick restart", () => {
+      const first = new MockProcess()
+      const second = new MockProcess()
+      vi.mocked(spawn).mockReturnValueOnce(first as any).mockReturnValueOnce(second as any)
+      const stopped = vi.fn()
+      audioCapture.on('stopped', stopped)
+
+      audioCapture.start({ mode: 'mic', micSourceId: 'default' })
+      audioCapture.stop()
+      audioCapture.start({ mode: 'mic', micSourceId: 'default' })
+      first.emit('close')
+
+      expect(audioCapture.isRunning()).toBe(true)
+      expect(stopped).not.toHaveBeenCalled()
+    })
+  })
+
   describe('macOS system audio tap', () => {
     beforeEach(() => {
       vi.mocked(spawn).mockImplementation((() => new MockProcess()) as any)
@@ -114,70 +132,62 @@ describe('AudioCapture', () => {
   })
 
   describe('chunking', () => {
-    it('emits chunk event when enough data is received', async () => {
-      audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
-      const chunks = collectChunks(audioCapture)
-
-      // Generate 4 seconds of "noise" (non-silent PCM) to exceed maxChunkMs (3.5s)
-      mockProcess.stdout.push(makeNoisePcm(4))
-      await tick()
-
-      expect(chunks.length).toBeGreaterThan(0)
-    })
-
-    it('retains a small overlap between consecutive forced chunks', async () => {
-      audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
-      const chunks = collectChunks(audioCapture)
-
-      // Generate 8 seconds of non-silent PCM so the chunker must force multiple windows.
-      mockProcess.stdout.push(makeNoisePcm(8))
-      await tick()
-      audioCapture.stop()
-
-      expect(chunks.length).toBeGreaterThanOrEqual(3)
-      expect(chunks[1].startMs).toBeLessThan(chunks[0].endMs)
-    })
-
-    it('does not emit chunk for digital silence', async () => {
+    it('emits one 100 ms frame per 3200 bytes with contiguous timestamps', async () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default' })
       const chunks = collectChunks(audioCapture)
 
-      // Generate 5 seconds of silence (zeros)
-      mockProcess.stdout.push(makeSilencePcm(5))
+      mockProcess.stdout.push(makeNoisePcm(1))
       await tick()
 
-      expect(chunks.length).toBe(0)
+      expect(chunks).toHaveLength(10)
+      expect(chunks[0].audio).toBeInstanceOf(Float32Array)
+      expect(chunks[0].audio).toHaveLength(1600)
+      expect(chunks[0].audio[0]).toBeCloseTo(15000 / 32768)
+      expect(chunks.map((c) => [c.startMs, c.endMs])).toEqual(
+        Array.from({ length: 10 }, (_, i) => [i * 100, (i + 1) * 100]),
+      )
     })
 
-    it('emits chunk for quiet audio that is still above the digital floor', async () => {
-      audioCapture.start({ mode: 'mic', micSourceId: 'default', profile: 'live' })
+    it('emits frames for digital silence too', async () => {
+      audioCapture.start({ mode: 'mic', micSourceId: 'default' })
       const chunks = collectChunks(audioCapture)
 
-      const data = Buffer.alloc(16000 * 2 * 2)
-      for (let i = 0; i < data.length; i += 2) {
-        data.writeInt16LE(200, i)
-      }
-      mockProcess.stdout.push(data)
+      mockProcess.stdout.push(makeSilencePcm(1))
       await tick()
 
-      expect(chunks.length).toBeGreaterThan(0)
+      expect(chunks).toHaveLength(10)
+    })
+
+    it('holds back a partial frame until enough bytes arrive', async () => {
+      audioCapture.start({ mode: 'mic', micSourceId: 'default' })
+      const chunks = collectChunks(audioCapture)
+
+      mockProcess.stdout.push(Buffer.alloc(2000))
+      await tick()
+      expect(chunks).toHaveLength(0)
+
+      mockProcess.stdout.push(Buffer.alloc(1200))
+      await tick()
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0]).toMatchObject({ startMs: 0, endMs: 100 })
     })
   })
 
   describe('stop', () => {
-    it('kills the process and flushes remaining data', async () => {
+    it('kills the process and flushes the remainder as a shorter final frame', async () => {
       audioCapture.start({ mode: 'mic', micSourceId: 'default' })
       const chunks = collectChunks(audioCapture)
 
-      // Push 1 second of non-silent data
-      mockProcess.stdout.push(makeNoisePcm(1))
+      // 150 ms: one full frame + 50 ms left over
+      mockProcess.stdout.push(Buffer.alloc(4800))
       await tick(50)
 
       audioCapture.stop()
 
-      expect(mockProcess.kill).toHaveBeenCalled()
-      // flush emits at least one chunk (the 1s of non-silent audio)
-      expect(chunks.length).toBeGreaterThanOrEqual(1)
+      expect(mockProcess.kill).toHaveBeenCalledWith('SIGTERM')
+      expect(chunks).toHaveLength(2)
+      expect(chunks[1]).toMatchObject({ startMs: 100, endMs: 150 })
+      expect(chunks[1].audio).toHaveLength(800)
     })
   })
 

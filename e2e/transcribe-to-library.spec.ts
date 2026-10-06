@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 import { closeLaunchedApp, launchApp } from './fixtures/launchApp'
 
 test.describe('@fixture transcribe → library', () => {
-  test('seeded meeting session appears in Library with Quick Summary from preview', async () => {
+  test('seeded meeting session appears in Library with Summary from preview', async () => {
     const { electronApp } = await launchApp()
     try {
       const window = await electronApp.firstWindow()
@@ -20,13 +20,17 @@ test.describe('@fixture transcribe → library', () => {
       await expect(async () => {
         const m = await window.evaluate(() => window.api.listHistory())
         label = m[0]?.label ?? ''
-        return label.startsWith('E2E ')
+        expect(label).toMatch(/^E2E /)
       }).toPass({ timeout: 30_000 })
 
       await expect(window.getByRole('heading', { name: label, level: 3 })).toBeVisible()
-      await expect(window.getByRole('heading', { name: 'Quick Summary' })).toBeVisible()
+      const summaryHeading = window.getByRole('heading', { name: 'Summary', exact: true })
+      await expect(summaryHeading).toBeVisible()
       await expect(
-        window.locator('.border-blue-200').getByText(body.slice(0, 80), { exact: false }),
+        window
+          .locator('[data-slot="card"]')
+          .filter({ has: summaryHeading })
+          .getByText(body.slice(0, 80), { exact: false }),
       ).toBeVisible()
     } finally {
       await closeLaunchedApp(electronApp)

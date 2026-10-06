@@ -11,6 +11,10 @@ interface TranscriptContextValue {
   mergedMeetingSegments: TranscriptSegment[]
   mergedLiveSegments: TranscriptSegment[]
   liveTranscriptText: string
+  /** Words a streaming model is still working on; '' when nothing is pending. */
+  partialText: string
+  /** How far transcription trails the live audio, in ms. */
+  lagMs: number
 
   // Actions
   clearMeeting: () => void
@@ -26,6 +30,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
 
   const [meetingSegments, setMeetingSegments] = useState<TranscriptSegment[]>([])
   const [liveSegments, setLiveSegments] = useState<TranscriptSegment[]>([])
+  const [partialText, setPartialText] = useState('')
+  const [lagMs, setLagMs] = useState(0)
 
   const mergedMeetingSegments = useMemo(
     () => mergeTranscriptSegments(meetingSegments),
@@ -54,6 +60,15 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     return unsub
   }, [captureProfileRef])
 
+  useEffect(() => {
+    const unsubPartial = window.api.onTranscriptPartial(setPartialText)
+    const unsubLag = window.api.onTranscriptionLag(setLagMs)
+    return () => {
+      unsubPartial()
+      unsubLag()
+    }
+  }, [])
+
   function clearMeeting(): void {
     setMeetingSegments([])
   }
@@ -76,6 +91,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
     mergedMeetingSegments,
     mergedLiveSegments,
     liveTranscriptText,
+    partialText,
+    lagMs,
     clearMeeting,
     clearLive,
     exportTxt,

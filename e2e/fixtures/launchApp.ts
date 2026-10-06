@@ -39,7 +39,7 @@ export async function closeLaunchedApp(electronApp: ElectronApplication): Promis
     // IPC may already be torn down
   }
 
-  const timeoutMs = 20_000
+  const timeoutMs = 5_000
   try {
     await Promise.race([
       electronApp.close(),
@@ -74,11 +74,11 @@ export async function launchApp(options?: {
     cwd: projectRoot,
     args: [`--user-data-dir=${userDataDir}`, electronMain],
     env: launchEnv(options?.env),
-    timeout: options?.timeout ?? 120_000,
+    timeout: options?.timeout ?? 60_000,
   })
   const ctx = electronApp.context()
-  const opTimeout = options?.contextTimeoutMs ?? 120_000
+  const opTimeout = options?.contextTimeoutMs ?? 10_000
   ctx.setDefaultTimeout(opTimeout)
-  ctx.setDefaultNavigationTimeout(options?.navigationTimeoutMs ?? 120_000)
+  ctx.setDefaultNavigationTimeout(options?.navigationTimeoutMs ?? 30_000)
   return { electronApp, userDataDir }
 }

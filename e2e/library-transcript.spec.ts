@@ -1,7 +1,14 @@
 import { test, expect } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 import { readLatestE2eExportAfter } from './fixtures/e2eExportFile'
 import { closeLaunchedApp, launchApp } from './fixtures/launchApp'
+
+function summaryCard(window: Page) {
+  return window
+    .locator('[data-slot="card"]')
+    .filter({ has: window.getByRole('heading', { name: 'Summary', exact: true }) })
+}
 
 test.describe('Library transcript viewer', () => {
   test('summary, copy Copied!, export TXT, delete', async () => {
@@ -14,8 +21,8 @@ test.describe('Library transcript viewer', () => {
       await window.evaluate(async (t) => window.api.e2eSeedHistoryMeeting(t), line)
 
       await window.getByRole('button', { name: 'Library', exact: true }).click()
-      await expect(window.getByRole('heading', { name: 'Quick Summary' })).toBeVisible()
-      await expect(window.locator('.border-blue-200').getByText(line, { exact: false })).toBeVisible()
+      await expect(window.getByRole('heading', { name: 'Summary', exact: true })).toBeVisible()
+      await expect(summaryCard(window).getByText(line, { exact: false })).toBeVisible()
 
       await window.getByRole('button', { name: 'Copy Transcript' }).click()
       await expect(window.getByRole('button', { name: 'Copied!' })).toBeVisible()
@@ -39,7 +46,7 @@ test.describe('Library transcript viewer', () => {
       await window.evaluate(async (t) => window.api.e2eSeedHistoryMeeting(t), line)
 
       await window.getByRole('button', { name: 'Library', exact: true }).click()
-      await expect(window.getByRole('heading', { name: 'Quick Summary' })).toBeVisible()
+      await expect(window.getByRole('heading', { name: 'Summary', exact: true })).toBeVisible()
 
       const beforeExport = Date.now() - 500
       await window.getByRole('button', { name: 'Export SRT' }).click()

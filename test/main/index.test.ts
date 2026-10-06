@@ -88,21 +88,17 @@ const mainMocks = vi.hoisted(() => {
     isRunning: vi.fn(() => false),
   }
 
-  const chunkQueue = {
-    on: vi.fn(),
-    setMode: vi.fn(),
-    clear: vi.fn(),
-    enqueue: vi.fn(),
-    notifyCaptureEnded: vi.fn(),
-  }
-
   const sourceDiscovery = {
     getSources: vi.fn(() => []),
   }
 
   const whisperEngine = {
+    on: vi.fn(),
     setModel: vi.fn(),
-    transcribe: vi.fn(),
+    initialize: vi.fn(),
+    startSession: vi.fn(),
+    pushAudio: vi.fn(),
+    endSession: vi.fn(),
     dispose: vi.fn(),
   }
 
@@ -132,7 +128,7 @@ const mainMocks = vi.hoisted(() => {
       showTrayIcon: false,
       unloadModelAfterMinutes: 0,
       voiceToTextShortcut: '',
-      muteWhileRecording: false,
+      transcriptionLanguage: 'en',
       themeMode: 'system',
       historyLimit: 5,
       autoDeleteRecordings: 'never',
@@ -161,9 +157,6 @@ const mainMocks = vi.hoisted(() => {
   const SettingsManager = vi.fn(function SettingsManager() {
     return settingsManager
   })
-  const ChunkQueue = vi.fn(function ChunkQueue() {
-    return chunkQueue
-  })
   const ModelManager = vi.fn(function ModelManager() {
     return modelManager
   })
@@ -181,7 +174,6 @@ const mainMocks = vi.hoisted(() => {
     globalShortcut,
     logger,
     audioCapture,
-    chunkQueue,
     sourceDiscovery,
     whisperEngine,
     modelManager,
@@ -193,12 +185,15 @@ const mainMocks = vi.hoisted(() => {
     HistoryManager,
     AppLogger,
     SettingsManager,
-    ChunkQueue,
     ModelManager,
     WhisperEngine,
     browserWindowInstances,
   }
 })
+
+vi.mock('electron-updater', () => ({
+  autoUpdater: { on: vi.fn(), checkForUpdatesAndNotify: vi.fn(() => Promise.resolve(null)) },
+}))
 
 vi.mock('electron', () => ({
   app: mainMocks.app,
@@ -232,10 +227,6 @@ vi.mock('../../src/main/logging/AppLogger', () => ({
 
 vi.mock('../../src/main/settings/SettingsManager', () => ({
   SettingsManager: mainMocks.SettingsManager,
-}))
-
-vi.mock('../../src/main/transcription/ChunkQueue', () => ({
-  ChunkQueue: mainMocks.ChunkQueue,
 }))
 
 vi.mock('../../src/main/transcription/ModelManager', () => ({
@@ -311,6 +302,33 @@ describe('main bootstrap', () => {
     expect(registeredOptions.getMainWindow()).toBe(mainMocks.browserWindowInstances[0])
     expect(registeredOptions.getTranscriptSegments()).toEqual([])
     expect(mainMocks.app.on).toHaveBeenCalledWith('activate', expect.any(Function))
+  })
+
+  it('feeds capture frames to the engine and filters engine segments before sending them', async () => {
+    await importMain()
+
+    expect(mainMocks.WhisperEngine).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.any(Function),
+      expect.stringContaining('silero_vad.onnx')
+    )
+
+    const onChunk = mainMocks.audioCapture.on.mock.calls.find(([event]) => event === 'chunk')?.[1]
+    const chunk = { audio: new Float32Array(1600), startMs: 0, endMs: 100 }
+    onChunk(chunk)
+    expect(mainMocks.whisperEngine.pushAudio).toHaveBeenCalledWith(chunk)
+
+    const onSegment = mainMocks.whisperEngine.on.mock.calls.find(([event]) => event === 'segment')?.[1]
+    const send = mainMocks.browserWindowInstances[0].webContents.send
+    const base = { startMs: 0, endMs: 1000, timestamp: 'T1' }
+
+    onSegment({ ...base, id: 'noise', text: '  42 ' })
+    onSegment({ ...base, id: 'real', text: 'I write typescript' })
+
+    const sent = send.mock.calls.filter(([channel]) => channel === 'transcript:segment').map(([, s]) => s)
+    expect(sent).toEqual([{ ...base, id: 'real', text: 'I write TypeScript' }])
+    const registeredOptions = mainMocks.registerIpcHandlers.mock.calls[0][0]
+    expect(registeredOptions.getTranscriptSegments()).toEqual(sent)
   })
 
   it('stops capture and quits on window-all-closed outside macOS', async () => {

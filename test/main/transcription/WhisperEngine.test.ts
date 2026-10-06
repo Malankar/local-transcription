@@ -63,6 +63,7 @@ describe("WhisperEngine", () => {
     runtimeModelName: "base.en",
     downloadManaged: true,
     supportsGpuAcceleration: false,
+    streaming: false,
     isDownloaded: true,
   };
 
@@ -70,7 +71,7 @@ describe("WhisperEngine", () => {
     vi.clearAllMocks();
     mockChild = new MockChildProcess();
     vi.mocked(fork).mockReturnValue(mockChild as unknown as ChildProcess);
-    engine = new WhisperEngine(onStatus, onLog);
+    engine = new WhisperEngine(onStatus, onLog, "/vad/silero_vad.onnx");
   });
 
   it("throws if initialize is called without a model", async () => {
@@ -89,6 +90,7 @@ describe("WhisperEngine", () => {
         expect.objectContaining({
           type: "initialize",
           modelId: "base",
+          vadModelPath: "/vad/silero_vad.onnx",
         }),
       );
 
@@ -136,63 +138,130 @@ describe("WhisperEngine", () => {
     });
   });
 
-  describe("transcription", () => {
-    beforeEach(async () => {
+  describe("session", () => {
+    const sentOfType = (type: string) =>
+      mockChild.send.mock.calls.map(([m]) => m).filter((m) => m.type === type);
+    const replyReady = (type: string) =>
+      mockChild.emit("message", { type: "ready", requestId: sentOfType(type).at(-1).requestId });
+
+    async function startReadySession(): Promise<void> {
       await initializeEngine(engine, mockChild, mockModel);
+      const sessionPromise = engine.startSession();
+      await tick();
+      replyReady("session-start");
+      await sessionPromise;
+    }
+
+    it("buffers audio pushed before ready, then flushes it in order", async () => {
+      engine.setModel(mockModel);
+      const sessionPromise = engine.startSession();
+      mockChild.emit("spawn");
+      await tick();
+
+      const first = makeChunk();
+      engine.pushAudio(first);
+      replyReady("initialize");
+      await tick();
+
+      expect(sentOfType("session-start")).toHaveLength(1);
+      const second = { ...makeChunk(), startMs: 100, endMs: 200 };
+      engine.pushAudio(second);
+      expect(sentOfType("audio")).toHaveLength(0);
+
+      replyReady("session-start");
+      await sessionPromise;
+
+      const audio = sentOfType("audio");
+      expect(audio.map((m) => m.chunk)).toEqual([first, second]);
+      expect(audio[0]).not.toHaveProperty("requestId");
+      expect(typeof audio[0].sentAt).toBe("number");
     });
 
-    it("sends transcribe request and returns results", async () => {
+    it("posts audio directly once the session is ready", async () => {
+      await startReadySession();
       const chunk = makeChunk();
-      const transcribePromise = engine.transcribe(chunk);
 
-      // Give transcribe() a chance to proceed past await this.initialize()
-      await tick();
+      engine.pushAudio(chunk);
 
-      expect(mockChild.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "transcribe",
-          chunk,
-        }),
-      );
-
-      const requestId = mockChild.send.mock.calls[0][0].requestId;
-      const mockSegments = [
-        { id: "1", text: "Hello", startMs: 0, endMs: 100, timestamp: "T1" },
-      ];
-      mockChild.emit("message", {
-        type: "result",
-        requestId,
-        segments: mockSegments,
-      });
-
-      const result = await transcribePromise;
-      expect(result).toEqual(mockSegments);
+      expect(sentOfType("audio")).toEqual([
+        { type: "audio", chunk, sentAt: expect.any(Number) },
+      ]);
     });
 
-    it("rejects if worker reports an error", async () => {
-      const transcribePromise = engine.transcribe(makeChunk());
+    it("ignores audio when no session is active", async () => {
+      await initializeEngine(engine, mockChild, mockModel);
+      engine.pushAudio(makeChunk());
+      expect(mockChild.send).not.toHaveBeenCalled();
+    });
 
+    it("endSession sends session-end and resolves on ready", async () => {
+      await startReadySession();
+
+      let ended = false;
+      const endPromise = engine.endSession().then(() => {
+        ended = true;
+      });
+      await tick();
+      expect(sentOfType("session-end")).toHaveLength(1);
+      expect(ended).toBe(false);
+
+      replyReady("session-end");
+      await endPromise;
+      expect(ended).toBe(true);
+    });
+
+    it("re-emits segment, partial and lag events", async () => {
+      await startReadySession();
+      const segment = { id: "1", text: "Hello", startMs: 0, endMs: 100, timestamp: "T1" };
+      const onSegment = vi.fn();
+      const onPartial = vi.fn();
+      const onLag = vi.fn();
+      engine.on("segment", onSegment);
+      engine.on("partial", onPartial);
+      engine.on("lag", onLag);
+
+      mockChild.emit("message", { type: "segment", segment });
+      mockChild.emit("message", { type: "partial", text: "Hel" });
+      mockChild.emit("message", { type: "lag", behindMs: 1500 });
+
+      expect(onSegment).toHaveBeenCalledWith(segment);
+      expect(onPartial).toHaveBeenCalledWith("Hel");
+      expect(onLag).toHaveBeenCalledWith(1500);
+    });
+
+    it("emits worker errors without a pending request as 'error' events", async () => {
+      await startReadySession();
+      const onError = vi.fn();
+      engine.on("error", onError);
+
+      mockChild.emit("message", { type: "error", message: "Decoder crashed" });
+
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "Decoder crashed" }));
+    });
+
+    it("rejects startSession when the worker reports an error for it", async () => {
+      await initializeEngine(engine, mockChild, mockModel);
+      const sessionPromise = engine.startSession();
       await tick();
 
-      const requestId = mockChild.send.mock.calls[0][0].requestId;
       mockChild.emit("message", {
         type: "error",
-        requestId,
-        message: "Transcription failed",
+        requestId: sentOfType("session-start")[0].requestId,
+        message: "Session failed",
       });
 
-      await expect(transcribePromise).rejects.toThrow("Transcription failed");
+      await expect(sessionPromise).rejects.toThrow("Session failed");
     });
 
-    it("rejects if worker exits unexpectedly", async () => {
-      const transcribePromise = engine.transcribe(makeChunk());
-
-      await tick();
+    it("emits an 'error' event when the worker exits during a session", async () => {
+      await startReadySession();
+      const onError = vi.fn();
+      engine.on("error", onError);
 
       mockChild.emit("exit", 1, null);
 
-      await expect(transcribePromise).rejects.toThrow(
-        "Whisper worker exited unexpectedly",
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringContaining("exited unexpectedly") }),
       );
     });
   });
@@ -212,14 +281,12 @@ describe("WhisperEngine", () => {
     it("rejects all pending requests when disposed", async () => {
       await initializeEngine(engine, mockChild, mockModel);
 
-      const transcribePromise = engine.transcribe(makeChunk());
+      const sessionPromise = engine.startSession();
       await tick();
 
       engine.dispose();
 
-      await expect(transcribePromise).rejects.toThrow(
-        "Whisper worker disposed",
-      );
+      await expect(sessionPromise).rejects.toThrow("Whisper worker disposed");
     });
   });
 

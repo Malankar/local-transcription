@@ -9,7 +9,7 @@ test.describe('AppShell auto-navigation @slow', () => {
       const window = await electronApp.firstWindow()
       await window.waitForLoadState('domcontentloaded')
 
-      await window.getByRole('button', { name: 'Mic' }).click()
+      await window.getByRole('button', { name: /^Microphone/ }).click()
       const startRecording = window.getByRole('button', { name: 'Start Recording' })
       try {
         await expect(startRecording).toBeEnabled({ timeout: 45_000 })
@@ -31,7 +31,7 @@ test.describe('AppShell auto-navigation @slow', () => {
       await expect(async () => {
         const transcriptions = await window.getByRole('heading', { name: 'Transcriptions' }).isVisible()
         const saved = await window.getByRole('heading', { name: 'Recording saved' }).isVisible()
-        return transcriptions || saved
+        expect(transcriptions || saved).toBe(true)
       }).toPass({ timeout: 180_000 })
 
       if (await window.getByRole('heading', { name: 'Recording saved' }).isVisible()) {

@@ -36,7 +36,7 @@ vi.mock('node:fs/promises', () => {
 // ──────────────────────────────────────────────────────────────────────────────
 // Import units under test after mock registration.
 // ──────────────────────────────────────────────────────────────────────────────
-import { ModelManager, MODEL_CATALOG } from '../../../src/main/transcription/ModelManager'
+import { ModelManager, MODEL_CATALOG, checkDownloadIntegrity } from '../../../src/main/transcription/ModelManager'
 import { existsSync, unlinkSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { get as httpsGet } from 'node:https'
@@ -380,10 +380,10 @@ describe('ModelManager', () => {
     })
 
     it('unlinks the model files and updates settings when removing the selected model', async () => {
-      const managedId = MODEL_CATALOG.find((m) => m.downloadManaged)!.id
+      const { id: managedId, runtimeModelName } = MODEL_CATALOG.find((m) => m.downloadManaged)!
       let filePresent = true
       vi.mocked(existsSync).mockImplementation((p) => {
-        if (String(p).includes(`sherpa-onnx-whisper-${managedId}/`) && !String(p).endsWith('.part')) {
+        if (String(p).includes(`${runtimeModelName}/`) && !String(p).endsWith('.part')) {
           return filePresent
         }
         return false
@@ -398,7 +398,7 @@ describe('ModelManager', () => {
 
       expect(unlinkSync).toHaveBeenCalled()
       const unlinkedPath = vi.mocked(unlinkSync).mock.calls[0][0] as string
-      expect(unlinkedPath).toContain(`sherpa-onnx-whisper-${managedId}/`)
+      expect(unlinkedPath).toContain(`${runtimeModelName}/`)
       expect(writeFile).toHaveBeenCalled()
       const written = JSON.parse(vi.mocked(writeFile).mock.calls[0][1] as string)
       expect(written.selectedModel).not.toBe(managedId)
@@ -410,6 +410,24 @@ describe('ModelManager', () => {
   describe('setProgressListener', () => {
     it('accepts a listener without throwing', () => {
       expect(() => manager.setProgressListener(vi.fn())).not.toThrow()
+    })
+  })
+
+  // ── checkDownloadIntegrity ────────────────────────────────────────────────
+
+  describe('checkDownloadIntegrity', () => {
+    const file = { url: 'https://example.com/m/encoder.onnx', sizeBytes: 10, sha256: 'abc' }
+
+    it('flags a size mismatch as incomplete', () => {
+      expect(checkDownloadIntegrity(file, 9, 'abc')?.message).toMatch(/encoder\.onnx was incomplete \(9 of 10 bytes\)/)
+    })
+
+    it('flags a hash mismatch as corrupted', () => {
+      expect(checkDownloadIntegrity(file, 10, 'def')?.message).toMatch(/encoder\.onnx is corrupted/)
+    })
+
+    it('accepts a matching download', () => {
+      expect(checkDownloadIntegrity(file, 10, 'abc')).toBeNull()
     })
   })
 })

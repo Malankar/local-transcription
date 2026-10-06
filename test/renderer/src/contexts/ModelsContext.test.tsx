@@ -42,12 +42,12 @@ describe('ModelsContext', () => {
       getModels: vi
         .fn()
         .mockResolvedValueOnce([
-          { id: 'tiny.en', name: 'Tiny', description: '', sizeMb: 75, languages: 'en', accuracy: 2, speed: 5, recommended: true, engine: 'sherpa', runtime: 'node', runtimeModelName: 'tiny', downloadManaged: true, supportsGpuAcceleration: false, isDownloaded: true },
-          { id: 'base.en', name: 'Base', description: '', sizeMb: 150, languages: 'en', accuracy: 3, speed: 4, recommended: false, engine: 'sherpa', runtime: 'node', runtimeModelName: 'base', downloadManaged: true, supportsGpuAcceleration: false, isDownloaded: false },
+          { id: 'tiny.en', name: 'Tiny', description: '', sizeMb: 75, languages: 'en', accuracy: 2, speed: 5, recommended: true, engine: 'sherpa', runtime: 'node', runtimeModelName: 'tiny', downloadManaged: true, supportsGpuAcceleration: false, streaming: false, isDownloaded: true },
+          { id: 'base.en', name: 'Base', description: '', sizeMb: 150, languages: 'en', accuracy: 3, speed: 4, recommended: false, engine: 'sherpa', runtime: 'node', runtimeModelName: 'base', downloadManaged: true, supportsGpuAcceleration: false, streaming: false, isDownloaded: false },
         ])
         .mockResolvedValue([
-          { id: 'tiny.en', name: 'Tiny', description: '', sizeMb: 75, languages: 'en', accuracy: 2, speed: 5, recommended: true, engine: 'sherpa', runtime: 'node', runtimeModelName: 'tiny', downloadManaged: true, supportsGpuAcceleration: false, isDownloaded: true },
-          { id: 'base.en', name: 'Base', description: '', sizeMb: 150, languages: 'en', accuracy: 3, speed: 4, recommended: false, engine: 'sherpa', runtime: 'node', runtimeModelName: 'base', downloadManaged: true, supportsGpuAcceleration: false, isDownloaded: true },
+          { id: 'tiny.en', name: 'Tiny', description: '', sizeMb: 75, languages: 'en', accuracy: 2, speed: 5, recommended: true, engine: 'sherpa', runtime: 'node', runtimeModelName: 'tiny', downloadManaged: true, supportsGpuAcceleration: false, streaming: false, isDownloaded: true },
+          { id: 'base.en', name: 'Base', description: '', sizeMb: 150, languages: 'en', accuracy: 3, speed: 4, recommended: false, engine: 'sherpa', runtime: 'node', runtimeModelName: 'base', downloadManaged: true, supportsGpuAcceleration: false, streaming: false, isDownloaded: true },
         ]),
       getSelectedModel: vi.fn().mockResolvedValue('tiny.en'),
       onModelDownloadProgress: vi.fn().mockImplementation((listener) => {

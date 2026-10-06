@@ -26,7 +26,7 @@ test.describe('@smoke navigation shell', () => {
       })
 
       const openSettings = async () => {
-        await page.getByRole('navigation').getByTitle('Settings').click()
+        await page.getByRole('navigation').getByRole('button', { name: 'Open settings' }).click()
       }
 
       await test.step('Settings opens as dialog with Settings heading', async () => {

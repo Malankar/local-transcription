@@ -14,6 +14,7 @@ import {
   type TranscriptSegment,
 } from '../../shared/types'
 import { OLLAMA_DEFAULT_BASE_URL } from '../../shared/assistantModels'
+import { resolveModelLanguage } from '../../shared/modelLanguage'
 import {
   assistantReplyChat,
   enrichHistorySessionAfterSave,
@@ -23,7 +24,6 @@ import {
 import { ollamaListTags, ollamaPullModel } from '../assistant/ollamaClient'
 import { AudioCapture } from '../audio/AudioCapture'
 import { SourceDiscovery } from '../audio/SourceDiscovery'
-import { ChunkQueue } from '../transcription/ChunkQueue'
 import { WhisperEngine } from '../transcription/WhisperEngine'
 import { ModelManager } from '../transcription/ModelManager'
 import { TranscriptExporter } from '../export/TranscriptExporter'
@@ -41,7 +41,6 @@ const SOURCES_GET_CACHE_MS = 300
 
 interface RegisterHandlersOptions {
   audioCapture: AudioCapture
-  chunkQueue: ChunkQueue
   sourceDiscovery: SourceDiscovery
   whisperEngine: WhisperEngine
   modelManager: ModelManager
@@ -52,6 +51,10 @@ interface RegisterHandlersOptions {
   getTranscriptSegments: () => TranscriptSegment[]
   resetTranscriptSegments: () => void
   onCaptureStarted: (profile: 'meeting' | 'live', startTime: string) => void
+  /** Stops capture, waits for the last phrases to transcribe, then saves the session. */
+  stopCaptureAndFinish: (detail: string) => Promise<void>
+  /** Starts the idle-unload countdown after a warm-up that wasn't followed by a capture. */
+  onModelWarmedUp: () => void
   onSettingsChanged: (settings: import('../../shared/types').AppSettings) => void
   sendStatus: (status: AppStatus) => void
   sendError: (message: string) => void
@@ -60,7 +63,6 @@ interface RegisterHandlersOptions {
 export function registerIpcHandlers(options: RegisterHandlersOptions): void {
   const {
     audioCapture,
-    chunkQueue,
     sourceDiscovery,
     whisperEngine,
     modelManager,
@@ -71,6 +73,8 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     getTranscriptSegments,
     resetTranscriptSegments,
     onCaptureStarted,
+    stopCaptureAndFinish,
+    onModelWarmedUp,
     onSettingsChanged,
     sendStatus,
     sendError,
@@ -101,32 +105,40 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
     }
   })
 
+  /** Points the engine at the selected model + language; throws if none is usable. */
+  async function configureSelectedModel(): Promise<string> {
+    const selectedModelId = await modelManager.getSelectedModel()
+    if (!selectedModelId) {
+      throw new Error('No model selected. Download or configure a transcription model before capturing.')
+    }
+
+    const selectedModel = modelManager.getModel(selectedModelId)
+    if (!selectedModel) {
+      throw new Error(`Selected model "${selectedModelId}" is not available.`)
+    }
+
+    const { transcriptionLanguage } = await settingsManager.getSettings()
+    whisperEngine.setModel(selectedModel, resolveModelLanguage(selectedModel, transcriptionLanguage))
+    return selectedModel.id
+  }
+
   ipcMain.handle('capture:start', async (_event, captureOptions: CaptureStartOptions) => {
     try {
-      const selectedModelId = await modelManager.getSelectedModel()
-      if (!selectedModelId) {
-        throw new Error('No model selected. Download or configure a transcription model before capturing.')
-      }
-
-      const selectedModel = modelManager.getModel(selectedModelId)
-      if (!selectedModel) {
-        throw new Error(`Selected model "${selectedModelId}" is not available.`)
-      }
-
-      logger.info('Received capture:start request', {
-        ...captureOptions,
-        modelId: selectedModel.id,
-        engine: selectedModel.engine,
-      })
+      if (audioCapture.isRunning()) throw new Error('Capture is already running')
       await ensureMicrophoneAccess()
-      whisperEngine.setModel(selectedModel)
+      const modelId = await configureSelectedModel()
+      logger.info('Received capture:start request', { ...captureOptions, modelId })
       resetTranscriptSegments()
-      chunkQueue.setMode(captureOptions.profile === 'live' ? 'realtime' : 'default')
-      chunkQueue.clear()
       onCaptureStarted(captureOptions.profile ?? 'meeting', new Date().toISOString())
       sendStatus({ stage: 'initializing-model', detail: 'Preparing transcription engine...' })
+      // Capture starts first; the engine buffers audio while the model loads, so nothing is lost.
       audioCapture.start(captureOptions)
-      sendStatus({ stage: 'capturing', detail: 'Capturing audio until a natural pause is detected...' })
+      void whisperEngine.startSession().catch((error: unknown) => {
+        logger.error('Failed to start transcription session', error)
+        sendError(toMessage(error))
+        void stopCaptureAndFinish('Capture stopped: transcription engine failed to start')
+      })
+      sendStatus({ stage: 'capturing', detail: 'Listening...' })
     } catch (error) {
       const message = toMessage(error)
       logger.error('Failed to start capture', error)
@@ -137,9 +149,20 @@ export function registerIpcHandlers(options: RegisterHandlersOptions): void {
 
   ipcMain.handle('capture:stop', async () => {
     logger.info('Received capture:stop request')
-    audioCapture.stop()
-    chunkQueue.notifyCaptureEnded()
-    sendStatus({ stage: 'stopped', detail: 'Capture stopped' })
+    await stopCaptureAndFinish('Capture stopped')
+  })
+
+  // Called when the record screen opens so the first words don't wait on a model load.
+  ipcMain.handle('transcription:warmup', async () => {
+    if (audioCapture.isRunning()) return
+    try {
+      await configureSelectedModel()
+      await whisperEngine.initialize()
+      onModelWarmedUp()
+    } catch (error) {
+      // Warm-up is best effort; capture:start reports real problems.
+      logger.info('Model warm-up skipped', { reason: toMessage(error) })
+    }
   })
 
   ipcMain.handle('export:txt', async () => {

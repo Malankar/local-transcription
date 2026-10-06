@@ -15,14 +15,15 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
-  timeout: 120_000,
+  // Short defaults so a broken test fails in seconds; download-heavy specs set their own longer limits.
+  timeout: 60_000,
   globalTimeout: GLOBAL_SUITE_MS,
   expect: {
-    timeout: 20_000,
+    timeout: 10_000,
   },
   use: {
-    actionTimeout: 60_000,
-    navigationTimeout: 120_000,
+    actionTimeout: 10_000,
+    navigationTimeout: 30_000,
   },
   reporter: [['list']],
 })

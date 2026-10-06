@@ -29,6 +29,7 @@ function makeModel(overrides: Partial<TranscriptionModel> = {}): TranscriptionMo
     runtimeModelName: 'test',
     downloadManaged: true,
     supportsGpuAcceleration: false,
+    streaming: false,
     isDownloaded: true,
     ...overrides,
   }

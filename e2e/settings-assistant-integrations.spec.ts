@@ -15,7 +15,7 @@ function settingRow(dialog: Locator, label: string) {
 }
 
 async function openSettingsAndScrollToAssistant(window: Page) {
-  await window.getByTitle('Settings').click()
+  await window.getByRole('button', { name: 'Open settings' }).click()
   const dialog = window.getByRole('dialog')
   await expect(dialog.getByRole('heading', { name: 'Settings' })).toBeVisible()
   await expect(dialog.getByRole('heading', { level: 3, name: 'Start hidden' })).toBeVisible({
@@ -41,7 +41,9 @@ async function testToggleSetting(window: Page, headingName: string) {
   await expect(toggle).toHaveAttribute('data-state', 'unchecked')
 }
 
-test.describe('Settings — Assistant & integrations', () => {
+// Assistant provider select, "Enable external assistant" and "Third-party integrations" were removed
+// from SettingsView (f2dbbd5); the Assistant section is now only the Ollama models card. Nothing to drive.
+test.describe.skip('Settings — Assistant & integrations', () => {
   test.describe('Assistant provider select', () => {
     test('shows default and allows choosing another provider', async () => {
       const { electronApp } = await launchApp()

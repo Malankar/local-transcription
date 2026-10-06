@@ -19,10 +19,10 @@ jobs:
       matrix:
         include:
           # ── macOS Intel (x64) ───────────────────────────────────────────
-          # macos-13 is the last Intel GitHub-hosted runner.
+          # macos-13 was retired Dec 2025; macos-15-intel is GitHub's current Intel runner.
           # Per-arch runner so pnpm installs the matching sherpa-onnx + ffmpeg-static binaries.
           - name: mac-x64
-            os: macos-13
+            os: macos-15-intel
             eb_args: --mac --x64
             release_script: release:mac:x64
 
@@ -82,10 +82,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # electron-builder wants APPLE_API_KEY as a *path* to the .p8 file, so decode the secret
+      # (base64 of the .p8) to disk. Notarization only turns on when all three secrets exist.
+      - name: Prepare macOS notarization
+        if: runner.os == 'macOS'
+        env:
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          if [ -n "$APPLE_API_KEY_B64" ] && [ -n "$APPLE_API_KEY_ID" ] && [ -n "$APPLE_API_ISSUER" ]; then
+            KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+            echo "$APPLE_API_KEY_B64" | base64 --decode > "$KEY_PATH"
+            echo "APPLE_API_KEY=$KEY_PATH" >> "$GITHUB_ENV"
+            echo "EB_EXTRA_ARGS=-c.mac.notarize=true" >> "$GITHUB_ENV"
+          else
+            echo "Apple notarization secrets not set; building without notarization."
+          fi
+
       # Native deps (sherpa-onnx, ffmpeg-static, audiotee) ship prebuilt per platform,
       # so nothing is compiled here.
       - name: Build & package (${{ matrix.name }})
-        run: pnpm run ${{ matrix.release_script }}
+        shell: bash
+        run: pnpm run ${{ matrix.release_script }} $EB_EXTRA_ARGS
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -96,10 +115,9 @@ jobs:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
-          # Apple Connect API key for notarization (replaces legacy APPLE_ID flow).
-          # Create at: https://appstoreconnect.apple.com/access/api
-          # Store the .p8 file content as base64 in the APPLE_API_KEY secret.
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          # App Store Connect API key for notarization (create at
+          # https://appstoreconnect.apple.com/access/api). APPLE_API_KEY (the .p8 path) is set by
+          # the "Prepare macOS notarization" step from the base64 secret of the same name.
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 

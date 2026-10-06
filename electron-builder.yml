@@ -20,6 +20,9 @@ directories:
 extraResources:
   - from: build/tray-icon.png
     to: tray-icon.png
+  # Silero VAD (MIT, github.com/snakers4/silero-vad) splits audio into phrases for the worker.
+  - from: build/silero_vad.onnx
+    to: silero_vad.onnx
 
 # Publish artifacts to GitHub Releases as a draft on every tagged build.
 # Set to "always" via --publish flag in CI; this is a fallback default.
@@ -54,8 +57,9 @@ mac:
     NSMicrophoneUsageDescription: LocalTranscribe records audio from your microphone or loopback device to transcribe it on this Mac.
     # Required for system audio via Core Audio taps (macOS 14.2+); without it the tap records silence.
     NSAudioCaptureUsageDescription: LocalTranscribe records the audio playing on this Mac (meetings, videos) to transcribe it locally.
-  # notarize: true requires APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER secrets.
-  # Set to false until those secrets are configured; flip to true when ready.
+  # CI passes -c.mac.notarize=true automatically once the APPLE_API_KEY / APPLE_API_KEY_ID /
+  # APPLE_API_ISSUER secrets exist (see .github/workflows/release.yml). Signing likewise only
+  # happens when CSC_LINK / CSC_KEY_PASSWORD are set.
   notarize: false
 
 dmg:
